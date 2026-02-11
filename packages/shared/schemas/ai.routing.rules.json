@@ -1,0 +1,51 @@
+{
+  "version": "1.0.0",
+  "principles": [
+    "Never guess. Abstain is correct.",
+    "Tags are weak signals.",
+    "Manufacturing origin must be evidence-backed."
+  ],
+  "photo_requirements": {
+    "P0": [
+      "PHOTO_BACK"
+    ],
+    "P1": [
+      "PHOTO_WRIST_PATCH",
+      "PHOTO_LINER",
+      "PHOTO_STAMPS"
+    ]
+  },
+  "routing": [
+    {
+      "if": {
+        "confidence_overall": "HIGH",
+        "catalog_match": true
+      },
+      "then": {
+        "ai_support_level": "VARIANT_LEVEL",
+        "valuation_mode": "ESTIMATE_AND_RANGE"
+      }
+    },
+    {
+      "if": {
+        "confidence_overall": "MEDIUM",
+        "brand_known": true
+      },
+      "then": {
+        "ai_support_level": "FAMILY_LEVEL",
+        "valuation_mode": "RANGE_ONLY",
+        "request_more_photos": true
+      }
+    },
+    {
+      "if": {
+        "confidence_overall": "LOW"
+      },
+      "then": {
+        "ai_support_level": "ARTIFACT_ONLY",
+        "valuation_mode": "DISABLED",
+        "request_more_photos": true
+      }
+    }
+  ]
+}

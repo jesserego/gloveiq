@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GloveIQ AI Labels",
+  "type": "object",
+  "required": [
+    "object_type",
+    "classification",
+    "confidence",
+    "verification",
+    "condition",
+    "valuation_routing"
+  ],
+  "properties": {
+    "object_type": {
+      "type": "string",
+      "enum": [
+        "CATALOGED_MODEL",
+        "ARTIFACT"
+      ]
+    },
+    "ai_support_level": {
+      "type": "string"
+    },
+    "classification": {
+      "type": "object"
+    },
+    "confidence": {
+      "type": "object"
+    },
+    "needs_more_input": {
+      "type": "object"
+    },
+    "verification": {
+      "type": "object"
+    },
+    "condition": {
+      "type": "object"
+    },
+    "valuation_routing": {
+      "type": "object"
+    },
+    "valuation": {
+      "type": "object"
+    }
+  }
+}

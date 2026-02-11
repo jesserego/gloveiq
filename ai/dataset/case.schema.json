@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GloveIQ Identification Case",
+  "type": "object",
+  "required": [
+    "case_id",
+    "created_at",
+    "inputs",
+    "ground_truth"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "ground_truth": {
+      "type": "object"
+    },
+    "corrections": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}
