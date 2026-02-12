@@ -1,0 +1,167 @@
+{
+  "taxonomy_version": "1.0.0",
+  "last_updated": "2026-02-11",
+  "authority": "Schema & Taxonomy Authority",
+  "scope": "Baseball gloves only",
+  "rules": {
+    "evidence_first": true,
+    "no_guessing": true,
+    "unknown_explicit": "UNKNOWN",
+    "model_artifact_separation_required": true
+  },
+  "brand_enum": {
+    "global": [
+      "Rawlings",
+      "Wilson",
+      "Mizuno",
+      "Nike",
+      "Easton",
+      "Marucci",
+      "Nokona",
+      "All-Star",
+      "Akadema",
+      "Franklin",
+      "Under Armour",
+      "Louisville Slugger",
+      "44 Pro",
+      "Bradley",
+      "SSK"
+    ],
+    "japan_dominant_or_only": [
+      "Kubota Slugger",
+      "Zett",
+      "IP Select",
+      "Donaiya",
+      "Hatakeyama",
+      "Hi-Gold",
+      "Xanax",
+      "Atoms",
+      "Studio Ryu",
+      "World Pegasus",
+      "Tamazawa",
+      "Yell Story"
+    ]
+  },
+  "product_line_rule": {
+    "separate_from_brand": true,
+    "examples": [
+      "Heart of the Hide",
+      "Pro Preferred",
+      "A2K",
+      "Mizuno Pro"
+    ]
+  },
+  "pattern_system": {
+    "pattern_type_enum": ["EXPLICIT", "IMPLICIT", "CUSTOM"],
+    "explicit": {
+      "requires_documented_code": true,
+      "allowed_sources": ["STAMP", "ORDER_SHEET", "OFFICIAL_CATALOG"]
+    },
+    "implicit": {
+      "inference_basis": [
+        "finger_length_ratio",
+        "heel_shape",
+        "web_type",
+        "catalog_match"
+      ],
+      "max_certainty_without_docs": "MEDIUM"
+    },
+    "custom": {
+      "requires_documentation": true,
+      "pattern_code_default": "UNKNOWN"
+    }
+  },
+  "leather_taxonomy": {
+    "leather_category_enum": [
+      "Kip",
+      "Steerhide",
+      "Cowhide",
+      "Calfskin",
+      "Horween",
+      "Tanned",
+      "Synthetic",
+      "Hybrid"
+    ],
+    "leather_line_enum": [
+      "Primo",
+      "Heart of the Hide",
+      "Pro Preferred",
+      "A2K Leather",
+      "Mizuno Pro Leather",
+      "Pro Status Leather",
+      "Elite Leather"
+    ],
+    "leather_origin_enum": [
+      "Japan",
+      "USA",
+      "Korea",
+      "Philippines",
+      "China",
+      "Taiwan",
+      "UNKNOWN"
+    ],
+    "spelling_enforced": {
+      "Primo": true
+    }
+  },
+  "origin_rules": {
+    "fields": [
+      "brand_origin",
+      "manufacture_country",
+      "distribution_region"
+    ],
+    "japan_manufacture_requires_explicit_evidence": true,
+    "never_infer_from_brand_or_price": true
+  },
+  "artifact_system": {
+    "artifact_type_enum": [
+      "CATALOG_MATCH",
+      "CUSTOM_ORDER",
+      "PRO_ISSUE",
+      "ONE_OFF_BUILDER",
+      "RESTORED",
+      "RELACED",
+      "UNKNOWN"
+    ],
+    "required_fields": [
+      "artifact_id",
+      "model_link",
+      "ownership_status"
+    ],
+    "custom_order_requirements": [
+      "custom_factory",
+      "order_sheet_present",
+      "pattern_code_if_available"
+    ],
+    "one_off_builder_requirements": [
+      "builder_name",
+      "build_year",
+      "provenance_documentation"
+    ],
+    "restoration_status_enum": [
+      "ORIGINAL",
+      "RELACED",
+      "REBUILT",
+      "CONDITIONED_ONLY",
+      "UNKNOWN"
+    ]
+  },
+  "confidence_model": {
+    "required_fields": [
+      "model_certainty",
+      "pattern_certainty",
+      "leather_certainty",
+      "origin_certainty"
+    ],
+    "levels": ["HIGH", "MEDIUM", "LOW"],
+    "high_requires_documentary_evidence": true
+  },
+  "unknown_handling": {
+    "default_value": "UNKNOWN",
+    "certainty": "LOW",
+    "evidence_required_flag": true
+  },
+  "caching_rule": {
+    "cache_key_formula": "image_hash + taxonomy_version"
+  }
+}

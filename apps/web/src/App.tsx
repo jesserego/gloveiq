@@ -44,6 +44,8 @@ import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
+import aiLabelSchema from "./data/ai-label-schema.json";
+import aiTaxonomy from "./data/ai-taxonomy.json";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 const FIGMA_TAG_BASE_SX = {
@@ -559,13 +561,17 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
   const [uploadingByAngle, setUploadingByAngle] = useState<Partial<Record<IntakeAngle, boolean>>>({});
   const [uploadedByAngle, setUploadedByAngle] = useState<Partial<Record<IntakeAngle, { photoId: string; deduped: boolean }>>>({});
   const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const [listingLink, setListingLink] = useState("");
   const [submitState, setSubmitState] = useState<"idle" | "submitted">("idle");
+  const [catalogRecords, setCatalogRecords] = useState<Array<{ id: string; summary: Record<string, unknown> }>>([]);
 
   const [identity, setIdentity] = useState({
     brand: "Rawlings",
     model: "PRO1000",
+    pattern: "PRO1000",
     size: "11.5",
     throwSide: "RHT",
+    web: "I-Web",
     note: "",
   });
   const [variant, setVariant] = useState({
@@ -576,34 +582,55 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
   });
   const [condition, setCondition] = useState({
     relaced: "unknown",
-    palmWear: "moderate",
-    leatherDryness: "none",
-    structure: "good",
     repairs: "none",
+    cosmeticWear: "medium",
+    palmIntegrity: 62,
+    structureRetention: 64,
   });
+
+  const taxonomy = aiTaxonomy as any;
+  const schemaVersion = (aiLabelSchema as any)?.$id ? "v1.0.0" : "v0.0.0";
+  const brandOptions: string[] = [
+    ...(taxonomy?.brand_enum?.global || []),
+    ...(taxonomy?.brand_enum?.japan_dominant_or_only || []),
+  ];
+  const leatherLineOptions: string[] = taxonomy?.leather_taxonomy?.leather_line_enum || [];
 
   const requiredAngles = INTAKE_ANGLE_DEFS.filter((d) => d.required).map((d) => d.key);
   const uploadedRequiredCount = requiredAngles.filter((a) => uploadedByAngle[a]).length;
+  const evidenceReady = uploadedRequiredCount === requiredAngles.length;
+  const unknownIdentityCount = [identity.brand, identity.model, identity.pattern, identity.size, identity.throwSide, identity.web]
+    .filter((v) => !v || String(v).toUpperCase() === "UNKNOWN").length;
+  const unknownVariantCount = [variant.country, variant.leather, variant.era]
+    .filter((v) => !v || String(v).toUpperCase() === "UNKNOWN").length;
+  const decisionState = !evidenceReady
+    ? "needs_more_photos"
+    : unknownIdentityCount + unknownVariantCount >= 3
+      ? "needs_artifact_review"
+      : "ai_proposed";
+  const decisionReason = !evidenceReady
+    ? "Evidence-first rule: required photo slots are incomplete."
+    : unknownIdentityCount + unknownVariantCount >= 3
+      ? "No-guessing rule: too many unknown fields require manual review."
+      : "Sufficient evidence and taxonomy inputs for AI proposal.";
+
   const confidenceScore = useMemo(() => {
     const evidencePct = uploadedRequiredCount / requiredAngles.length;
-    const linerBonus = uploadedByAngle.LINER_STAMP ? 0.1 : 0;
-    const identityBonus = identity.brand && identity.model ? 0.1 : 0;
-    return Math.min(1, evidencePct * 0.7 + linerBonus + identityBonus);
-  }, [uploadedRequiredCount, requiredAngles.length, uploadedByAngle.LINER_STAMP, identity.brand, identity.model]);
+    const unknownPenalty = (unknownIdentityCount + unknownVariantCount) * 0.05;
+    const decisionBonus = decisionState === "ai_proposed" ? 0.14 : decisionState === "needs_artifact_review" ? 0.04 : -0.08;
+    return Math.max(0.05, Math.min(0.95, evidencePct * 0.62 + 0.32 + decisionBonus - unknownPenalty));
+  }, [uploadedRequiredCount, requiredAngles.length, unknownIdentityCount, unknownVariantCount, decisionState]);
   const confidenceBand: ConfidenceBand = confidenceScore >= 0.8 ? "High" : confidenceScore >= 0.5 ? "Medium" : "Low";
 
   const conditionScore = useMemo(() => {
-    let score = 7.2;
-    if (condition.relaced === "full") score -= 0.5;
-    if (condition.relaced === "partial") score -= 0.2;
-    if (condition.palmWear === "heavy") score -= 1.2;
-    if (condition.palmWear === "light") score += 0.2;
-    if (condition.leatherDryness === "heavy") score -= 1.1;
-    if (condition.structure === "floppy") score -= 1.0;
-    if (condition.structure === "firm") score += 0.3;
-    if (condition.repairs === "major") score -= 1.2;
-    if (condition.repairs === "minor") score -= 0.4;
-    return Math.max(1, Math.min(9.5, Number(score.toFixed(1))));
+    let score = ((condition.palmIntegrity + condition.structureRetention) / 2) / 10;
+    if (condition.relaced === "full") score -= 0.6;
+    if (condition.relaced === "partial") score -= 0.25;
+    if (condition.repairs === "major") score -= 0.9;
+    if (condition.repairs === "minor") score -= 0.35;
+    if (condition.cosmeticWear === "high") score -= 0.55;
+    if (condition.cosmeticWear === "low") score += 0.2;
+    return Math.max(1, Math.min(9.7, Number(score.toFixed(1))));
   }, [condition]);
 
   const estimate = useMemo(() => {
@@ -634,17 +661,70 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
     setStep(Math.max(1, Math.min(5, n)));
   }
 
+  function buildVerificationSummary() {
+    const now = new Date().toISOString();
+    return {
+      version: schemaVersion,
+      label_sets: {
+        identity: {
+          brand: identity.brand || "UNKNOWN",
+          family: { id: identity.model || "UNKNOWN", name: identity.model || "UNKNOWN" },
+          pattern: { id: identity.pattern || "UNKNOWN", code: identity.pattern || "UNKNOWN", system: "explicit_coded" },
+          variant: { id: variant.era || "UNKNOWN", name: variant.specialStamp || "UNKNOWN", type: "designation_only" },
+        },
+      },
+      evidence: {
+        photo_slots: {
+          palm: Boolean(uploadedByAngle.PALM),
+          heel: Boolean(uploadedByAngle.HEEL_STAMP),
+          web: Boolean(uploadedByAngle.WEB),
+          wrist: Boolean(uploadedByAngle.BACKHAND),
+          label_tag: Boolean(uploadedByAngle.LINER_STAMP),
+          overall: Boolean(uploadedByAngle.BACKHAND),
+        },
+      },
+      confidence: {
+        tier: confidenceBand.toLowerCase().slice(0, 3),
+        score: Number(confidenceScore.toFixed(3)),
+        basis: [
+          `required_evidence_uploaded=${uploadedRequiredCount}/${requiredAngles.length}`,
+          `decision_state=${decisionState}`,
+          `condition_score=${conditionScore}`,
+        ],
+      },
+      verification: {
+        state: decisionState,
+        history: [{ at: now, actor: "user", from: "unverified", to: decisionState, reason: decisionReason }],
+      },
+      pricing: { point_estimate: estimate.point, low: estimate.low, high: estimate.high },
+      listing_link: listingLink || null,
+    } as Record<string, unknown>;
+  }
+
+  function catalogCurrentSummary() {
+    const summary = buildVerificationSummary();
+    const id = `CAT-${Math.floor(100000 + Math.random() * 899999)}`;
+    setCatalogRecords((s) => [{ id, summary }, ...s]);
+    setSubmitState("submitted");
+  }
+
   return (
     <Stack spacing={2}>
       <Card><CardContent>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between">
           <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Get an Estimate</Typography>
-            <Typography variant="body2" color="text.secondary">Upload evidence, confirm glove details, and receive a confidence-gated market estimate.</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Pipeline Flow Test</Typography>
+            <Typography variant="body2" color="text.secondary">Upload → Input → Decide → Score & Price → Catalog (attachments ingested).</Typography>
           </Box>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Chip key={n} label={`Step ${n}`} color={step === n ? "primary" : "default"} onClick={() => changeStep(n)} clickable />
+            {[
+              { n: 1, label: "Upload" },
+              { n: 2, label: "Input" },
+              { n: 3, label: "Decide" },
+              { n: 4, label: "Score & Price" },
+              { n: 5, label: "Catalog" },
+            ].map((s) => (
+              <Chip key={s.n} label={s.label} color={step === s.n ? "primary" : "default"} onClick={() => changeStep(s.n)} clickable />
             ))}
           </Stack>
         </Stack>
@@ -652,205 +732,168 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
 
       {step === 1 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Step 1: Add Evidence</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Upload clear photos for required angles. This directly improves identity confidence and valuation precision.
-          </Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Upload</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Evidence-first: upload required angles before decision and pricing.</Typography>
           <Divider sx={{ my: 2 }} />
-
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" }, gap: 2 }}>
-            <Stack spacing={1}>
-              {INTAKE_ANGLE_DEFS.map((angle) => (
-                <Box key={angle.key} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} justifyContent="space-between">
-                    <Box sx={{ minWidth: 0 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography sx={{ fontWeight: 900 }}>{angle.label}</Typography>
-                        <Chip size="small" color={angle.required ? "warning" : "default"} label={angle.required ? "Required" : "Optional"} />
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary">{angle.hint}</Typography>
-                      {uploadedByAngle[angle.key] ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                          Uploaded ({uploadedByAngle[angle.key]?.photoId}){uploadedByAngle[angle.key]?.deduped ? " • deduped" : ""}
-                        </Typography>
-                      ) : null}
-                    </Box>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        aria-label={`Upload ${angle.label}`}
-                        onChange={(e) => setFilesByAngle((s) => ({ ...s, [angle.key]: e.target.files?.[0] || null }))}
-                      />
-                      <Button disabled={!filesByAngle[angle.key] || Boolean(uploadingByAngle[angle.key])} onClick={() => uploadAngle(angle.key)}>
-                        {uploadingByAngle[angle.key] ? "Uploading..." : "Upload"}
-                      </Button>
-                    </Stack>
+          <Stack spacing={1}>
+            {INTAKE_ANGLE_DEFS.map((angle) => (
+              <Box key={angle.key} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} justifyContent="space-between">
+                  <Box>
+                    <Typography sx={{ fontWeight: 900 }}>{angle.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{angle.hint}</Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <input type="file" accept="image/*" aria-label={`Upload ${angle.label}`} onChange={(e) => setFilesByAngle((s) => ({ ...s, [angle.key]: e.target.files?.[0] || null }))} />
+                    <Button disabled={!filesByAngle[angle.key] || Boolean(uploadingByAngle[angle.key])} onClick={() => uploadAngle(angle.key)}>
+                      {uploadingByAngle[angle.key] ? "Uploading..." : "Upload"}
+                    </Button>
                   </Stack>
-                </Box>
-              ))}
-            </Stack>
-
-            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Confidence Preview</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.5 }}>{confidenceBand}</Typography>
-              <LinearProgress variant="determinate" value={Math.round(confidenceScore * 100)} sx={{ mt: 1.2 }} />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.6, display: "block" }}>
-                {uploadedRequiredCount}/{requiredAngles.length} required evidence angles uploaded.
-              </Typography>
-              <Divider sx={{ my: 1.5 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>Live detection (preview)</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
-                Detected brand: {uploadedByAngle.HEEL_STAMP ? "Rawlings" : "Unknown"} • Pattern: {uploadedByAngle.HEEL_STAMP ? "PRO1000" : "Needs heel stamp"} • Throw: {uploadedByAngle.BACKHAND ? "RHT" : "Unknown"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                Add heel stamp and liner photos to tighten variant confidence.
-              </Typography>
-            </Box>
-          </Box>
-          {uploadErr ? <Typography color="error" sx={{ mt: 1.5 }}>{uploadErr}</Typography> : null}
+                </Stack>
+              </Box>
+            ))}
+            <TextField size="small" label="Optional listing link" value={listingLink} onChange={(e) => setListingLink(e.target.value)} />
+            <Chip label={`${uploadedRequiredCount}/${requiredAngles.length} required evidence uploaded`} color={evidenceReady ? "success" : "warning"} />
+          </Stack>
+          {uploadErr ? <Typography color="error" sx={{ mt: 1.25 }}>{uploadErr}</Typography> : null}
         </CardContent></Card>
       ) : null}
 
       {step === 2 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Step 2: Confirm Identity</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Review system suggestions and correct any uncertain fields.</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Input</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Use taxonomy enums; keep unknown explicit when uncertain.</Typography>
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.25 }}>
-            <TextField label="Brand" value={identity.brand} onChange={(e) => setIdentity((s) => ({ ...s, brand: e.target.value }))} size="small" />
-            <TextField label="Pattern / Model code" value={identity.model} onChange={(e) => setIdentity((s) => ({ ...s, model: e.target.value }))} size="small" />
+            <FormControl size="small">
+              <Select value={identity.brand} onChange={(e) => setIdentity((s) => ({ ...s, brand: String(e.target.value) }))}>
+                {["UNKNOWN", ...brandOptions].map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField label="Model code" value={identity.model} onChange={(e) => setIdentity((s) => ({ ...s, model: e.target.value }))} size="small" />
+            <TextField label="Pattern code" value={identity.pattern} onChange={(e) => setIdentity((s) => ({ ...s, pattern: e.target.value }))} size="small" />
             <TextField label="Size (inches)" value={identity.size} onChange={(e) => setIdentity((s) => ({ ...s, size: e.target.value }))} size="small" />
             <FormControl size="small">
               <Select value={identity.throwSide} onChange={(e) => setIdentity((s) => ({ ...s, throwSide: String(e.target.value) }))}>
-                <MenuItem value="RHT">Right Hand Throw (RHT)</MenuItem>
-                <MenuItem value="LHT">Left Hand Throw (LHT)</MenuItem>
-                <MenuItem value="UNKNOWN">Unknown</MenuItem>
+                <MenuItem value="RHT">RHT</MenuItem>
+                <MenuItem value="LHT">LHT</MenuItem>
+                <MenuItem value="UNKNOWN">UNKNOWN</MenuItem>
               </Select>
             </FormControl>
+            <TextField label="Web type" value={identity.web} onChange={(e) => setIdentity((s) => ({ ...s, web: e.target.value }))} size="small" />
+            <FormControl size="small">
+              <Select value={variant.country} onChange={(e) => setVariant((s) => ({ ...s, country: String(e.target.value) }))}>
+                {["UNKNOWN", ...(taxonomy?.leather_taxonomy?.leather_origin_enum || [])].map((c: string) => <MenuItem key={c} value={String(c).toUpperCase()}>{c}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small">
+              <Select value={variant.leather} onChange={(e) => setVariant((s) => ({ ...s, leather: String(e.target.value) }))}>
+                {["UNKNOWN", ...leatherLineOptions].map((l) => <MenuItem key={l} value={String(l).toUpperCase()}>{l}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small">
+              <Select value={variant.era} onChange={(e) => setVariant((s) => ({ ...s, era: String(e.target.value) }))}>
+                {["UNKNOWN", "1990s", "2000s", "2010s+", "2020s+"].map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField label="Stamp/patch cue" value={variant.specialStamp} onChange={(e) => setVariant((s) => ({ ...s, specialStamp: e.target.value }))} size="small" />
           </Box>
-          <TextField label="Disagreement note (optional)" value={identity.note} onChange={(e) => setIdentity((s) => ({ ...s, note: e.target.value }))} size="small" fullWidth sx={{ mt: 1.25 }} />
         </CardContent></Card>
       ) : null}
 
       {step === 3 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Step 3: Variant and Provenance</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Provide high-impact value cues. Use “Unknown” where you are unsure.</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Decide</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Decision engine applies taxonomy rules before scoring/pricing.</Typography>
           <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.25 }}>
-            <FormControl size="small">
-              <Select value={variant.country} onChange={(e) => setVariant((s) => ({ ...s, country: String(e.target.value) }))}>
-                <MenuItem value="UNKNOWN">Country of origin: Unknown</MenuItem>
-                <MenuItem value="JAPAN">Japan</MenuItem>
-                <MenuItem value="USA">USA</MenuItem>
-                <MenuItem value="PHILIPPINES">Philippines</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={variant.leather} onChange={(e) => setVariant((s) => ({ ...s, leather: String(e.target.value) }))}>
-                <MenuItem value="UNKNOWN">Leather: Unknown</MenuItem>
-                <MenuItem value="HOH">Heart of the Hide</MenuItem>
-                <MenuItem value="PRIMO">Primo</MenuItem>
-                <MenuItem value="PRO_PREFERRED">Pro Preferred</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={variant.era} onChange={(e) => setVariant((s) => ({ ...s, era: String(e.target.value) }))}>
-                <MenuItem value="UNKNOWN">Era: Unknown</MenuItem>
-                <MenuItem value="1990S_2000S">1990s–2000s</MenuItem>
-                <MenuItem value="2010S">2010s</MenuItem>
-                <MenuItem value="2020S">2020s</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField label="Special stamp / run (optional)" value={variant.specialStamp} onChange={(e) => setVariant((s) => ({ ...s, specialStamp: e.target.value }))} size="small" />
-          </Box>
+          <Stack spacing={1}>
+            <Box sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Decision State</Typography>
+              <Typography sx={{ fontWeight: 900 }}>{decisionState}</Typography>
+              <Typography variant="body2" color="text.secondary">{decisionReason}</Typography>
+            </Box>
+            <Box sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Active Rules</Typography>
+              <Typography variant="body2">evidence_first={String(taxonomy?.rules?.evidence_first)} • no_guessing={String(taxonomy?.rules?.no_guessing)} • unknown_explicit={taxonomy?.rules?.unknown_explicit}</Typography>
+            </Box>
+          </Stack>
         </CardContent></Card>
       ) : null}
 
       {step === 4 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Step 4: Condition Assessment</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Structured condition input improves estimate quality more than free-text grading.</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Score & Price</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Condition and confidence combine into score and price range.</Typography>
           <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.25 }}>
-            <FormControl size="small">
-              <Select value={condition.relaced} onChange={(e) => setCondition((s) => ({ ...s, relaced: String(e.target.value) }))}>
-                <MenuItem value="unknown">Relaced: Unknown</MenuItem>
-                <MenuItem value="none">No relace</MenuItem>
-                <MenuItem value="partial">Partial relace</MenuItem>
-                <MenuItem value="full">Full relace</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={condition.palmWear} onChange={(e) => setCondition((s) => ({ ...s, palmWear: String(e.target.value) }))}>
-                <MenuItem value="light">Palm wear: Light</MenuItem>
-                <MenuItem value="moderate">Palm wear: Moderate</MenuItem>
-                <MenuItem value="heavy">Palm wear: Heavy</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={condition.leatherDryness} onChange={(e) => setCondition((s) => ({ ...s, leatherDryness: String(e.target.value) }))}>
-                <MenuItem value="none">Leather dryness: None</MenuItem>
-                <MenuItem value="moderate">Leather dryness: Moderate</MenuItem>
-                <MenuItem value="heavy">Leather dryness: Heavy</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={condition.structure} onChange={(e) => setCondition((s) => ({ ...s, structure: String(e.target.value) }))}>
-                <MenuItem value="firm">Structure: Firm</MenuItem>
-                <MenuItem value="good">Structure: Good</MenuItem>
-                <MenuItem value="floppy">Structure: Floppy</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={condition.repairs} onChange={(e) => setCondition((s) => ({ ...s, repairs: String(e.target.value) }))}>
-                <MenuItem value="none">Repairs: None</MenuItem>
-                <MenuItem value="minor">Repairs: Minor</MenuItem>
-                <MenuItem value="major">Repairs: Major</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-          <Box sx={{ mt: 1.5, p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-            <Typography variant="caption" color="text.secondary">Condition score (preview)</Typography>
-            <Typography sx={{ fontWeight: 900 }}>{conditionScore.toFixed(1)} / 10</Typography>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.2fr 1fr" }, gap: 1.5 }}>
+            <Stack spacing={1.2}>
+              <FormControl size="small">
+                <Select value={condition.relaced} onChange={(e) => setCondition((s) => ({ ...s, relaced: String(e.target.value) }))}>
+                  <MenuItem value="unknown">Relaced: Unknown</MenuItem>
+                  <MenuItem value="none">No relace</MenuItem>
+                  <MenuItem value="partial">Partial relace</MenuItem>
+                  <MenuItem value="full">Full relace</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small">
+                <Select value={condition.repairs} onChange={(e) => setCondition((s) => ({ ...s, repairs: String(e.target.value) }))}>
+                  <MenuItem value="none">Repairs: None</MenuItem>
+                  <MenuItem value="minor">Repairs: Minor</MenuItem>
+                  <MenuItem value="major">Repairs: Major</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small">
+                <Select value={condition.cosmeticWear} onChange={(e) => setCondition((s) => ({ ...s, cosmeticWear: String(e.target.value) }))}>
+                  <MenuItem value="low">Cosmetic wear: Low</MenuItem>
+                  <MenuItem value="medium">Cosmetic wear: Medium</MenuItem>
+                  <MenuItem value="high">Cosmetic wear: High</MenuItem>
+                </Select>
+              </FormControl>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Palm integrity</Typography>
+                <Slider value={condition.palmIntegrity} onChange={(_, v) => setCondition((s) => ({ ...s, palmIntegrity: Number(v) }))} />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Structure retention</Typography>
+                <Slider value={condition.structureRetention} onChange={(_, v) => setCondition((s) => ({ ...s, structureRetention: Number(v) }))} />
+              </Box>
+            </Stack>
+            <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Output</Typography>
+              <Typography sx={{ fontWeight: 900 }}>Confidence: {confidenceBand} ({Math.round(confidenceScore * 100)}%)</Typography>
+              <Typography sx={{ fontWeight: 900 }}>Condition: {conditionScore.toFixed(1)} / 10</Typography>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(estimate.low)} – {money(estimate.high)}</Typography>
+              <Typography variant="body2" color="text.secondary">Point estimate: {money(estimate.point)}</Typography>
+            </Box>
           </Box>
         </CardContent></Card>
       ) : null}
 
       {step === 5 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Step 5: Review and Estimate Preview</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Final summary before submitting for appraisal and market estimate.</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Catalog</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Create a schema-shaped verification summary and catalog test records.</Typography>
           <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.3fr 1fr" }, gap: 2 }}>
-            <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography sx={{ fontWeight: 900 }}>{identity.brand} {identity.model}</Typography>
-              <Typography variant="body2" color="text.secondary">{identity.size}" • {identity.throwSide} • {variant.country}</Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                <Chip size="small" label={`Confidence: ${confidenceBand}`} color={confidenceBand === "High" ? "success" : confidenceBand === "Medium" ? "info" : "warning"} />
-                <Chip size="small" label={`Condition ${conditionScore.toFixed(1)}/10`} />
-                <Chip size="small" label={`${uploadedRequiredCount}/${requiredAngles.length} required photos`} />
-              </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                Why this confidence: identity fields are partially confirmed and evidence completeness is {Math.round(confidenceScore * 100)}%.
-              </Typography>
-            </Box>
-            <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography variant="caption" color="text.secondary">Estimated Market Range</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(estimate.low)} – {money(estimate.high)}</Typography>
-              <Typography variant="body2" color="text.secondary">Point estimate: {money(estimate.point)}</Typography>
-            </Box>
+          <Box component="pre" sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.25, bgcolor: "background.default", fontSize: 11, maxHeight: 260, overflow: "auto" }}>
+            {JSON.stringify(buildVerificationSummary(), null, 2)}
           </Box>
-
-          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-            <Button onClick={() => setSubmitState("submitted")}>Submit Appraisal Request</Button>
-            <Button color="inherit" onClick={() => changeStep(1)}>Edit Intake</Button>
+          <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
+            <Button onClick={catalogCurrentSummary}>Catalog Record</Button>
+            <Button color="inherit" onClick={() => changeStep(1)}>Reset Flow</Button>
           </Stack>
           {submitState === "submitted" ? (
-            <Typography color="success.main" sx={{ mt: 1 }}>
-              Appraisal request submitted. Ticket: GQ-APR-{Math.max(1000, Math.round(estimate.point))}.
-            </Typography>
+            <Stack spacing={0.8} sx={{ mt: 1.2 }}>
+              <Typography color="success.main">Catalog updated with {catalogRecords.length} test record(s).</Typography>
+              {catalogRecords.slice(0, 3).map((r) => (
+                <Box key={r.id} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.25 }}>
+                  <Typography sx={{ fontWeight: 800 }}>{r.id}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {String((r.summary.verification as any)?.state || "unknown")} • {String((r.summary.confidence as any)?.tier || "low")}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
           ) : null}
         </CardContent></Card>
       ) : null}

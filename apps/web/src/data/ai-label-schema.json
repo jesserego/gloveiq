@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloveiq.ai/schemas/labels.schema.json",
+  "title": "GloveIQ Labels Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "label_sets", "evidence", "confidence", "verification"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$" },
+
+    "label_sets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "attributes", "condition", "provenance"],
+      "properties": {
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["brand", "family", "pattern", "variant"],
+          "properties": {
+            "brand": { "type": "string", "minLength": 1 },
+
+            "family": {
+              "description": "Family-level = stable base line/series (e.g., Rawlings HOH, Wilson A2000).",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "name"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "name": { "type": "string", "minLength": 1 }
+              }
+            },
+
+            "pattern": {
+              "description": "Pattern-level = coded or internal shape identifier (e.g., PRO1000, 1786, internal JP pattern ids).",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "code", "system"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "code": { "type": "string", "minLength": 1 },
+                "system": { "type": "string", "enum": ["explicit_coded", "implicit_family", "custom_oneoff"] }
+              }
+            },
+
+            "variant": {
+              "description": "Variant-level = value-relevant run/designation/leather/issue changes (e.g., Japan run, Primo, college issue).",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "name", "type"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "name": { "type": "string", "minLength": 1 },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "mass",
+                    "limited_run",
+                    "team_issue",
+                    "player_issue",
+                    "college_issue",
+                    "custom",
+                    "jp_domestic",
+                    "export",
+                    "designation_only"
+                  ]
+                }
+              }
+            }
+          }
+        },
+
+        "attributes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hand", "size_in", "position", "web_type", "back_type"],
+          "properties": {
+            "hand": { "type": "string", "enum": ["rht", "lht", "unknown"] },
+            "size_in": { "type": ["number", "null"], "minimum": 0, "maximum": 40 },
+            "position": {
+              "type": "string",
+              "enum": ["infield", "outfield", "pitcher", "catcher", "first_base", "third_base", "utility", "unknown"]
+            },
+            "web_type": { "type": "string", "minLength": 1 },
+            "back_type": { "type": "string", "minLength": 1 },
+            "colorway": { "type": ["string", "null"] }
+          }
+        },
+
+        "condition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall_score", "signals"],
+          "properties": {
+            "overall_score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+            "signals": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relaced", "repaired", "structural_risk", "cosmetic_wear"],
+              "properties": {
+                "relaced": { "type": "string", "enum": ["no", "partial", "full", "unknown"] },
+                "repaired": { "type": "string", "enum": ["no", "yes", "unknown"] },
+                "structural_risk": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+                "cosmetic_wear": { "type": "string", "enum": ["low", "medium", "high", "unknown"] }
+              }
+            }
+          }
+        },
+
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manufacturing_region", "leather"],
+          "properties": {
+            "manufacturing_region": { "type": "string", "enum": ["japan", "philippines", "usa", "mexico", "china", "other", "unknown"] },
+            "leather": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["origin", "hide_type", "tanning_philosophy", "selection_grade", "designation"],
+              "properties": {
+                "origin": { "type": "string", "enum": ["japan", "usa", "europe", "asia", "mixed", "unknown"] },
+                "hide_type": { "type": "string", "enum": ["steerhide", "kip", "cowhide", "horsehide", "synthetic", "mixed", "unknown"] },
+                "tanning_philosophy": { "type": "string", "enum": ["chrome", "veg", "hybrid", "traditional_jp", "unknown"] },
+                "selection_grade": { "type": "string", "enum": ["standard", "premium", "elite", "artisan", "unknown"] },
+                "designation": {
+                  "type": "string",
+                  "enum": [
+                    "hoh_steerhide",
+                    "primo_italian",
+                    "gold_glove_eu",
+                    "pro_preferred_kip",
+                    "prostatus_leather",
+                    "muso_philosophy",
+                    "pro_stock",
+                    "pro_stock_select",
+                    "unknown"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["photo_slots", "extracted_cues", "contradictions"],
+      "properties": {
+        "photo_slots": {
+          "description": "Which photo types are present. Used for gating claims.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["palm", "heel", "web", "wrist", "label_tag", "overall"],
+          "properties": {
+            "palm": { "type": "boolean" },
+            "heel": { "type": "boolean" },
+            "web": { "type": "boolean" },
+            "wrist": { "type": "boolean" },
+            "label_tag": { "type": "boolean" },
+            "overall": { "type": "boolean" }
+          }
+        },
+        "extracted_cues": {
+          "description": "Model outputs must cite cues here. No cue => no claim.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cue_type", "value", "source", "strength"],
+            "properties": {
+              "cue_type": {
+                "type": "string",
+                "enum": [
+                  "model_code",
+                  "pattern_code",
+                  "brand_mark",
+                  "country_stamp",
+                  "series_mark",
+                  "leather_designation",
+                  "web_shape",
+                  "patch_style",
+                  "finger_profile",
+                  "lining_mark",
+                  "serial_mark"
+                ]
+              },
+              "value": { "type": "string" },
+              "source": { "type": "string", "enum": ["vision", "ocr", "user_text", "catalog_db"] },
+              "strength": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "contradictions": {
+          "description": "Hard conflicts detected (e.g., tag says Longoria but glove is Larkin model).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "a", "b", "severity"],
+            "properties": {
+              "field": { "type": "string" },
+              "a": { "type": "string" },
+              "b": { "type": "string" },
+              "severity": { "type": "string", "enum": ["low", "medium", "high"] }
+            }
+          }
+        }
+      }
+    },
+
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "score", "basis"],
+      "properties": {
+        "tier": { "type": "string", "enum": ["high", "med", "low"] },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "basis": {
+          "description": "Why this tier was assigned; must reference evidence cue types + photo slots.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "history"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "unverified",
+            "ai_proposed",
+            "needs_more_photos",
+            "needs_artifact_review",
+            "user_confirmed",
+            "expert_verified",
+            "rejected"
+          ]
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["at", "actor", "from", "to", "reason"],
+            "properties": {
+              "at": { "type": "string", "format": "date-time" },
+              "actor": { "type": "string", "enum": ["system", "user", "reviewer", "admin"] },
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
