@@ -21,7 +21,11 @@ import {
   LinearProgress,
   MenuItem,
   Select,
+  Slider,
   Stack,
+  Step,
+  StepLabel,
+  Stepper,
   Switch,
   TextField,
   ThemeProvider,
@@ -70,6 +74,12 @@ function money(n: number | null | undefined) {
   const v = Number(n ?? 0);
   try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v); }
   catch { return `$${v}`; }
+}
+
+function confidenceBandFromScore(score: number): "Low" | "Medium" | "High" {
+  if (score >= 0.78) return "High";
+  if (score >= 0.5) return "Medium";
+  return "Low";
 }
 
 function routeToTab(route: Route): MainTab {
@@ -857,7 +867,38 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [rows, setRows] = useState<Artifact[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "verified" | "unverified">("all");
-  const [view, setView] = useState<"overview" | "catalog" | "verification">("overview");
+  const [view, setView] = useState<"overview" | "catalog" | "verification">("catalog");
+  const [variantPreviewImage, setVariantPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [verificationStep, setVerificationStep] = useState(0);
+  const [submittedVerificationSummary, setSubmittedVerificationSummary] = useState<Record<string, unknown> | null>(null);
+  const [listingLink, setListingLink] = useState("");
+  const [evidenceChecklist, setEvidenceChecklist] = useState({
+    palm: false,
+    back: false,
+    web: false,
+    heelStamp: false,
+    linerStamp: false,
+  });
+  const [identityInput, setIdentityInput] = useState({
+    brand: "",
+    model: "",
+    pattern: "",
+    size: "",
+    throwSide: "",
+    web: "",
+  });
+  const [provenanceInput, setProvenanceInput] = useState({
+    origin: "",
+    era: "",
+    leather: "",
+    stampPatch: "",
+  });
+  const [conditionInput, setConditionInput] = useState({
+    relaced: false,
+    repairs: false,
+    palmIntegrity: 55,
+    structureRetention: 62,
+  });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -899,17 +940,6 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const artifactOnlyCount = rows.filter((r) => r.object_type === "ARTIFACT").length;
   const p0ReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0).length;
   const valuationReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0 && r.valuation_estimate != null).length;
-  const variantLibrary = [
-    { id: "VAR-RAW-PRO1000", brand: "Rawlings", model: "PRO1000", family: "Heart of the Hide", size: '11.5"' },
-    { id: "VAR-WIL-A2000-1786", brand: "Wilson", model: "A2000 1786", family: "A2000", size: '11.5"' },
-    { id: "VAR-MIZ-PRO-SELECT", brand: "Mizuno", model: "Pro Select", family: "Pro Select", size: '11.75"' },
-    { id: "VAR-44-CUSTOM-INFIELD", brand: "44 Pro", model: "Custom Infield", family: "44 Custom", size: '11.5"' },
-    { id: "VAR-ZETT-PROSTATUS", brand: "Zett", model: "ProStatus", family: "ProStatus", size: '11.75"' },
-    { id: "VAR-HAT-CATCHERS-MITT", brand: "Hatakeyama", model: "Catcher's Mitt", family: "Pro Series", size: '33"' },
-    { id: "VAR-NOK-ALPHA-SELECT", brand: "Nokona", model: "Alpha Select", family: "Alpha", size: '12"' },
-    { id: "VAR-SSK-Z9-SPECIAL", brand: "SSK", model: "Z9 Special", family: "Z9", size: '11.75"' },
-    { id: "VAR-DON-PRO-ORDER", brand: "Donaiya", model: "Pro Order", family: "Donaiya Order", size: '11.5"' },
-  ];
 
   const verificationQueue = rows
     .map((r) => {
@@ -928,6 +958,61 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
       const rank = (x: string) => (x === "P0" ? 0 : x === "P1" ? 1 : 2);
       return rank(a.priority) - rank(b.priority);
     });
+  const verificationStepMeta = [
+    {
+      label: "Add evidence",
+      why: "Evidence completeness is the fastest way to reduce ambiguity in model and condition signals.",
+      impact: "Adds confidence by confirming required visual checkpoints.",
+    },
+    {
+      label: "Confirm identity fields",
+      why: "Identity fields anchor the glove to a specific model family and spec profile.",
+      impact: "Improves precision and decreases model mismatch risk.",
+    },
+    {
+      label: "Provenance & variant cues",
+      why: "Origin and variant cues narrow era/line and distinguish near-identical models.",
+      impact: "Raises confidence for variant-level classification.",
+    },
+    {
+      label: "Condition assessment",
+      why: "Condition data drives value realism and verification confidence.",
+      impact: "Converts broad estimates into tighter confidence bands.",
+    },
+    {
+      label: "Review & submit",
+      why: "A final audit prevents contradictory inputs and creates a verifiable trail.",
+      impact: "Locks evidence trail and final confidence state for review.",
+    },
+  ] as const;
+  const stepDurationsMin = [3, 3, 2, 3, 2];
+  const localizedTimeRemaining = (() => {
+    const mins = stepDurationsMin.slice(verificationStep).reduce((sum, v) => sum + v, 0);
+    return locale === "ja" ? `残り約${mins}分` : `~${mins} min left`;
+  })();
+  const stepProgress = ((verificationStep + 1) / verificationStepMeta.length) * 100;
+  const systemSuggestion = {
+    brand: "Rawlings",
+    model: "PRO1000",
+    pattern: "NP5",
+    size: '11.5"',
+    throwSide: "RHT",
+    web: "I-Web",
+  };
+  const evidenceCompletion = Object.values(evidenceChecklist).filter(Boolean).length / Object.keys(evidenceChecklist).length;
+  const identityCompletion = Object.values(identityInput).filter((v) => String(v).trim().length > 0).length / Object.keys(identityInput).length;
+  const provenanceCompletion = Object.values(provenanceInput).filter((v) => String(v).trim().length > 0).length / Object.keys(provenanceInput).length;
+  const conditionCompletion = ((conditionInput.palmIntegrity + conditionInput.structureRetention) / 200) * (conditionInput.relaced || conditionInput.repairs ? 0.9 : 1);
+  const confidenceBeforeScore = 0.56;
+  const confidenceAfterScore = Math.min(0.95, 0.34 + evidenceCompletion * 0.26 + identityCompletion * 0.18 + provenanceCompletion * 0.14 + conditionCompletion * 0.16);
+  const confidenceBeforeBand = confidenceBandFromScore(confidenceBeforeScore);
+  const confidenceAfterBand = confidenceBandFromScore(confidenceAfterScore);
+  const confidenceDeltaText = confidenceBeforeBand === confidenceAfterBand
+    ? `${confidenceBeforeBand} (no band change yet)`
+    : `${confidenceBeforeBand} → ${confidenceAfterBand}`;
+  const reviewExplanation = confidenceAfterBand === "High"
+    ? "Required evidence, identity confirmation, and provenance cues are now aligned with condition inputs."
+    : "Complete remaining evidence and provenance details to reach high-confidence verification.";
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -945,7 +1030,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap" }}>
             <Chip label="Overview" color={view === "overview" ? "primary" : "default"} onClick={() => setView("overview")} clickable />
-            <Chip label="Catalog" color={view === "catalog" ? "primary" : "default"} onClick={() => setView("catalog")} clickable />
+            <Chip label="Records" color={view === "catalog" ? "primary" : "default"} onClick={() => setView("catalog")} clickable />
             <Chip label="Verification" color={view === "verification" ? "primary" : "default"} onClick={() => setView("verification")} clickable />
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
@@ -1035,29 +1120,6 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           <>
             <Card><CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Library</Typography>
-                <Chip label={`${variantLibrary.length} placeholders`} />
-              </Stack>
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" }, gap: 1.25 }}>
-                {variantLibrary.map((v) => (
-                  <Box key={v.id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                    <Box
-                      component="img"
-                      src={glovePlaceholderImage}
-                      alt={`${v.brand} ${v.model} placeholder`}
-                      sx={{ width: "100%", height: 128, objectFit: "cover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}
-                    />
-                    <Typography sx={{ fontWeight: 900, mt: 1 }} noWrap>{v.brand} {v.model}</Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap>{v.family} • {v.size}</Typography>
-                    <Typography variant="caption" color="text.secondary">{v.id}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            </CardContent></Card>
-
-            <Card><CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Records</Typography>
                 <Chip label={`${filtered.length} shown`} />
               </Stack>
@@ -1066,6 +1128,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 {filtered.map((a) => {
                   const verified = isVerified(a);
                   const showEstimate = a.valuation_estimate != null;
+                  const thumb = a.photos?.[0]?.url || glovePlaceholderImage;
                   return (
                     <Box
                       key={a.id}
@@ -1073,10 +1136,54 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                     >
                       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
-                          <Typography variant="body2" color="text.secondary" noWrap>
-                            {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
-                          </Typography>
+                          <Stack direction="row" spacing={1.2} alignItems="center">
+                            <Box
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setVariantPreviewImage({ src: thumb, title: a.id })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setVariantPreviewImage({ src: thumb, title: a.id });
+                                }
+                              }}
+                              sx={{
+                                width: 72,
+                                height: 54,
+                                borderRadius: 1.4,
+                                border: "1px solid",
+                                borderColor: "divider",
+                                flexShrink: 0,
+                                position: "relative",
+                                overflow: "hidden",
+                                cursor: "zoom-in",
+                                "&:hover .variant-thumb-overlay": { opacity: 1 },
+                              }}
+                            >
+                              <Box component="img" src={thumb} alt={`${a.id} thumbnail`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                              <Box
+                                className="variant-thumb-overlay"
+                                sx={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  display: "grid",
+                                  placeItems: "center",
+                                  background: "rgba(15,23,42,0.42)",
+                                  opacity: { xs: 1, md: 0 },
+                                  transition: "opacity 140ms ease",
+                                  color: "#fff",
+                                }}
+                              >
+                                <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+                              </Box>
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                              <Typography variant="body2" color="text.secondary" noWrap>
+                                {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
+                              </Typography>
+                            </Box>
+                          </Stack>
                           <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
                             <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
                             <Chip size="small" label={verified ? "Verified" : "Needs Review"} color={verified ? "success" : "warning"} />
@@ -1101,30 +1208,194 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 ) : null}
               </Stack>
             </CardContent></Card>
+            <Dialog
+              open={Boolean(variantPreviewImage)}
+              onClose={() => setVariantPreviewImage(null)}
+              maxWidth="md"
+              fullWidth
+            >
+              {variantPreviewImage ? (
+                <Box sx={{ p: 1.2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>
+                    {variantPreviewImage.title}
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={variantPreviewImage.src}
+                    alt={`${variantPreviewImage.title} preview`}
+                    sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", maxHeight: "72vh", objectFit: "contain" }}
+                  />
+                </Box>
+              ) : null}
+            </Dialog>
           </>
         ) : null}
 
         {view === "verification" ? (
           <>
             <Card><CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Evidence Requirements</Typography>
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
-                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Chip size="small" color="warning" label="P0 Required" />
-                  <Typography variant="body2" sx={{ mt: 1 }}>BACK photo (full glove straight-on)</Typography>
-                  <Typography variant="body2">PALM photo (pocket + wear)</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                    If P0 is missing, valuation remains range-only or hidden.
-                  </Typography>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ md: "center" }}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Verification Flow</Typography>
+                  <Typography variant="body2" color="text.secondary">Structured stepper to move low/medium confidence toward higher confidence.</Typography>
                 </Box>
-                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Chip size="small" color="info" label="P1 Recommended" />
-                  <Typography variant="body2" sx={{ mt: 1 }}>WRIST_PATCH photo for run confirmation</Typography>
-                  <Typography variant="body2">LINER + STAMPS photos for condition and certainty</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                    P1 increases confidence and narrows valuation range.
+                <Stack direction="row" spacing={1}>
+                  <Chip label={`Step ${verificationStep + 1}/${verificationStepMeta.length}`} />
+                  <Chip label={localizedTimeRemaining} />
+                </Stack>
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <LinearProgress variant="determinate" value={stepProgress} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.1fr 1fr" }, gap: 1.5, mt: 1.5 }}>
+                <Box sx={{ p: 1.4, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Stepper activeStep={verificationStep} alternativeLabel>
+                    {verificationStepMeta.map((step) => (
+                      <Step key={step.label}>
+                        <StepLabel>{step.label}</StepLabel>
+                      </Step>
+                    ))}
+                  </Stepper>
+                  <Divider sx={{ my: 1.4 }} />
+                  {verificationStep === 0 ? (
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Step 1: Add evidence</Typography>
+                      <FormControlLabel control={<Switch checked={evidenceChecklist.palm} onChange={(e) => setEvidenceChecklist((s) => ({ ...s, palm: e.target.checked }))} />} label="Palm photo provided" />
+                      <FormControlLabel control={<Switch checked={evidenceChecklist.back} onChange={(e) => setEvidenceChecklist((s) => ({ ...s, back: e.target.checked }))} />} label="Backhand photo provided" />
+                      <FormControlLabel control={<Switch checked={evidenceChecklist.web} onChange={(e) => setEvidenceChecklist((s) => ({ ...s, web: e.target.checked }))} />} label="Web photo provided" />
+                      <FormControlLabel control={<Switch checked={evidenceChecklist.heelStamp} onChange={(e) => setEvidenceChecklist((s) => ({ ...s, heelStamp: e.target.checked }))} />} label="Heel stamp photo provided" />
+                      <FormControlLabel control={<Switch checked={evidenceChecklist.linerStamp} onChange={(e) => setEvidenceChecklist((s) => ({ ...s, linerStamp: e.target.checked }))} />} label="Liner stamp photo provided" />
+                      <TextField size="small" label="Optional listing URL" placeholder="https://..." value={listingLink} onChange={(e) => setListingLink(e.target.value)} />
+                    </Stack>
+                  ) : null}
+                  {verificationStep === 1 ? (
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Step 2: Confirm identity fields</Typography>
+                      {([
+                        ["brand", "Brand"],
+                        ["model", "Model"],
+                        ["pattern", "Pattern"],
+                        ["size", "Size"],
+                        ["throwSide", "Throw"],
+                        ["web", "Web"],
+                      ] as const).map(([key, label]) => (
+                        <Box key={key} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {label} • System suggestion: <Typography component="span" sx={{ fontWeight: 700, color: "text.primary" }}>{systemSuggestion[key]}</Typography>
+                          </Typography>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            label={`Your input: ${label}`}
+                            value={identityInput[key]}
+                            onChange={(e) => setIdentityInput((s) => ({ ...s, [key]: e.target.value }))}
+                            sx={{ mt: 0.7 }}
+                          />
+                        </Box>
+                      ))}
+                    </Stack>
+                  ) : null}
+                  {verificationStep === 2 ? (
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Step 3: Provenance & variant cues</Typography>
+                      <FormControl size="small">
+                        <Select value={provenanceInput.origin} onChange={(e) => setProvenanceInput((s) => ({ ...s, origin: String(e.target.value) }))}>
+                          <MenuItem value="">Origin (select)</MenuItem>
+                          <MenuItem value="JP">Japan</MenuItem>
+                          <MenuItem value="US">United States</MenuItem>
+                          <MenuItem value="Unknown">Unknown</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <FormControl size="small">
+                        <Select value={provenanceInput.era} onChange={(e) => setProvenanceInput((s) => ({ ...s, era: String(e.target.value) }))}>
+                          <MenuItem value="">Era bucket (select)</MenuItem>
+                          <MenuItem value="1990s">1990s</MenuItem>
+                          <MenuItem value="2000s">2000s</MenuItem>
+                          <MenuItem value="2010s+">2010s+</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <TextField size="small" label="Leather designation (e.g., Primo)" value={provenanceInput.leather} onChange={(e) => setProvenanceInput((s) => ({ ...s, leather: e.target.value }))} />
+                      <TextField size="small" label="Stamp / patch style" value={provenanceInput.stampPatch} onChange={(e) => setProvenanceInput((s) => ({ ...s, stampPatch: e.target.value }))} />
+                    </Stack>
+                  ) : null}
+                  {verificationStep === 3 ? (
+                    <Stack spacing={1.2}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Step 4: Condition assessment</Typography>
+                      <FormControlLabel control={<Switch checked={conditionInput.relaced} onChange={(e) => setConditionInput((s) => ({ ...s, relaced: e.target.checked }))} />} label="Relaced" />
+                      <FormControlLabel control={<Switch checked={conditionInput.repairs} onChange={(e) => setConditionInput((s) => ({ ...s, repairs: e.target.checked }))} />} label="Repairs present" />
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Palm integrity</Typography>
+                        <Slider value={conditionInput.palmIntegrity} onChange={(_, v) => setConditionInput((s) => ({ ...s, palmIntegrity: Number(v) }))} />
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Structure retention</Typography>
+                        <Slider value={conditionInput.structureRetention} onChange={(_, v) => setConditionInput((s) => ({ ...s, structureRetention: Number(v) }))} />
+                      </Box>
+                    </Stack>
+                  ) : null}
+                  {verificationStep === 4 ? (
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Step 5: Review & submit</Typography>
+                      <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                        <Typography variant="body2" color="text.secondary">Confidence delta</Typography>
+                        <Typography sx={{ fontWeight: 900 }}>{confidenceDeltaText}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{reviewExplanation}</Typography>
+                      </Box>
+                      <Button
+                        onClick={() =>
+                          setSubmittedVerificationSummary({
+                            submitted_at: new Date().toISOString(),
+                            confidence_before: confidenceBeforeBand,
+                            confidence_after: confidenceAfterBand,
+                            confidence_score_after: Number(confidenceAfterScore.toFixed(2)),
+                            evidence: evidenceChecklist,
+                            identity_input: identityInput,
+                            system_suggestion: systemSuggestion,
+                            provenance: provenanceInput,
+                            condition: conditionInput,
+                            explanation: reviewExplanation,
+                          })
+                        }
+                      >
+                        Submit Verification
+                      </Button>
+                    </Stack>
+                  ) : null}
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+                    <Button color="inherit" disabled={verificationStep === 0} onClick={() => setVerificationStep((s) => Math.max(0, s - 1))}>Back</Button>
+                    <Button disabled={verificationStep === verificationStepMeta.length - 1} onClick={() => setVerificationStep((s) => Math.min(verificationStepMeta.length - 1, s + 1))}>Next</Button>
+                  </Stack>
+                </Box>
+                <Box sx={{ p: 1.4, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{verificationStepMeta[verificationStep].label}</Typography>
+                  <Divider sx={{ my: 1.2 }} />
+                  <Typography variant="body2"><Typography component="span" sx={{ fontWeight: 700 }}>Why it matters:</Typography> {verificationStepMeta[verificationStep].why}</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.9 }}><Typography component="span" sx={{ fontWeight: 700 }}>Confidence impact:</Typography> {verificationStepMeta[verificationStep].impact}</Typography>
+                  <Divider sx={{ my: 1.2 }} />
+                  <Typography variant="caption" color="text.secondary">Confidence preview</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>
+                    {confidenceBeforeBand} → {confidenceAfterBand} ({Math.round(confidenceAfterScore * 100)}%)
                   </Typography>
+                  {submittedVerificationSummary ? (
+                    <Box sx={{ mt: 1.2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Verification Summary (Audit Trail)</Typography>
+                      <Box
+                        component="pre"
+                        sx={{
+                          mt: 0.8,
+                          mb: 0,
+                          p: 1,
+                          borderRadius: 1.25,
+                          overflow: "auto",
+                          bgcolor: "background.default",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          fontSize: 12,
+                        }}
+                      >
+                        {JSON.stringify(submittedVerificationSummary, null, 2)}
+                      </Box>
+                    </Box>
+                  ) : null}
                 </Box>
               </Box>
             </CardContent></Card>
