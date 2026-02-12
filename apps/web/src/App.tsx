@@ -1,13 +1,22 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api } from "./lib/api";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
+import { appTheme } from "./ui/theme";
+import { MainTab, MobileBottomNav, ShellTopBar, SidebarNav } from "./ui/Shell";
 
 import {
-  AppBar, Box, Chip, Container, CssBaseline, Divider, FormControl, LinearProgress,
-  MenuItem, Select, Stack, ThemeProvider, Toolbar, Typography, createTheme,
+  Box,
+  Chip,
+  Container,
+  CssBaseline,
+  Divider,
+  LinearProgress,
+  Stack,
+  ThemeProvider,
+  Typography,
 } from "@mui/material";
 
 import SearchIcon from "@mui/icons-material/Search";
@@ -18,26 +27,17 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 
+type Route = { name: "search" } | { name: "artifact"; artifactId: string } | { name: "pricing" };
+
 function money(n: number | null | undefined) {
   const v = Number(n ?? 0);
   try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v); }
   catch { return `$${v}`; }
 }
 
-function TopBar({ locale, setLocale, title }: { locale: Locale; setLocale: (l: Locale) => void; title: string; }) {
-  return (
-    <AppBar position="sticky" color="default" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
-      <Toolbar sx={{ gap: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 900, flex: 1 }}>{title}</Typography>
-        <FormControl size="small">
-          <Select value={locale} onChange={(e) => setLocale(e.target.value as Locale)}>
-            <MenuItem value="en">EN</MenuItem>
-            <MenuItem value="ja">JA</MenuItem>
-          </Select>
-        </FormControl>
-      </Toolbar>
-    </AppBar>
-  );
+function routeToTab(route: Route): MainTab {
+  if (route.name === "artifact") return "artifact";
+  return route.name;
 }
 
 function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; brands: BrandConfig[]; onOpenArtifact: (id: string) => void; }) {
@@ -56,13 +56,13 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
   useEffect(() => { refresh(""); }, []);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Container maxWidth="lg" sx={{ py: 2.25 }}>
       <Stack spacing={2}>
         <Card><CardContent>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.search")}</Typography>
-              <Typography variant="body2" color="text.secondary">Desktop-first dashboard MVP (Material UI).</Typography>
+              <Typography variant="body2" color="text.secondary">Origin-aligned dashboard shell with glass and evidence-first workflow.</Typography>
             </Box>
             <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.search")} />
@@ -167,7 +167,7 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
       : `${artifact.brand_key ?? "Unknown"} ${artifact.family ?? ""} ${artifact.model_code ?? ""}`.trim();
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Container maxWidth="lg" sx={{ py: 2.25 }}>
       <Stack spacing={2}>
         <Card><CardContent>
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
@@ -245,12 +245,12 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
 
 function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: () => void; }) {
   const plans = [
-    { name: "Free", price: "$0", bullets: ["Basic search", "Community verification", "Range-only valuations (when available)"] },
-    { name: "Plus", price: "$9/mo", bullets: ["Deeper comps", "Saved artifacts", "Priority verification queue"] },
-    { name: "Pro", price: "$29/mo", bullets: ["Dealer tooling", "Bulk intake", "Audit trail + exports"] },
+    { name: "Collector", price: "$9/mo", bullets: ["Track 50 artifacts", "Range-only valuations", "Basic verification queue"] },
+    { name: "Pro", price: "$19/mo", bullets: ["Estimate + range when eligible", "Advanced reports", "Priority verification queue"] },
+    { name: "Dealer", price: "$39/mo", bullets: ["Bulk intake", "Team seats", "API and export tooling"] },
   ];
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Container maxWidth="lg" sx={{ py: 2.25 }}>
       <Stack spacing={2}>
         <Typography variant="h4" sx={{ fontWeight: 900 }}>{t(locale, "pricing.title")}</Typography>
         <Typography variant="body1" color="text.secondary">{t(locale, "pricing.subtitle")}</Typography>
@@ -272,66 +272,84 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
   );
 }
 
-type Route = { name: "search" } | { name: "artifact"; artifactId: string } | { name: "pricing" };
-
 export default function App() {
   const [locale, setLocale] = useState<Locale>("en");
   const [route, setRoute] = useState<Route>({ name: "search" });
   const [brands, setBrands] = useState<BrandConfig[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
   useEffect(() => {
-    if (route.name === "artifact") api.artifact(route.artifactId).then(setArtifact).catch(() => setArtifact(null));
-    else setArtifact(null);
+    if (route.name === "artifact") {
+      setLastArtifactId(route.artifactId);
+      api.artifact(route.artifactId).then(setArtifact).catch(() => setArtifact(null));
+    } else {
+      setArtifact(null);
+    }
   }, [route]);
 
-  const theme = useMemo(() => createTheme({
-    palette: { mode: "light", primary: { main: "#0b57d0" }, secondary: { main: "#6d4c41" } },
-    shape: { borderRadius: 12 },
-    typography: { fontFamily: ["Inter","system-ui","Segoe UI","Roboto","Helvetica","Arial"].join(",") },
-    components: { MuiCard: { styleOverrides: { root: { border: "1px solid rgba(0,0,0,0.08)" } } } },
-  }), []);
+  const activeTab = routeToTab(route);
 
-  const title = route.name === "search" ? t(locale, "app.title") : route.name === "artifact" ? t(locale, "artifact.detail") : t(locale, "tab.pricing");
+  function onSelectTab(tab: MainTab) {
+    if (tab === "artifact") {
+      if (lastArtifactId) setRoute({ name: "artifact", artifactId: lastArtifactId });
+      return;
+    }
+    if (tab === "pricing") setRoute({ name: "pricing" });
+    else setRoute({ name: "search" });
+  }
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <CssBaseline />
-      <TopBar locale={locale} setLocale={setLocale} title={title} />
 
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={route.name === "artifact" ? route.artifactId : route.name}
-          initial={{ x: 14, opacity: 0.6 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: -10, opacity: 0.6 }}
-          transition={NAV_SPRING}
-        >
-          {route.name === "search" ? (
-            <SearchScreen locale={locale} brands={brands} onOpenArtifact={(id) => setRoute({ name: "artifact", artifactId: id })} />
-          ) : route.name === "artifact" ? (
-            artifact ? (
-              <ArtifactDetail locale={locale} artifact={artifact} />
-            ) : (
-              <Container maxWidth="lg" sx={{ py: 3 }}>
-                <Card><CardContent>
-                  <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
-                  <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
-                </CardContent></Card>
-              </Container>
-            )
-          ) : (
-            <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
-          )}
+      <Box sx={{ minHeight: "100vh", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
+        <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={Boolean(lastArtifactId)} onSelect={onSelectTab} />
 
-          <Box sx={{ position: "fixed", bottom: 16, right: 16, display: "flex", gap: 1 }}>
-            <Button color="inherit" onClick={() => setRoute({ name: "pricing" })}>{t(locale, "tab.pricing")}</Button>
-            <Button color="primary" onClick={() => setRoute({ name: "search" })}>{t(locale, "tab.search")}</Button>
+        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <ShellTopBar locale={locale} setLocale={setLocale} routeName={route.name} onReset={() => setRoute({ name: "search" })} />
+
+          <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={route.name === "artifact" ? route.artifactId : route.name}
+                initial={{ x: 14, opacity: 0.6 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -10, opacity: 0.6 }}
+                transition={NAV_SPRING}
+              >
+                {route.name === "search" ? (
+                  <SearchScreen
+                    locale={locale}
+                    brands={brands}
+                    onOpenArtifact={(id) => {
+                      setLastArtifactId(id);
+                      setRoute({ name: "artifact", artifactId: id });
+                    }}
+                  />
+                ) : route.name === "artifact" ? (
+                  artifact ? (
+                    <ArtifactDetail locale={locale} artifact={artifact} />
+                  ) : (
+                    <Container maxWidth="lg" sx={{ py: 2.25 }}>
+                      <Card><CardContent>
+                        <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
+                        <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                      </CardContent></Card>
+                    </Container>
+                  )
+                ) : (
+                  <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </Box>
-        </motion.div>
-      </AnimatePresence>
+        </Box>
+      </Box>
+
+      <MobileBottomNav locale={locale} activeTab={activeTab} canOpenArtifact={Boolean(lastArtifactId)} onSelect={onSelectTab} />
     </ThemeProvider>
   );
 }
