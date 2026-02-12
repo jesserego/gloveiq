@@ -4,6 +4,8 @@ node_modules/
 # Build tool caches
 .vite/
 **/.vite/
+dist/
+**/dist/
 
 # OS artifacts
 .DS_Store
