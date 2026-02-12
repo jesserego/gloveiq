@@ -1,0 +1,106 @@
+[
+  {
+    "family_id": "fam_rawlings_hoh",
+    "brand_key": "RAWLINGS",
+    "family_key": "HOH",
+    "display_name": "Heart of the Hide",
+    "tier": "premium",
+    "default_country_hint": "USA/JP"
+  },
+  {
+    "family_id": "fam_rawlings_pro_preferred",
+    "brand_key": "RAWLINGS",
+    "family_key": "PRO_PREFERRED",
+    "display_name": "Pro Preferred",
+    "tier": "elite",
+    "default_country_hint": "USA/JP"
+  },
+  {
+    "family_id": "fam_rawlings_r2g",
+    "brand_key": "RAWLINGS",
+    "family_key": "R2G",
+    "display_name": "R2G",
+    "tier": "value",
+    "default_country_hint": "USA/JP"
+  },
+  {
+    "family_id": "fam_wilson_a2000",
+    "brand_key": "WILSON",
+    "family_key": "A2000",
+    "display_name": "A2000",
+    "tier": "premium",
+    "default_country_hint": "USA/JP"
+  },
+  {
+    "family_id": "fam_wilson_a2k",
+    "brand_key": "WILSON",
+    "family_key": "A2K",
+    "display_name": "A2K",
+    "tier": "elite",
+    "default_country_hint": "USA/JP"
+  },
+  {
+    "family_id": "fam_mizuno_mizuno_pro",
+    "brand_key": "MIZUNO",
+    "family_key": "MIZUNO_PRO",
+    "display_name": "Mizuno Pro",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_mizuno_global_elite",
+    "brand_key": "MIZUNO",
+    "family_key": "GLOBAL_ELITE",
+    "display_name": "Global Elite",
+    "tier": "premium",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_zett_pro_status",
+    "brand_key": "ZETT",
+    "family_key": "PRO_STATUS",
+    "display_name": "Pro Status",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_zett_gran_status",
+    "brand_key": "ZETT",
+    "family_key": "GRAN_STATUS",
+    "display_name": "Gran Status",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_donaiya_donaiya_std",
+    "brand_key": "DONAIYA",
+    "family_key": "DONAIYA_STD",
+    "display_name": "Donaiya",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_ip_select_ip_select_std",
+    "brand_key": "IP_SELECT",
+    "family_key": "IP_SELECT_STD",
+    "display_name": "IP Select",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_hatakeyama_k_series",
+    "brand_key": "HATAKEYAMA",
+    "family_key": "K_SERIES",
+    "display_name": "K Series",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  },
+  {
+    "family_id": "fam_kubota_slugger_slugger",
+    "brand_key": "KUBOTA_SLUGGER",
+    "family_key": "SLUGGER",
+    "display_name": "Slugger",
+    "tier": "elite",
+    "default_country_hint": "Japan"
+  }
+]

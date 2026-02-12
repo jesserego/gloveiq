@@ -1,0 +1,3063 @@
+[
+  {
+    "comp_set_id": "comp_art_0001",
+    "artifact_id": "art_0001",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00088",
+      "sale_00052",
+      "sale_00421",
+      "sale_00498",
+      "sale_00568",
+      "sale_00230",
+      "sale_00422",
+      "sale_00522",
+      "sale_00416",
+      "sale_00055",
+      "sale_00567",
+      "sale_00086",
+      "sale_00162",
+      "sale_00118",
+      "sale_00044",
+      "sale_00106",
+      "sale_00475",
+      "sale_00434"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0002",
+    "artifact_id": "art_0002",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00322",
+      "sale_00219",
+      "sale_00068",
+      "sale_00046",
+      "sale_00238",
+      "sale_00266",
+      "sale_00485"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0003",
+    "artifact_id": "art_0003",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00461",
+      "sale_00180",
+      "sale_00546",
+      "sale_00590",
+      "sale_00069"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0004",
+    "artifact_id": "art_0004",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00574",
+      "sale_00146"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0005",
+    "artifact_id": "art_0005",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00079",
+      "sale_00073",
+      "sale_00255",
+      "sale_00307",
+      "sale_00150",
+      "sale_00005"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0006",
+    "artifact_id": "art_0006",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00089",
+      "sale_00336",
+      "sale_00126",
+      "sale_00057",
+      "sale_00130"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0007",
+    "artifact_id": "art_0007",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00525",
+      "sale_00452",
+      "sale_00299",
+      "sale_00165",
+      "sale_00048",
+      "sale_00080"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0008",
+    "artifact_id": "art_0008",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00296",
+      "sale_00063",
+      "sale_00325",
+      "sale_00542"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0009",
+    "artifact_id": "art_0009",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00336",
+      "sale_00126",
+      "sale_00057",
+      "sale_00130",
+      "sale_00089"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0010",
+    "artifact_id": "art_0010",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00550",
+      "sale_00033",
+      "sale_00596",
+      "sale_00580",
+      "sale_00273",
+      "sale_00131"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0011",
+    "artifact_id": "art_0011",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00583",
+      "sale_00149",
+      "sale_00537"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0012",
+    "artifact_id": "art_0012",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00295",
+      "sale_00489",
+      "sale_00516",
+      "sale_00271",
+      "sale_00121",
+      "sale_00092",
+      "sale_00451",
+      "sale_00090",
+      "sale_00305",
+      "sale_00580",
+      "sale_00202",
+      "sale_00541",
+      "sale_00481",
+      "sale_00317",
+      "sale_00571",
+      "sale_00308"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0013",
+    "artifact_id": "art_0013",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00272",
+      "sale_00330",
+      "sale_00168"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0014",
+    "artifact_id": "art_0014",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00428",
+      "sale_00275",
+      "sale_00264",
+      "sale_00344",
+      "sale_00003",
+      "sale_00301",
+      "sale_00169",
+      "sale_00085",
+      "sale_00377",
+      "sale_00032"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0015",
+    "artifact_id": "art_0015",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00189",
+      "sale_00081",
+      "sale_00078"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0016",
+    "artifact_id": "art_0016",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00393",
+      "sale_00456",
+      "sale_00122",
+      "sale_00327",
+      "sale_00242",
+      "sale_00185",
+      "sale_00470",
+      "sale_00418",
+      "sale_00142",
+      "sale_00562"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0017",
+    "artifact_id": "art_0017",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00199",
+      "sale_00383",
+      "sale_00468",
+      "sale_00182",
+      "sale_00457",
+      "sale_00032",
+      "sale_00469",
+      "sale_00254"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0018",
+    "artifact_id": "art_0018",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00213",
+      "sale_00462",
+      "sale_00077",
+      "sale_00530",
+      "sale_00151",
+      "sale_00143",
+      "sale_00410",
+      "sale_00263",
+      "sale_00183",
+      "sale_00160",
+      "sale_00147",
+      "sale_00249",
+      "sale_00148"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0019",
+    "artifact_id": "art_0019",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00279",
+      "sale_00155",
+      "sale_00232",
+      "sale_00303",
+      "sale_00442",
+      "sale_00101",
+      "sale_00214",
+      "sale_00302",
+      "sale_00209",
+      "sale_00297",
+      "sale_00093"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0020",
+    "artifact_id": "art_0020",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00050",
+      "sale_00204",
+      "sale_00472",
+      "sale_00284",
+      "sale_00306",
+      "sale_00469"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0021",
+    "artifact_id": "art_0021",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00591",
+      "sale_00241",
+      "sale_00391",
+      "sale_00538",
+      "sale_00247",
+      "sale_00083",
+      "sale_00087",
+      "sale_00449",
+      "sale_00480"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0022",
+    "artifact_id": "art_0022",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00502",
+      "sale_00401",
+      "sale_00392",
+      "sale_00479"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0023",
+    "artifact_id": "art_0023",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00513",
+      "sale_00157",
+      "sale_00223",
+      "sale_00360",
+      "sale_00172",
+      "sale_00183",
+      "sale_00138",
+      "sale_00483",
+      "sale_00117",
+      "sale_00357",
+      "sale_00008",
+      "sale_00504",
+      "sale_00111",
+      "sale_00208",
+      "sale_00145"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0024",
+    "artifact_id": "art_0024",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00023",
+      "sale_00007",
+      "sale_00235",
+      "sale_00374",
+      "sale_00214",
+      "sale_00560",
+      "sale_00478"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0025",
+    "artifact_id": "art_0025",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00516",
+      "sale_00578",
+      "sale_00368",
+      "sale_00007",
+      "sale_00458",
+      "sale_00305",
+      "sale_00586",
+      "sale_00461"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0026",
+    "artifact_id": "art_0026",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00063",
+      "sale_00143",
+      "sale_00228",
+      "sale_00332",
+      "sale_00102",
+      "sale_00077",
+      "sale_00542",
+      "sale_00223",
+      "sale_00495",
+      "sale_00263",
+      "sale_00006",
+      "sale_00234",
+      "sale_00110",
+      "sale_00296",
+      "sale_00316",
+      "sale_00147",
+      "sale_00570"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0027",
+    "artifact_id": "art_0027",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00242",
+      "sale_00548",
+      "sale_00086",
+      "sale_00416",
+      "sale_00433",
+      "sale_00037",
+      "sale_00385",
+      "sale_00540",
+      "sale_00465"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0028",
+    "artifact_id": "art_0028",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00339",
+      "sale_00162",
+      "sale_00385",
+      "sale_00584"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0029",
+    "artifact_id": "art_0029",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00206",
+      "sale_00046",
+      "sale_00001",
+      "sale_00124",
+      "sale_00426",
+      "sale_00266",
+      "sale_00153",
+      "sale_00265"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0030",
+    "artifact_id": "art_0030",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00027",
+      "sale_00333",
+      "sale_00504",
+      "sale_00105",
+      "sale_00172",
+      "sale_00511",
+      "sale_00249",
+      "sale_00168",
+      "sale_00283",
+      "sale_00513",
+      "sale_00348"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0031",
+    "artifact_id": "art_0031",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00482",
+      "sale_00363",
+      "sale_00215",
+      "sale_00036",
+      "sale_00558",
+      "sale_00246",
+      "sale_00397",
+      "sale_00012",
+      "sale_00426",
+      "sale_00523",
+      "sale_00323",
+      "sale_00298"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0032",
+    "artifact_id": "art_0032",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00161",
+      "sale_00234",
+      "sale_00157",
+      "sale_00483",
+      "sale_00104"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0033",
+    "artifact_id": "art_0033",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00326",
+      "sale_00170",
+      "sale_00348"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0034",
+    "artifact_id": "art_0034",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00019",
+      "sale_00460",
+      "sale_00412",
+      "sale_00229",
+      "sale_00281",
+      "sale_00337"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0035",
+    "artifact_id": "art_0035",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00453",
+      "sale_00506",
+      "sale_00411",
+      "sale_00466",
+      "sale_00385",
+      "sale_00434",
+      "sale_00118",
+      "sale_00099",
+      "sale_00395",
+      "sale_00088",
+      "sale_00421",
+      "sale_00334",
+      "sale_00393",
+      "sale_00142",
+      "sale_00037",
+      "sale_00456",
+      "sale_00498",
+      "sale_00339"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0036",
+    "artifact_id": "art_0036",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00321",
+      "sale_00179",
+      "sale_00196",
+      "sale_00151",
+      "sale_00556"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0037",
+    "artifact_id": "art_0037",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00016",
+      "sale_00416",
+      "sale_00094",
+      "sale_00540",
+      "sale_00370",
+      "sale_00491"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0038",
+    "artifact_id": "art_0038",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00227",
+      "sale_00308",
+      "sale_00209",
+      "sale_00207",
+      "sale_00108"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0039",
+    "artifact_id": "art_0039",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00501",
+      "sale_00092",
+      "sale_00282",
+      "sale_00082",
+      "sale_00359",
+      "sale_00134",
+      "sale_00338"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0040",
+    "artifact_id": "art_0040",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00098",
+      "sale_00182",
+      "sale_00533"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0041",
+    "artifact_id": "art_0041",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00052",
+      "sale_00367",
+      "sale_00422",
+      "sale_00506",
+      "sale_00237",
+      "sale_00389"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0042",
+    "artifact_id": "art_0042",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00457",
+      "sale_00484",
+      "sale_00167"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0043",
+    "artifact_id": "art_0043",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00293",
+      "sale_00353",
+      "sale_00346",
+      "sale_00440",
+      "sale_00276",
+      "sale_00400",
+      "sale_00199",
+      "sale_00192"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0044",
+    "artifact_id": "art_0044",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00574",
+      "sale_00146"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0045",
+    "artifact_id": "art_0045",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00381",
+      "sale_00011",
+      "sale_00516",
+      "sale_00022",
+      "sale_00447",
+      "sale_00493",
+      "sale_00121",
+      "sale_00033"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0046",
+    "artifact_id": "art_0046",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00532",
+      "sale_00160",
+      "sale_00280",
+      "sale_00494",
+      "sale_00594",
+      "sale_00570",
+      "sale_00117",
+      "sale_00551",
+      "sale_00100",
+      "sale_00138",
+      "sale_00347"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0047",
+    "artifact_id": "art_0047",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00150",
+      "sale_00307",
+      "sale_00005",
+      "sale_00379",
+      "sale_00255",
+      "sale_00073"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0048",
+    "artifact_id": "art_0048",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00144",
+      "sale_00190",
+      "sale_00025",
+      "sale_00054",
+      "sale_00004"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0049",
+    "artifact_id": "art_0049",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00169",
+      "sale_00275",
+      "sale_00353",
+      "sale_00469",
+      "sale_00428",
+      "sale_00409",
+      "sale_00375",
+      "sale_00203"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0050",
+    "artifact_id": "art_0050",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00444",
+      "sale_00595",
+      "sale_00355",
+      "sale_00258",
+      "sale_00497",
+      "sale_00554"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0051",
+    "artifact_id": "art_0051",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00167",
+      "sale_00190",
+      "sale_00429",
+      "sale_00538",
+      "sale_00484",
+      "sale_00182",
+      "sale_00409",
+      "sale_00383",
+      "sale_00095",
+      "sale_00067",
+      "sale_00244",
+      "sale_00345",
+      "sale_00025",
+      "sale_00032",
+      "sale_00260",
+      "sale_00144",
+      "sale_00517",
+      "sale_00291"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0052",
+    "artifact_id": "art_0052",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00452",
+      "sale_00299",
+      "sale_00048",
+      "sale_00080",
+      "sale_00525",
+      "sale_00165"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0053",
+    "artifact_id": "art_0053",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00473",
+      "sale_00375",
+      "sale_00205",
+      "sale_00244"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0054",
+    "artifact_id": "art_0054",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00248",
+      "sale_00453",
+      "sale_00432",
+      "sale_00088",
+      "sale_00466",
+      "sale_00427"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0055",
+    "artifact_id": "art_0055",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00093",
+      "sale_00070",
+      "sale_00282",
+      "sale_00447",
+      "sale_00574",
+      "sale_00329",
+      "sale_00585",
+      "sale_00209",
+      "sale_00539",
+      "sale_00313",
+      "sale_00271",
+      "sale_00454"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0056",
+    "artifact_id": "art_0056",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00072",
+      "sale_00090",
+      "sale_00586",
+      "sale_00541",
+      "sale_00463",
+      "sale_00536"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0057",
+    "artifact_id": "art_0057",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00434"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0058",
+    "artifact_id": "art_0058",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00587",
+      "sale_00532",
+      "sale_00286",
+      "sale_00208",
+      "sale_00138",
+      "sale_00222"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0059",
+    "artifact_id": "art_0059",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00416",
+      "sale_00564",
+      "sale_00113",
+      "sale_00540",
+      "sale_00438",
+      "sale_00037",
+      "sale_00237",
+      "sale_00370",
+      "sale_00470",
+      "sale_00086"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0060",
+    "artifact_id": "art_0060",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00038",
+      "sale_00233",
+      "sale_00256",
+      "sale_00509"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0061",
+    "artifact_id": "art_0061",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00477",
+      "sale_00178",
+      "sale_00062",
+      "sale_00350",
+      "sale_00212",
+      "sale_00013",
+      "sale_00118"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0062",
+    "artifact_id": "art_0062",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00130",
+      "sale_00089",
+      "sale_00336",
+      "sale_00057",
+      "sale_00126"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0063",
+    "artifact_id": "art_0063",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00353",
+      "sale_00440",
+      "sale_00400",
+      "sale_00293",
+      "sale_00276",
+      "sale_00346"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0064",
+    "artifact_id": "art_0064",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00397",
+      "sale_00523",
+      "sale_00174",
+      "sale_00206",
+      "sale_00265",
+      "sale_00012"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0065",
+    "artifact_id": "art_0065",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00307",
+      "sale_00255",
+      "sale_00557",
+      "sale_00005",
+      "sale_00150",
+      "sale_00079",
+      "sale_00073",
+      "sale_00379"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0066",
+    "artifact_id": "art_0066",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00172",
+      "sale_00183",
+      "sale_00425",
+      "sale_00127",
+      "sale_00141",
+      "sale_00333"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0067",
+    "artifact_id": "art_0067",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00120",
+      "sale_00236",
+      "sale_00270",
+      "sale_00471",
+      "sale_00383",
+      "sale_00031",
+      "sale_00328",
+      "sale_00220"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0068",
+    "artifact_id": "art_0068",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00434"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0069",
+    "artifact_id": "art_0069",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00112",
+      "sale_00430",
+      "sale_00038",
+      "sale_00117",
+      "sale_00595",
+      "sale_00059",
+      "sale_00296",
+      "sale_00502",
+      "sale_00439",
+      "sale_00014",
+      "sale_00127",
+      "sale_00412",
+      "sale_00497"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0070",
+    "artifact_id": "art_0070",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00557",
+      "sale_00079"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0071",
+    "artifact_id": "art_0071",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00533",
+      "sale_00098",
+      "sale_00182"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0072",
+    "artifact_id": "art_0072",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00066",
+      "sale_00009",
+      "sale_00304",
+      "sale_00587"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0073",
+    "artifact_id": "art_0073",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00460",
+      "sale_00229",
+      "sale_00019",
+      "sale_00337",
+      "sale_00281",
+      "sale_00412"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0074",
+    "artifact_id": "art_0074",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00440",
+      "sale_00192",
+      "sale_00293",
+      "sale_00276",
+      "sale_00199",
+      "sale_00346",
+      "sale_00400",
+      "sale_00353"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0075",
+    "artifact_id": "art_0075",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00162",
+      "sale_00385",
+      "sale_00339",
+      "sale_00584"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0076",
+    "artifact_id": "art_0076",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00504",
+      "sale_00051",
+      "sale_00231",
+      "sale_00269",
+      "sale_00027"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0077",
+    "artifact_id": "art_0077",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00551",
+      "sale_00280",
+      "sale_00532",
+      "sale_00347",
+      "sale_00594",
+      "sale_00494",
+      "sale_00160",
+      "sale_00570",
+      "sale_00138",
+      "sale_00117",
+      "sale_00100"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0078",
+    "artifact_id": "art_0078",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00053",
+      "sale_00004",
+      "sale_00239",
+      "sale_00457",
+      "sale_00467",
+      "sale_00533",
+      "sale_00376",
+      "sale_00020",
+      "sale_00003",
+      "sale_00544",
+      "sale_00126",
+      "sale_00361",
+      "sale_00591",
+      "sale_00275",
+      "sale_00441",
+      "sale_00345",
+      "sale_00569"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0079",
+    "artifact_id": "art_0079",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00125",
+      "sale_00456",
+      "sale_00564",
+      "sale_00122",
+      "sale_00438",
+      "sale_00395",
+      "sale_00385",
+      "sale_00149",
+      "sale_00224",
+      "sale_00492",
+      "sale_00548"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0080",
+    "artifact_id": "art_0080",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00164",
+      "sale_00189",
+      "sale_00343",
+      "sale_00103",
+      "sale_00573",
+      "sale_00010",
+      "sale_00437",
+      "sale_00528",
+      "sale_00365",
+      "sale_00201",
+      "sale_00078",
+      "sale_00415"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0081",
+    "artifact_id": "art_0081",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00105",
+      "sale_00549"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0082",
+    "artifact_id": "art_0082",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00471",
+      "sale_00383",
+      "sale_00328",
+      "sale_00236",
+      "sale_00220",
+      "sale_00270",
+      "sale_00031",
+      "sale_00120"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0083",
+    "artifact_id": "art_0083",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00324",
+      "sale_00139",
+      "sale_00553",
+      "sale_00103",
+      "sale_00078",
+      "sale_00415"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0084",
+    "artifact_id": "art_0084",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00335",
+      "sale_00003",
+      "sale_00345",
+      "sale_00441",
+      "sale_00457",
+      "sale_00467",
+      "sale_00199",
+      "sale_00353",
+      "sale_00431",
+      "sale_00119",
+      "sale_00435",
+      "sale_00428",
+      "sale_00409",
+      "sale_00244",
+      "sale_00167"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0085",
+    "artifact_id": "art_0085",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00251",
+      "sale_00140",
+      "sale_00158",
+      "sale_00211",
+      "sale_00217",
+      "sale_00565",
+      "sale_00011",
+      "sale_00287",
+      "sale_00398",
+      "sale_00329",
+      "sale_00317"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0086",
+    "artifact_id": "art_0086",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00300",
+      "sale_00045",
+      "sale_00103",
+      "sale_00343"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0087",
+    "artifact_id": "art_0087",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00419",
+      "sale_00516",
+      "sale_00381",
+      "sale_00508",
+      "sale_00129"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0088",
+    "artifact_id": "art_0088",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00114",
+      "sale_00131",
+      "sale_00419",
+      "sale_00536",
+      "sale_00338",
+      "sale_00207",
+      "sale_00381",
+      "sale_00406",
+      "sale_00287",
+      "sale_00303",
+      "sale_00076",
+      "sale_00565",
+      "sale_00311"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0089",
+    "artifact_id": "art_0089",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00048",
+      "sale_00299",
+      "sale_00080",
+      "sale_00165",
+      "sale_00525",
+      "sale_00452"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0090",
+    "artifact_id": "art_0090",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00545",
+      "sale_00503",
+      "sale_00015",
+      "sale_00435"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0091",
+    "artifact_id": "art_0091",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00266",
+      "sale_00309",
+      "sale_00527",
+      "sale_00012",
+      "sale_00191",
+      "sale_00245",
+      "sale_00225",
+      "sale_00265",
+      "sale_00515",
+      "sale_00036",
+      "sale_00363",
+      "sale_00298",
+      "sale_00046",
+      "sale_00124"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0092",
+    "artifact_id": "art_0092",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00568",
+      "sale_00013",
+      "sale_00044",
+      "sale_00037",
+      "sale_00416",
+      "sale_00243",
+      "sale_00099",
+      "sale_00149",
+      "sale_00016",
+      "sale_00086"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0093",
+    "artifact_id": "art_0093",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00231",
+      "sale_00504",
+      "sale_00027",
+      "sale_00051",
+      "sale_00269"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0094",
+    "artifact_id": "art_0094",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00538",
+      "sale_00247",
+      "sale_00480",
+      "sale_00083",
+      "sale_00391",
+      "sale_00591",
+      "sale_00449",
+      "sale_00241",
+      "sale_00087"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0095",
+    "artifact_id": "art_0095",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00406",
+      "sale_00011",
+      "sale_00489",
+      "sale_00175",
+      "sale_00026",
+      "sale_00278",
+      "sale_00319",
+      "sale_00279",
+      "sale_00501",
+      "sale_00065",
+      "sale_00214"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0096",
+    "artifact_id": "art_0096",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00383",
+      "sale_00085",
+      "sale_00031",
+      "sale_00057",
+      "sale_00471",
+      "sale_00075",
+      "sale_00364",
+      "sale_00003",
+      "sale_00091",
+      "sale_00192",
+      "sale_00203",
+      "sale_00431",
+      "sale_00400"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0097",
+    "artifact_id": "art_0097",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00419",
+      "sale_00194",
+      "sale_00121",
+      "sale_00372",
+      "sale_00341",
+      "sale_00493",
+      "sale_00598",
+      "sale_00267",
+      "sale_00082",
+      "sale_00028",
+      "sale_00396",
+      "sale_00541",
+      "sale_00481",
+      "sale_00317",
+      "sale_00023"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0098",
+    "artifact_id": "art_0098",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00222",
+      "sale_00213"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0099",
+    "artifact_id": "art_0099",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00159",
+      "sale_00462",
+      "sale_00259",
+      "sale_00143",
+      "sale_00283"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0100",
+    "artifact_id": "art_0100",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00549",
+      "sale_00063",
+      "sale_00152",
+      "sale_00588",
+      "sale_00042",
+      "sale_00051",
+      "sale_00170",
+      "sale_00420",
+      "sale_00500",
+      "sale_00405"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0101",
+    "artifact_id": "art_0101",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00123",
+      "sale_00331",
+      "sale_00597",
+      "sale_00313"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0102",
+    "artifact_id": "art_0102",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00502",
+      "sale_00034",
+      "sale_00362",
+      "sale_00047",
+      "sale_00554",
+      "sale_00321",
+      "sale_00500",
+      "sale_00283",
+      "sale_00019",
+      "sale_00510",
+      "sale_00223"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0103",
+    "artifact_id": "art_0103",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00478",
+      "sale_00202",
+      "sale_00358",
+      "sale_00084",
+      "sale_00287",
+      "sale_00580",
+      "sale_00137",
+      "sale_00022",
+      "sale_00352",
+      "sale_00093",
+      "sale_00342",
+      "sale_00338",
+      "sale_00092",
+      "sale_00297",
+      "sale_00033",
+      "sale_00028",
+      "sale_00451",
+      "sale_00597"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0104",
+    "artifact_id": "art_0104",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00202",
+      "sale_00163",
+      "sale_00018",
+      "sale_00571",
+      "sale_00518",
+      "sale_00442",
+      "sale_00278"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0105",
+    "artifact_id": "art_0105",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00504",
+      "sale_00051",
+      "sale_00231",
+      "sale_00027",
+      "sale_00269"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0106",
+    "artifact_id": "art_0106",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00019",
+      "sale_00281",
+      "sale_00337",
+      "sale_00460",
+      "sale_00412",
+      "sale_00229"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0107",
+    "artifact_id": "art_0107",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00343",
+      "sale_00045",
+      "sale_00103",
+      "sale_00300"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0108",
+    "artifact_id": "art_0108",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00405",
+      "sale_00316",
+      "sale_00531",
+      "sale_00111"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0109",
+    "artifact_id": "art_0109",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00096"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0110",
+    "artifact_id": "art_0110",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00378",
+      "sale_00589",
+      "sale_00559",
+      "sale_00154",
+      "sale_00517",
+      "sale_00128",
+      "sale_00529",
+      "sale_00067",
+      "sale_00239",
+      "sale_00399",
+      "sale_00035"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0111",
+    "artifact_id": "art_0111",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00455",
+      "sale_00044"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0112",
+    "artifact_id": "art_0112",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00287",
+      "sale_00108",
+      "sale_00313",
+      "sale_00487",
+      "sale_00214",
+      "sale_00541",
+      "sale_00235"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0113",
+    "artifact_id": "art_0113",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00123",
+      "sale_00597",
+      "sale_00331",
+      "sale_00313"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0114",
+    "artifact_id": "art_0114",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00230",
+      "sale_00564",
+      "sale_00543",
+      "sale_00061",
+      "sale_00421"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0115",
+    "artifact_id": "art_0115",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00050",
+      "sale_00559",
+      "sale_00468",
+      "sale_00285",
+      "sale_00469",
+      "sale_00345",
+      "sale_00413",
+      "sale_00473",
+      "sale_00199",
+      "sale_00457",
+      "sale_00085",
+      "sale_00436",
+      "sale_00364",
+      "sale_00182"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0116",
+    "artifact_id": "art_0116",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00053",
+      "sale_00450",
+      "sale_00566",
+      "sale_00431"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0117",
+    "artifact_id": "art_0117",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00359",
+      "sale_00134",
+      "sale_00282",
+      "sale_00082",
+      "sale_00338",
+      "sale_00501",
+      "sale_00092"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0118",
+    "artifact_id": "art_0118",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00434"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0119",
+    "artifact_id": "art_0119",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00524",
+      "sale_00348",
+      "sale_00184",
+      "sale_00425",
+      "sale_00059",
+      "sale_00505"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0120",
+    "artifact_id": "art_0120",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00408",
+      "sale_00354",
+      "sale_00285",
+      "sale_00399",
+      "sale_00375",
+      "sale_00503",
+      "sale_00529",
+      "sale_00306",
+      "sale_00533",
+      "sale_00098",
+      "sale_00120",
+      "sale_00328",
+      "sale_00346",
+      "sale_00450",
+      "sale_00361",
+      "sale_00169"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0121",
+    "artifact_id": "art_0121",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00257",
+      "sale_00541",
+      "sale_00451",
+      "sale_00187",
+      "sale_00194",
+      "sale_00250",
+      "sale_00463"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0122",
+    "artifact_id": "art_0122",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00035",
+      "sale_00378",
+      "sale_00399",
+      "sale_00067",
+      "sale_00529",
+      "sale_00559",
+      "sale_00128",
+      "sale_00239",
+      "sale_00517",
+      "sale_00589",
+      "sale_00154"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0123",
+    "artifact_id": "art_0123",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00254",
+      "sale_00490",
+      "sale_00291",
+      "sale_00119",
+      "sale_00441"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0124",
+    "artifact_id": "art_0124",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00062",
+      "sale_00041",
+      "sale_00416",
+      "sale_00156",
+      "sale_00243",
+      "sale_00106",
+      "sale_00118",
+      "sale_00395",
+      "sale_00339",
+      "sale_00537",
+      "sale_00094",
+      "sale_00411",
+      "sale_00582",
+      "sale_00421",
+      "sale_00563",
+      "sale_00548",
+      "sale_00564",
+      "sale_00224"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0125",
+    "artifact_id": "art_0125",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00106",
+      "sale_00563",
+      "sale_00037",
+      "sale_00475"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0126",
+    "artifact_id": "art_0126",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00591",
+      "sale_00247",
+      "sale_00241",
+      "sale_00391",
+      "sale_00538",
+      "sale_00449"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0127",
+    "artifact_id": "art_0127",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00496",
+      "sale_00335"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0128",
+    "artifact_id": "art_0128",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00514",
+      "sale_00091",
+      "sale_00015",
+      "sale_00544",
+      "sale_00274",
+      "sale_00032",
+      "sale_00490",
+      "sale_00020",
+      "sale_00205",
+      "sale_00364",
+      "sale_00301"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0129",
+    "artifact_id": "art_0129",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00593",
+      "sale_00181",
+      "sale_00001",
+      "sale_00246",
+      "sale_00558"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0130",
+    "artifact_id": "art_0130",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00240",
+      "sale_00196",
+      "sale_00208",
+      "sale_00355",
+      "sale_00595",
+      "sale_00127",
+      "sale_00157",
+      "sale_00258",
+      "sale_00452",
+      "sale_00193",
+      "sale_00152",
+      "sale_00318",
+      "sale_00143",
+      "sale_00362",
+      "sale_00064",
+      "sale_00299"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0131",
+    "artifact_id": "art_0131",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00473",
+      "sale_00244",
+      "sale_00205",
+      "sale_00375"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0132",
+    "artifact_id": "art_0132",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00474",
+      "sale_00420",
+      "sale_00405",
+      "sale_00332",
+      "sale_00229",
+      "sale_00148",
+      "sale_00497",
+      "sale_00009",
+      "sale_00348",
+      "sale_00452",
+      "sale_00321",
+      "sale_00333",
+      "sale_00355",
+      "sale_00222"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0133",
+    "artifact_id": "art_0133",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00046",
+      "sale_00181",
+      "sale_00558",
+      "sale_00593",
+      "sale_00547",
+      "sale_00238"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0134",
+    "artifact_id": "art_0134",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00161",
+      "sale_00483",
+      "sale_00157",
+      "sale_00104",
+      "sale_00234"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0135",
+    "artifact_id": "art_0135",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00487",
+      "sale_00093",
+      "sale_00373",
+      "sale_00585",
+      "sale_00135",
+      "sale_00137",
+      "sale_00319",
+      "sale_00368"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0136",
+    "artifact_id": "art_0136",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00193",
+      "sale_00446",
+      "sale_00289",
+      "sale_00277"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0137",
+    "artifact_id": "art_0137",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00048",
+      "sale_00165",
+      "sale_00299",
+      "sale_00452",
+      "sale_00525",
+      "sale_00080"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0138",
+    "artifact_id": "art_0138",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00195",
+      "sale_00152",
+      "sale_00511",
+      "sale_00249",
+      "sale_00510",
+      "sale_00407"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0139",
+    "artifact_id": "art_0139",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00108",
+      "sale_00308",
+      "sale_00227",
+      "sale_00207",
+      "sale_00209"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0140",
+    "artifact_id": "art_0140",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00277",
+      "sale_00112",
+      "sale_00170",
+      "sale_00019",
+      "sale_00299",
+      "sale_00145",
+      "sale_00233",
+      "sale_00216",
+      "sale_00535",
+      "sale_00289",
+      "sale_00165",
+      "sale_00222",
+      "sale_00316"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0141",
+    "artifact_id": "art_0141",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00214",
+      "sale_00007",
+      "sale_00374",
+      "sale_00478",
+      "sale_00560",
+      "sale_00235",
+      "sale_00023"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0142",
+    "artifact_id": "art_0142",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00011",
+      "sale_00211",
+      "sale_00140",
+      "sale_00158",
+      "sale_00565",
+      "sale_00251",
+      "sale_00217",
+      "sale_00398"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0143",
+    "artifact_id": "art_0143",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00166",
+      "sale_00021",
+      "sale_00084",
+      "sale_00114",
+      "sale_00133"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0144",
+    "artifact_id": "art_0144",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00143",
+      "sale_00159",
+      "sale_00259",
+      "sale_00462",
+      "sale_00283"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0145",
+    "artifact_id": "art_0145",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00283",
+      "sale_00259",
+      "sale_00159",
+      "sale_00462",
+      "sale_00143"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0146",
+    "artifact_id": "art_0146",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00536",
+      "sale_00187",
+      "sale_00451",
+      "sale_00463",
+      "sale_00090",
+      "sale_00586",
+      "sale_00257",
+      "sale_00279",
+      "sale_00541",
+      "sale_00305",
+      "sale_00072",
+      "sale_00194",
+      "sale_00250"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0147",
+    "artifact_id": "art_0147",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00270",
+      "sale_00436",
+      "sale_00364",
+      "sale_00035",
+      "sale_00356",
+      "sale_00274",
+      "sale_00559",
+      "sale_00301",
+      "sale_00144",
+      "sale_00449",
+      "sale_00378",
+      "sale_00241",
+      "sale_00441"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0148",
+    "artifact_id": "art_0148",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00429",
+      "sale_00361",
+      "sale_00020",
+      "sale_00436",
+      "sale_00467",
+      "sale_00320"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0149",
+    "artifact_id": "art_0149",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00497",
+      "sale_00532",
+      "sale_00193",
+      "sale_00145",
+      "sale_00551",
+      "sale_00446",
+      "sale_00347",
+      "sale_00535",
+      "sale_00362"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0150",
+    "artifact_id": "art_0150",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00081",
+      "sale_00488",
+      "sale_00415",
+      "sale_00423",
+      "sale_00553",
+      "sale_00343",
+      "sale_00045"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0151",
+    "artifact_id": "art_0151",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00504",
+      "sale_00193",
+      "sale_00063",
+      "sale_00425",
+      "sale_00231",
+      "sale_00404",
+      "sale_00588",
+      "sale_00110",
+      "sale_00029",
+      "sale_00430",
+      "sale_00348",
+      "sale_00213",
+      "sale_00349",
+      "sale_00148",
+      "sale_00542",
+      "sale_00445",
+      "sale_00229",
+      "sale_00525"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0152",
+    "artifact_id": "art_0152",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00526",
+      "sale_00147",
+      "sale_00524",
+      "sale_00136",
+      "sale_00505",
+      "sale_00402"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0153",
+    "artifact_id": "art_0153",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00148",
+      "sale_00077",
+      "sale_00439",
+      "sale_00110"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0154",
+    "artifact_id": "art_0154",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00008",
+      "sale_00259",
+      "sale_00594",
+      "sale_00051",
+      "sale_00077",
+      "sale_00504",
+      "sale_00064",
+      "sale_00337",
+      "sale_00029",
+      "sale_00127",
+      "sale_00249",
+      "sale_00208",
+      "sale_00258"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0155",
+    "artifact_id": "art_0155",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00516",
+      "sale_00419",
+      "sale_00508",
+      "sale_00381",
+      "sale_00129"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0156",
+    "artifact_id": "art_0156",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00388",
+      "sale_00356",
+      "sale_00364",
+      "sale_00387",
+      "sale_00354"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0157",
+    "artifact_id": "art_0157",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00471",
+      "sale_00236",
+      "sale_00270",
+      "sale_00120",
+      "sale_00328",
+      "sale_00220",
+      "sale_00383",
+      "sale_00031"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0158",
+    "artifact_id": "art_0158",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00231",
+      "sale_00051",
+      "sale_00504",
+      "sale_00027",
+      "sale_00269"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0159",
+    "artifact_id": "art_0159",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00368",
+      "sale_00585",
+      "sale_00076",
+      "sale_00373",
+      "sale_00093",
+      "sale_00137",
+      "sale_00319"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0160",
+    "artifact_id": "art_0160",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00581",
+      "sale_00225",
+      "sale_00298",
+      "sale_00043",
+      "sale_00527",
+      "sale_00191",
+      "sale_00215",
+      "sale_00512",
+      "sale_00153"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0161",
+    "artifact_id": "art_0161",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00051",
+      "sale_00269",
+      "sale_00231",
+      "sale_00027",
+      "sale_00504"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0162",
+    "artifact_id": "art_0162",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00357",
+      "sale_00059",
+      "sale_00223",
+      "sale_00216",
+      "sale_00218",
+      "sale_00228"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0163",
+    "artifact_id": "art_0163",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00237",
+      "sale_00367",
+      "sale_00052",
+      "sale_00506",
+      "sale_00389",
+      "sale_00422"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0164",
+    "artifact_id": "art_0164",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00433",
+      "sale_00224",
+      "sale_00351",
+      "sale_00592",
+      "sale_00499",
+      "sale_00243",
+      "sale_00522"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0165",
+    "artifact_id": "art_0165",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00450",
+      "sale_00053",
+      "sale_00431",
+      "sale_00566"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0166",
+    "artifact_id": "art_0166",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00558",
+      "sale_00593",
+      "sale_00001",
+      "sale_00181",
+      "sale_00246"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0167",
+    "artifact_id": "art_0167",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00398",
+      "sale_00211",
+      "sale_00329",
+      "sale_00011",
+      "sale_00287",
+      "sale_00217",
+      "sale_00140"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0168",
+    "artifact_id": "art_0168",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00482",
+      "sale_00245",
+      "sale_00547",
+      "sale_00486",
+      "sale_00124"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0169",
+    "artifact_id": "art_0169",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00568",
+      "sale_00403",
+      "sale_00575",
+      "sale_00334",
+      "sale_00086",
+      "sale_00395",
+      "sale_00567",
+      "sale_00132"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0170",
+    "artifact_id": "art_0170",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00240",
+      "sale_00100",
+      "sale_00066",
+      "sale_00184",
+      "sale_00360",
+      "sale_00404",
+      "sale_00183",
+      "sale_00483",
+      "sale_00587",
+      "sale_00445",
+      "sale_00102"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0171",
+    "artifact_id": "art_0171",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00560",
+      "sale_00023",
+      "sale_00374",
+      "sale_00478",
+      "sale_00214",
+      "sale_00235",
+      "sale_00007"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0172",
+    "artifact_id": "art_0172",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00438",
+      "sale_00427",
+      "sale_00224",
+      "sale_00132",
+      "sale_00477",
+      "sale_00575"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0173",
+    "artifact_id": "art_0173",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00537",
+      "sale_00583",
+      "sale_00149"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0174",
+    "artifact_id": "art_0174",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00186",
+      "sale_00026",
+      "sale_00507",
+      "sale_00107",
+      "sale_00060",
+      "sale_00310",
+      "sale_00414",
+      "sale_00267"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0175",
+    "artifact_id": "art_0175",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00599",
+      "sale_00041",
+      "sale_00582",
+      "sale_00498",
+      "sale_00465"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0176",
+    "artifact_id": "art_0176",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00065",
+      "sale_00481",
+      "sale_00578",
+      "sale_00539",
+      "sale_00579",
+      "sale_00175",
+      "sale_00447",
+      "sale_00311",
+      "sale_00295"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0177",
+    "artifact_id": "art_0177",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00484",
+      "sale_00167",
+      "sale_00457"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0178",
+    "artifact_id": "art_0178",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00368",
+      "sale_00319",
+      "sale_00076",
+      "sale_00386",
+      "sale_00093",
+      "sale_00487",
+      "sale_00373",
+      "sale_00137",
+      "sale_00135",
+      "sale_00585"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0179",
+    "artifact_id": "art_0179",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00599",
+      "sale_00041",
+      "sale_00582",
+      "sale_00465",
+      "sale_00498"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0180",
+    "artifact_id": "art_0180",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00138",
+      "sale_00280",
+      "sale_00117",
+      "sale_00570",
+      "sale_00551",
+      "sale_00160",
+      "sale_00532",
+      "sale_00594",
+      "sale_00494",
+      "sale_00347"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0181",
+    "artifact_id": "art_0181",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00233",
+      "sale_00256",
+      "sale_00509",
+      "sale_00038"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0182",
+    "artifact_id": "art_0182",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00557",
+      "sale_00079"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0183",
+    "artifact_id": "art_0183",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00549",
+      "sale_00105"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0184",
+    "artifact_id": "art_0184",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00045",
+      "sale_00103",
+      "sale_00343",
+      "sale_00300"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0185",
+    "artifact_id": "art_0185",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00335",
+      "sale_00496"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0186",
+    "artifact_id": "art_0186",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00234",
+      "sale_00104",
+      "sale_00157",
+      "sale_00483",
+      "sale_00161"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0187",
+    "artifact_id": "art_0187",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00079",
+      "sale_00557"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0188",
+    "artifact_id": "art_0188",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00155",
+      "sale_00267",
+      "sale_00487",
+      "sale_00546",
+      "sale_00372",
+      "sale_00232",
+      "sale_00158",
+      "sale_00209",
+      "sale_00033",
+      "sale_00140",
+      "sale_00092",
+      "sale_00368",
+      "sale_00282"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0189",
+    "artifact_id": "art_0189",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00079",
+      "sale_00379",
+      "sale_00150",
+      "sale_00255",
+      "sale_00557",
+      "sale_00307",
+      "sale_00073",
+      "sale_00005"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0190",
+    "artifact_id": "art_0190",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00594",
+      "sale_00117",
+      "sale_00160",
+      "sale_00532",
+      "sale_00100",
+      "sale_00138",
+      "sale_00347",
+      "sale_00551",
+      "sale_00494",
+      "sale_00280",
+      "sale_00570"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0191",
+    "artifact_id": "art_0191",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00413",
+      "sale_00388",
+      "sale_00275",
+      "sale_00336",
+      "sale_00015",
+      "sale_00399",
+      "sale_00467",
+      "sale_00496",
+      "sale_00356",
+      "sale_00428",
+      "sale_00291",
+      "sale_00035",
+      "sale_00025",
+      "sale_00345",
+      "sale_00387",
+      "sale_00244"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0192",
+    "artifact_id": "art_0192",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00295",
+      "sale_00579",
+      "sale_00175",
+      "sale_00311",
+      "sale_00447",
+      "sale_00578",
+      "sale_00065",
+      "sale_00481",
+      "sale_00539"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0193",
+    "artifact_id": "art_0193",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00177",
+      "sale_00112"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0194",
+    "artifact_id": "art_0194",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00006",
+      "sale_00445",
+      "sale_00029",
+      "sale_00513",
+      "sale_00410",
+      "sale_00360"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0195",
+    "artifact_id": "art_0195",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00559",
+      "sale_00239",
+      "sale_00399",
+      "sale_00154",
+      "sale_00589",
+      "sale_00529",
+      "sale_00035",
+      "sale_00067"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0196",
+    "artifact_id": "art_0196",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00166",
+      "sale_00021",
+      "sale_00114",
+      "sale_00084",
+      "sale_00133"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0197",
+    "artifact_id": "art_0197",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00434"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0198",
+    "artifact_id": "art_0198",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00535",
+      "sale_00530",
+      "sale_00349"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0199",
+    "artifact_id": "art_0199",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00421",
+      "sale_00564",
+      "sale_00418",
+      "sale_00171",
+      "sale_00506",
+      "sale_00422",
+      "sale_00582",
+      "sale_00575",
+      "sale_00125",
+      "sale_00438",
+      "sale_00156",
+      "sale_00002",
+      "sale_00351",
+      "sale_00178",
+      "sale_00499",
+      "sale_00086",
+      "sale_00389"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  },
+  {
+    "comp_set_id": "comp_art_0200",
+    "artifact_id": "art_0200",
+    "method": "MEDIAN_TRIMMED",
+    "sales_ids": [
+      "sale_00584",
+      "sale_00385",
+      "sale_00162",
+      "sale_00339"
+    ],
+    "notes": "Auto-selected comps by variant when available, else by brand fallback. Referral links excluded from score weighting."
+  }
+]

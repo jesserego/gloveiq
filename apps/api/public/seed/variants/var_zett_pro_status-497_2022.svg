@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect x="80" y="110" width="1040" height="580" rx="34" fill="#0b1220" opacity="0.72" stroke="#334155" stroke-width="2"/>
+  <text x="130" y="210" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-size="42" fill="#e5e7eb" font-weight="800">Zett Pro Status Pattern</text>
+  <text x="130" y="262" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-size="24" fill="#9ca3af">2022 • JAPAN • CAMEL</text>
+  <text x="130" y="650" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="18" fill="#93c5fd">Variant Placeholder • Local asset</text>
+</svg>

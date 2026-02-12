@@ -1,0 +1,50 @@
+[
+  {
+    "brand_key": "RAWLINGS",
+    "display_name": "Rawlings",
+    "country_hint": "USA/JP",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "WILSON",
+    "display_name": "Wilson",
+    "country_hint": "USA/JP",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "MIZUNO",
+    "display_name": "Mizuno",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "ZETT",
+    "display_name": "Zett",
+    "country_hint": "Japan",
+    "ai_support": "FAMILY_LEVEL"
+  },
+  {
+    "brand_key": "DONAIYA",
+    "display_name": "Donaiya",
+    "country_hint": "Japan",
+    "ai_support": "FAMILY_LEVEL"
+  },
+  {
+    "brand_key": "IP_SELECT",
+    "display_name": "IP Select",
+    "country_hint": "Japan",
+    "ai_support": "FAMILY_LEVEL"
+  },
+  {
+    "brand_key": "HATAKEYAMA",
+    "display_name": "Hatakeyama",
+    "country_hint": "Japan",
+    "ai_support": "FAMILY_LEVEL"
+  },
+  {
+    "brand_key": "KUBOTA_SLUGGER",
+    "display_name": "Kubota Slugger",
+    "country_hint": "Japan",
+    "ai_support": "FAMILY_LEVEL"
+  }
+]

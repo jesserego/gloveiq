@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { api } from "./lib/api";
+import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
@@ -156,7 +156,19 @@ function brandLogoMark(name: string) {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; brands: BrandConfig[]; onOpenArtifact: (id: string) => void; }) {
+function SearchScreen({
+  locale,
+  brands,
+  families,
+  patterns,
+  onOpenArtifact,
+}: {
+  locale: Locale;
+  brands: BrandConfig[];
+  families: FamilyRecord[];
+  patterns: PatternRecord[];
+  onOpenArtifact: (id: string) => void;
+}) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Artifact[]>([]);
   const [typeFilter, setTypeFilter] = useState<"all" | "cataloged" | "artifact">("all");
@@ -212,6 +224,22 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
       if (sortBy === "condition_desc") return (b.condition_score ?? -1) - (a.condition_score ?? -1);
       return a.id.localeCompare(b.id);
     });
+
+  const filteredFamilies = families
+    .filter((f) => {
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return `${f.display_name} ${f.family_key} ${f.brand_key} ${f.tier}`.toLowerCase().includes(query);
+    })
+    .slice(0, 18);
+
+  const filteredPatterns = patterns
+    .filter((p) => {
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return `${p.pattern_code} ${p.brand_key} ${p.canonical_position} ${p.canonical_web || ""}`.toLowerCase().includes(query);
+    })
+    .slice(0, 24);
 
   const total = rows.length;
   const verifiedCount = rows.filter(isVerified).length;
@@ -331,6 +359,10 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{money(Number.isFinite(averageEstimate) ? averageEstimate : 0)}</Typography>
             </Box>
           </Box>
+          <Stack direction="row" spacing={1} sx={{ mt: 1.25, flexWrap: "wrap" }}>
+            <Chip size="small" label={`Families ${families.length}`} />
+            <Chip size="small" label={`Patterns ${patterns.length}`} />
+          </Stack>
         </CardContent></Card>
 
         <Card><CardContent>
@@ -474,6 +506,45 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
             {!loading && filtered.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No records matched your search and filters.</Typography>
             ) : null}
+          </Stack>
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Family Catalog</Typography>
+            <Chip label={`${filteredFamilies.length} shown`} />
+          </Stack>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.1 }}>
+            {filteredFamilies.map((family) => (
+              <Box key={family.family_id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1.75 }}>
+                <Typography sx={{ fontWeight: 800 }}>{family.display_name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {family.brand_key} • {family.family_key} • {family.tier}
+                </Typography>
+              </Box>
+            ))}
+            {filteredFamilies.length === 0 ? <Typography variant="body2" color="text.secondary">No families match current search.</Typography> : null}
+          </Box>
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Pattern Catalog</Typography>
+            <Chip label={`${filteredPatterns.length} shown`} />
+          </Stack>
+          <Divider sx={{ my: 2 }} />
+          <Stack spacing={1}>
+            {filteredPatterns.map((pattern) => (
+              <Box key={pattern.pattern_id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1.75 }}>
+                <Typography sx={{ fontWeight: 800 }}>{pattern.pattern_code}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {pattern.brand_key} • {pattern.canonical_position} • {pattern.canonical_size_in ? `${pattern.canonical_size_in}"` : "size n/a"}
+                  {pattern.canonical_web ? ` • ${pattern.canonical_web}` : ""}
+                </Typography>
+              </Box>
+            ))}
+            {filteredPatterns.length === 0 ? <Typography variant="body2" color="text.secondary">No patterns match current search.</Typography> : null}
           </Stack>
         </CardContent></Card>
 
@@ -908,6 +979,9 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
 
 function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArtifact: (id: string) => void; }) {
   const [rows, setRows] = useState<Artifact[]>([]);
+  const [variantRows, setVariantRows] = useState<VariantRecord[]>([]);
+  const [compRows, setCompRows] = useState<CompRecord[]>([]);
+  const [saleRows, setSaleRows] = useState<SaleRecord[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "verified" | "unverified">("all");
   const [view, setView] = useState<"overview" | "catalog" | "verification">("catalog");
@@ -953,6 +1027,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   }
 
   useEffect(() => { refresh(""); }, []);
+  useEffect(() => {
+    api.variants().then(setVariantRows).catch(() => setVariantRows([]));
+    api.comps().then(setCompRows).catch(() => setCompRows([]));
+    api.sales().then(setSaleRows).catch(() => setSaleRows([]));
+  }, []);
 
   const filtered = rows.filter((row) => {
     const query = q.trim().toLowerCase();
@@ -963,6 +1042,27 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     const isVerified = String(row.verification_status ?? "").toLowerCase().includes("verified");
     return status === "verified" ? isVerified : !isVerified;
   });
+  const filteredVariants = variantRows
+    .filter((v) => {
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return `${v.display_name} ${v.variant_id} ${v.model_code || ""} ${v.brand_key} ${v.year}`.toLowerCase().includes(query);
+    })
+    .slice(0, 50);
+  const filteredComps = compRows
+    .filter((c) => {
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return `${c.comp_set_id} ${c.artifact_id} ${c.method}`.toLowerCase().includes(query);
+    })
+    .slice(0, 40);
+  const filteredSales = saleRows
+    .filter((s) => {
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return `${s.sale_id} ${s.variant_id} ${s.brand_key} ${s.source}`.toLowerCase().includes(query);
+    })
+    .slice(0, 60);
 
   const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
   const recommendedP1: Array<"LINER" | "WRIST_PATCH" | "STAMPS"> = ["LINER", "WRIST_PATCH", "STAMPS"];
@@ -1099,6 +1199,9 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
             <Chip label={`Custom variants ${artifactOnlyCount}`} />
             <Chip label={`P0-ready ${p0ReadyCount}/${rows.length}`} />
             <Chip label={`Valuation-ready ${valuationReadyCount}/${rows.length}`} />
+            <Chip label={`Variants ${variantRows.length}`} />
+            <Chip label={`Comps ${compRows.length}`} />
+            <Chip label={`Sales ${saleRows.length}`} />
           </Stack>
           {loading ? <LinearProgress sx={{ mt: 2 }} /> : null}
           {err ? <Typography sx={{ mt: 2 }} color="error">{err}</Typography> : null}
@@ -1163,7 +1266,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           <>
             <Card><CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Records</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Records</Typography>
                 <Chip label={`${filtered.length} shown`} />
               </Stack>
               <Divider sx={{ my: 2 }} />
@@ -1251,6 +1354,66 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 ) : null}
               </Stack>
             </CardContent></Card>
+
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Catalog</Typography>
+                <Chip label={`${filteredVariants.length} shown`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1}>
+                {filteredVariants.map((variant) => (
+                  <Box key={variant.variant_id} sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 1.6 }}>
+                    <Typography sx={{ fontWeight: 800 }}>{variant.display_name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {variant.variant_id} • {variant.brand_key} • {variant.model_code || "model n/a"} • {variant.year}
+                      {variant.made_in ? ` • ${variant.made_in}` : ""}
+                    </Typography>
+                  </Box>
+                ))}
+                {filteredVariants.length === 0 ? <Typography variant="body2" color="text.secondary">No variants match the current query.</Typography> : null}
+              </Stack>
+            </CardContent></Card>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
+              <Card><CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Comp Sets</Typography>
+                  <Chip label={`${filteredComps.length} shown`} />
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Stack spacing={1}>
+                  {filteredComps.map((comp) => (
+                    <Box key={comp.comp_set_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+                      <Typography sx={{ fontWeight: 800 }}>{comp.comp_set_id}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Artifact {comp.artifact_id} • {comp.method} • {comp.sales_ids.length} linked sales
+                      </Typography>
+                    </Box>
+                  ))}
+                  {filteredComps.length === 0 ? <Typography variant="body2" color="text.secondary">No comp sets match current query.</Typography> : null}
+                </Stack>
+              </CardContent></Card>
+
+              <Card><CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales Feed</Typography>
+                  <Chip label={`${filteredSales.length} shown`} />
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Stack spacing={1}>
+                  {filteredSales.map((sale) => (
+                    <Box key={sale.sale_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+                      <Typography sx={{ fontWeight: 800 }}>{sale.sale_id}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {sale.brand_key} • {money(sale.price_usd)} • {sale.sale_date} • {sale.source}
+                      </Typography>
+                    </Box>
+                  ))}
+                  {filteredSales.length === 0 ? <Typography variant="body2" color="text.secondary">No sales match current query.</Typography> : null}
+                </Stack>
+              </CardContent></Card>
+            </Box>
             <Dialog
               open={Boolean(variantPreviewImage)}
               onClose={() => setVariantPreviewImage(null)}
@@ -2160,10 +2323,14 @@ export default function App() {
   const [locale, setLocale] = useState<Locale>("en");
   const [route, setRoute] = useState<Route>({ name: "search" });
   const [brands, setBrands] = useState<BrandConfig[]>([]);
+  const [families, setFamilies] = useState<FamilyRecord[]>([]);
+  const [patterns, setPatterns] = useState<PatternRecord[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
+  useEffect(() => { api.families().then(setFamilies).catch(() => setFamilies([])); }, []);
+  useEffect(() => { api.patterns().then(setPatterns).catch(() => setPatterns([])); }, []);
   useEffect(() => {
     window.localStorage.setItem("gloveiq-theme-mode", colorMode);
   }, [colorMode]);
@@ -2239,6 +2406,8 @@ export default function App() {
                       <SearchScreen
                         locale={locale}
                         brands={brands}
+                        families={families}
+                        patterns={patterns}
                         onOpenArtifact={(id) => {
                           setLastArtifactId(id);
                           setRoute({ name: "artifactDetail", artifactId: id });
