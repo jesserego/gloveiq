@@ -150,7 +150,7 @@ export function ShellTopBar({
   const subtitle = routeName === "search"
     ? "Overview"
     : routeName === "artifact"
-      ? "Artifact Detail"
+      ? "Artifacts Workspace"
       : "Plans and Billing";
 
   return (

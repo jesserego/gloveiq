@@ -27,7 +27,11 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 
-type Route = { name: "search" } | { name: "artifact"; artifactId: string } | { name: "pricing" };
+type Route =
+  | { name: "search" }
+  | { name: "artifacts" }
+  | { name: "artifactDetail"; artifactId: string }
+  | { name: "pricing" };
 
 function money(n: number | null | undefined) {
   const v = Number(n ?? 0);
@@ -36,13 +40,17 @@ function money(n: number | null | undefined) {
 }
 
 function routeToTab(route: Route): MainTab {
-  if (route.name === "artifact") return "artifact";
+  if (route.name === "artifacts" || route.name === "artifactDetail") return "artifact";
   return route.name;
 }
 
 function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; brands: BrandConfig[]; onOpenArtifact: (id: string) => void; }) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Artifact[]>([]);
+  const [typeFilter, setTypeFilter] = useState<"all" | "cataloged" | "artifact">("all");
+  const [verificationFilter, setVerificationFilter] = useState<"all" | "verified" | "unverified">("all");
+  const [brandFilter, setBrandFilter] = useState<"all" | string>("all");
+  const [sortBy, setSortBy] = useState<"relevance" | "value_desc" | "value_asc" | "condition_desc">("relevance");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -55,6 +63,51 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
 
   useEffect(() => { refresh(""); }, []);
 
+  const quickQueries = ["PRO1000", "A2000", "Japan", "Unverified", "Artifact"];
+  const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
+
+  function readiness(row: Artifact) {
+    const kinds = new Set((row.photos || []).map((p) => p.kind));
+    const missing = requiredP0.filter((k) => !kinds.has(k));
+    return { p0Ready: missing.length === 0, missing };
+  }
+
+  function isVerified(row: Artifact) {
+    return String(row.verification_status ?? "").toLowerCase().includes("verified");
+  }
+
+  const filtered = rows
+    .filter((row) => {
+      const query = q.trim().toLowerCase();
+      const hay = `${row.id} ${row.brand_key ?? ""} ${row.family ?? ""} ${row.model_code ?? ""} ${row.verification_status ?? ""} ${row.made_in ?? ""}`.toLowerCase();
+      const queryOk = query.length === 0 || hay.includes(query);
+      if (!queryOk) return false;
+
+      if (typeFilter === "cataloged" && row.object_type !== "CATALOGED_MODEL") return false;
+      if (typeFilter === "artifact" && row.object_type !== "ARTIFACT") return false;
+
+      const verified = isVerified(row);
+      if (verificationFilter === "verified" && !verified) return false;
+      if (verificationFilter === "unverified" && verified) return false;
+
+      if (brandFilter !== "all" && (row.brand_key || "UNKNOWN") !== brandFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "value_desc") return (b.valuation_estimate ?? -1) - (a.valuation_estimate ?? -1);
+      if (sortBy === "value_asc") return (a.valuation_estimate ?? Number.MAX_SAFE_INTEGER) - (b.valuation_estimate ?? Number.MAX_SAFE_INTEGER);
+      if (sortBy === "condition_desc") return (b.condition_score ?? -1) - (a.condition_score ?? -1);
+      return a.id.localeCompare(b.id);
+    });
+
+  const total = rows.length;
+  const verifiedCount = rows.filter(isVerified).length;
+  const p0ReadyCount = rows.filter((row) => readiness(row).p0Ready).length;
+  const valuationReadyCount = rows.filter((row) => readiness(row).p0Ready && row.valuation_estimate != null).length;
+  const averageEstimate =
+    rows.filter((row) => row.valuation_estimate != null).reduce((sum, row) => sum + Number(row.valuation_estimate || 0), 0) /
+    Math.max(1, rows.filter((row) => row.valuation_estimate != null).length);
+
   return (
     <Container maxWidth="lg" sx={{ py: 2.25 }}>
       <Stack spacing={2}>
@@ -62,7 +115,7 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.search")}</Typography>
-              <Typography variant="body2" color="text.secondary">Origin-aligned dashboard shell with glass and evidence-first workflow.</Typography>
+              <Typography variant="body2" color="text.secondary">High-signal search with verification and valuation gating context.</Typography>
             </Box>
             <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.search")} />
@@ -70,38 +123,121 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
               <Button color="inherit" onClick={() => { setQ(""); refresh(""); }}>Clear</Button>
             </Stack>
           </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
+            {quickQueries.map((qq) => (
+              <Chip key={qq} size="small" label={qq} onClick={() => { setQ(qq); refresh(qq); }} clickable />
+            ))}
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
+            <Chip label={`Type: ${typeFilter}`} color="primary" variant="outlined" />
+            <Chip label={`Verification: ${verificationFilter}`} color="primary" variant="outlined" />
+            <Chip label={`Brand: ${brandFilter}`} color="primary" variant="outlined" />
+            <Chip label={`Sort: ${sortBy}`} color="primary" variant="outlined" />
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+            <Chip label="All types" color={typeFilter === "all" ? "primary" : "default"} onClick={() => setTypeFilter("all")} clickable />
+            <Chip label="Cataloged only" color={typeFilter === "cataloged" ? "primary" : "default"} onClick={() => setTypeFilter("cataloged")} clickable />
+            <Chip label="Artifacts only" color={typeFilter === "artifact" ? "primary" : "default"} onClick={() => setTypeFilter("artifact")} clickable />
+            <Chip label="All statuses" color={verificationFilter === "all" ? "primary" : "default"} onClick={() => setVerificationFilter("all")} clickable />
+            <Chip label="Verified" color={verificationFilter === "verified" ? "primary" : "default"} onClick={() => setVerificationFilter("verified")} clickable />
+            <Chip label="Needs review" color={verificationFilter === "unverified" ? "primary" : "default"} onClick={() => setVerificationFilter("unverified")} clickable />
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+            <Chip label="Any brand" color={brandFilter === "all" ? "primary" : "default"} onClick={() => setBrandFilter("all")} clickable />
+            {brands.map((b) => (
+              <Chip
+                key={b.brand_key}
+                label={b.brand_key}
+                color={brandFilter === b.brand_key ? "primary" : "default"}
+                onClick={() => setBrandFilter(b.brand_key)}
+                clickable
+              />
+            ))}
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+            <Chip label="Sort A-Z" color={sortBy === "relevance" ? "primary" : "default"} onClick={() => setSortBy("relevance")} clickable />
+            <Chip label="Value high-low" color={sortBy === "value_desc" ? "primary" : "default"} onClick={() => setSortBy("value_desc")} clickable />
+            <Chip label="Value low-high" color={sortBy === "value_asc" ? "primary" : "default"} onClick={() => setSortBy("value_asc")} clickable />
+            <Chip label="Condition" color={sortBy === "condition_desc" ? "primary" : "default"} onClick={() => setSortBy("condition_desc")} clickable />
+          </Stack>
           {loading ? <LinearProgress sx={{ mt: 2 }} /> : null}
           {err ? <Typography sx={{ mt: 2 }} color="error">{err}</Typography> : null}
         </CardContent></Card>
 
         <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Search Snapshot</Typography>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(5, 1fr)" }, gap: 1.25 }}>
+            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Total records</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{total}</Typography>
+            </Box>
+            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Verified</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{verifiedCount}</Typography>
+            </Box>
+            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">P0 evidence ready</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{p0ReadyCount}</Typography>
+            </Box>
+            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Valuation-ready</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{valuationReadyCount}</Typography>
+            </Box>
+            <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Avg estimate</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{money(Number.isFinite(averageEstimate) ? averageEstimate : 0)}</Typography>
+            </Box>
+          </Box>
+        </CardContent></Card>
+
+        <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "search.results")}</Typography>
-            <Chip label={rows.length} />
+            <Chip label={`${filtered.length} shown`} />
           </Stack>
           <Divider sx={{ my: 2 }} />
-          <Stack spacing={1.5}>
-            {rows.map((a) => (
-              <motion.div key={a.id} layout>
-                <Box
-                  onClick={() => onOpenArtifact(a.id)}
-                  role="button" tabIndex={0}
-                  sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, cursor: "pointer", "&:hover": { backgroundColor: "action.hover" } }}
-                >
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 900 }} noWrap>
-                        {a.object_type === "ARTIFACT" ? a.id : `${a.brand_key ?? "Unknown"} ${a.model_code ?? ""}`.trim()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" noWrap>
-                        {(a.family || "—")} • {(a.made_in || "Unknown")} • {a.size_in ? `${a.size_in}"` : "—"}
-                      </Typography>
+          <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)", gap: 1, px: 1, pb: 1 }}>
+            <Typography variant="caption" color="text.secondary">Artifact</Typography>
+            <Typography variant="caption" color="text.secondary">Verification</Typography>
+            <Typography variant="caption" color="text.secondary">Valuation</Typography>
+            <Typography variant="caption" color="text.secondary" align="right">Action</Typography>
+          </Box>
+          <Stack spacing={1}>
+            {filtered.map((a) => {
+              const verified = isVerified(a);
+              const ready = readiness(a);
+              return (
+                <motion.div key={a.id} layout>
+                  <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)" }, gap: 1.25, alignItems: "center" }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.size_in ? `${a.size_in}"` : "—")}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
+                        <Chip size="small" label={verified ? "Verified" : "Needs review"} color={verified ? "success" : "warning"} />
+                        <Chip size="small" label={ready.p0Ready ? "P0 ready" : `Missing ${ready.missing.join(",")}`} color={ready.p0Ready ? "success" : "warning"} />
+                      </Stack>
+                      <Box>
+                        <Typography sx={{ fontWeight: 900 }}>{a.valuation_estimate != null ? money(a.valuation_estimate) : "—"}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {a.valuation_low != null && a.valuation_high != null ? `${money(a.valuation_low)}–${money(a.valuation_high)}` : "Range unavailable"}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+                        <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
+                      </Box>
                     </Box>
-                    <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
-                  </Stack>
-                </Box>
-              </motion.div>
-            ))}
+                  </Box>
+                </motion.div>
+              );
+            })}
+            {!loading && filtered.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">No records matched your search and filters.</Typography>
+            ) : null}
           </Stack>
         </CardContent></Card>
 
@@ -122,6 +258,307 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
             ))}
           </Box>
         </CardContent></Card>
+      </Stack>
+    </Container>
+  );
+}
+
+function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArtifact: (id: string) => void; }) {
+  const [rows, setRows] = useState<Artifact[]>([]);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<"all" | "verified" | "unverified">("all");
+  const [view, setView] = useState<"overview" | "catalog" | "verification" | "intake">("overview");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function refresh(query?: string) {
+    setLoading(true); setErr(null);
+    try { setRows(await api.artifacts(query)); }
+    catch (e: any) { setErr(String(e?.message || e)); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { refresh(""); }, []);
+
+  const filtered = rows.filter((row) => {
+    const query = q.trim().toLowerCase();
+    const hay = `${row.id} ${row.brand_key ?? ""} ${row.family ?? ""} ${row.model_code ?? ""} ${row.verification_status ?? ""}`.toLowerCase();
+    const queryOk = query.length === 0 || hay.includes(query);
+    if (!queryOk) return false;
+    if (status === "all") return true;
+    const isVerified = String(row.verification_status ?? "").toLowerCase().includes("verified");
+    return status === "verified" ? isVerified : !isVerified;
+  });
+
+  const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
+  const recommendedP1: Array<"LINER" | "WRIST_PATCH" | "STAMPS"> = ["LINER", "WRIST_PATCH", "STAMPS"];
+
+  function evidenceGap(row: Artifact) {
+    const kinds = new Set((row.photos || []).map((p) => p.kind));
+    const missingP0 = requiredP0.filter((k) => !kinds.has(k));
+    const missingP1 = recommendedP1.filter((k) => !kinds.has(k));
+    return { missingP0, missingP1 };
+  }
+
+  function isVerified(row: Artifact) {
+    return String(row.verification_status ?? "").toLowerCase().includes("verified");
+  }
+
+  const verifiedCount = rows.filter((r) => String(r.verification_status ?? "").toLowerCase().includes("verified")).length;
+  const estimatedCount = rows.filter((r) => r.valuation_estimate != null).length;
+  const artifactOnlyCount = rows.filter((r) => r.object_type === "ARTIFACT").length;
+  const p0ReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0).length;
+  const valuationReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0 && r.valuation_estimate != null).length;
+
+  const verificationQueue = rows
+    .map((r) => {
+      const gaps = evidenceGap(r);
+      const blockedByEvidence = gaps.missingP0.length > 0;
+      const blockedByValuation = r.valuation_estimate == null;
+      const priority = blockedByEvidence ? "P0" : blockedByValuation ? "P1" : "Ready";
+      const reason = blockedByEvidence
+        ? `Missing required photos: ${gaps.missingP0.join(", ")}`
+        : blockedByValuation
+          ? "Needs stronger comp depth before estimate"
+          : "Verification + valuation conditions met";
+      return { row: r, gaps, blockedByEvidence, blockedByValuation, priority, reason };
+    })
+    .sort((a, b) => {
+      const rank = (x: string) => (x === "P0" ? 0 : x === "P1" ? 1 : 2);
+      return rank(a.priority) - rank(b.priority);
+    });
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 2.25 }}>
+      <Stack spacing={2}>
+        <Card><CardContent>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.artifact")}</Typography>
+              <Typography variant="body2" color="text.secondary">Catalog and user artifacts with verification and valuation readiness.</Typography>
+            </Box>
+            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.artifact")} />
+              <Button onClick={() => refresh(q)} startIcon={<SearchIcon />}>Refresh</Button>
+            </Stack>
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap" }}>
+            <Chip label="Overview" color={view === "overview" ? "primary" : "default"} onClick={() => setView("overview")} clickable />
+            <Chip label="Catalog" color={view === "catalog" ? "primary" : "default"} onClick={() => setView("catalog")} clickable />
+            <Chip label="Verification" color={view === "verification" ? "primary" : "default"} onClick={() => setView("verification")} clickable />
+            <Chip label="Intake" color={view === "intake" ? "primary" : "default"} onClick={() => setView("intake")} clickable />
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+            <Chip
+              label={`All (${rows.length})`}
+              color={status === "all" ? "primary" : "default"}
+              onClick={() => setStatus("all")}
+              clickable
+            />
+            <Chip
+              label={`Verified (${verifiedCount})`}
+              color={status === "verified" ? "primary" : "default"}
+              onClick={() => setStatus("verified")}
+              clickable
+            />
+            <Chip
+              label={`Needs review (${rows.length - verifiedCount})`}
+              color={status === "unverified" ? "primary" : "default"}
+              onClick={() => setStatus("unverified")}
+              clickable
+            />
+            <Chip label={`Cataloged ${rows.length - artifactOnlyCount}`} />
+            <Chip label={`Custom artifacts ${artifactOnlyCount}`} />
+            <Chip label={`P0-ready ${p0ReadyCount}/${rows.length}`} />
+            <Chip label={`Valuation-ready ${valuationReadyCount}/${rows.length}`} />
+          </Stack>
+          {loading ? <LinearProgress sx={{ mt: 2 }} /> : null}
+          {err ? <Typography sx={{ mt: 2 }} color="error">{err}</Typography> : null}
+        </CardContent></Card>
+
+        {view === "overview" ? (
+          <>
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Today&apos;s Artifact Snapshot</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 1.25 }}>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Total records</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>{rows.length}</Typography>
+                  <Typography variant="caption" color="text.secondary">Catalog + custom artifacts</Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Verified</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>{verifiedCount}</Typography>
+                  <Typography variant="caption" color="text.secondary">{rows.length ? `${Math.round((verifiedCount / rows.length) * 100)}%` : "0%"} of records</Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">P0 evidence ready</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>{p0ReadyCount}</Typography>
+                  <Typography variant="caption" color="text.secondary">Back + palm captured</Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Valuation estimate ready</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>{estimatedCount}</Typography>
+                  <Typography variant="caption" color="text.secondary">Estimate currently available</Typography>
+                </Box>
+              </Box>
+            </CardContent></Card>
+
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Verification Queue</Typography>
+                <Chip label={`${verificationQueue.filter((qRow) => qRow.priority !== "Ready").length} pending`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1.25}>
+                {verificationQueue.slice(0, 6).map((qRow) => (
+                  <Box key={qRow.row.id} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between" alignItems={{ md: "center" }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>{qRow.row.id}</Typography>
+                        <Typography variant="body2" color="text.secondary">{qRow.reason}</Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip size="small" label={qRow.priority} color={qRow.priority === "P0" ? "warning" : qRow.priority === "P1" ? "info" : "success"} />
+                        <Button onClick={() => onOpenArtifact(qRow.row.id)}>Open</Button>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </CardContent></Card>
+          </>
+        ) : null}
+
+        {view === "catalog" ? (
+          <Card><CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Catalog</Typography>
+              <Chip label={`${filtered.length} shown`} />
+            </Stack>
+            <Divider sx={{ my: 2 }} />
+            <Stack spacing={1.25}>
+              {filtered.map((a) => {
+                const verified = isVerified(a);
+                const showEstimate = a.valuation_estimate != null;
+                return (
+                  <Box
+                    key={a.id}
+                    sx={{ p: 1.75, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                  >
+                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
+                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+                          <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
+                          <Chip size="small" label={verified ? "Verified" : "Needs Review"} color={verified ? "success" : "warning"} />
+                          <Chip size="small" label={`Condition ${a.condition_score ?? "—"}`} />
+                        </Stack>
+                      </Box>
+                      <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
+                        <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+                          <Typography sx={{ fontWeight: 900 }}>{showEstimate ? money(a.valuation_estimate) : "—"}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {a.valuation_low != null && a.valuation_high != null ? `${money(a.valuation_low)}–${money(a.valuation_high)}` : "Range unavailable"}
+                          </Typography>
+                        </Box>
+                        <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                );
+              })}
+              {filtered.length === 0 && !loading ? (
+                <Typography variant="body2" color="text.secondary">No artifacts match the current filters.</Typography>
+              ) : null}
+            </Stack>
+          </CardContent></Card>
+        ) : null}
+
+        {view === "verification" ? (
+          <>
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Evidence Requirements</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Chip size="small" color="warning" label="P0 Required" />
+                  <Typography variant="body2" sx={{ mt: 1 }}>BACK photo (full glove straight-on)</Typography>
+                  <Typography variant="body2">PALM photo (pocket + wear)</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                    If P0 is missing, valuation remains range-only or hidden.
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Chip size="small" color="info" label="P1 Recommended" />
+                  <Typography variant="body2" sx={{ mt: 1 }}>WRIST_PATCH photo for run confirmation</Typography>
+                  <Typography variant="body2">LINER + STAMPS photos for condition and certainty</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                    P1 increases confidence and narrows valuation range.
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent></Card>
+
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Queue Detail</Typography>
+                <Chip label={`${verificationQueue.length} tracked`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1.25}>
+                {verificationQueue.map((qRow) => (
+                  <Box key={qRow.row.id} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between" alignItems={{ md: "center" }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>{qRow.row.id}</Typography>
+                        <Typography variant="body2" color="text.secondary">{qRow.reason}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          P0 missing: {qRow.gaps.missingP0.length ? qRow.gaps.missingP0.join(", ") : "none"} • P1 missing: {qRow.gaps.missingP1.length ? qRow.gaps.missingP1.join(", ") : "none"}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip size="small" label={qRow.priority} color={qRow.priority === "P0" ? "warning" : qRow.priority === "P1" ? "info" : "success"} />
+                        <Button onClick={() => onOpenArtifact(qRow.row.id)}>Open</Button>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </CardContent></Card>
+          </>
+        ) : null}
+
+        {view === "intake" ? (
+          <>
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Intake</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="body2" color="text.secondary">
+                Use intake to upload evidence, dedupe photo submissions, and move artifacts from unverified to valuation-ready.
+              </Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" }, gap: 1.25, mt: 1.5 }}>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Uploads deduped</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>Hash cache on</Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Ready for review</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>{p0ReadyCount} artifacts</Typography>
+                </Box>
+                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Still blocked</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>{rows.length - p0ReadyCount} artifacts</Typography>
+                </Box>
+              </Box>
+            </CardContent></Card>
+            <UploadPanel locale={locale} />
+          </>
+        ) : null}
       </Stack>
     </Container>
   );
@@ -281,7 +718,7 @@ export default function App() {
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
   useEffect(() => {
-    if (route.name === "artifact") {
+    if (route.name === "artifactDetail") {
       setLastArtifactId(route.artifactId);
       api.artifact(route.artifactId).then(setArtifact).catch(() => setArtifact(null));
     } else {
@@ -293,7 +730,7 @@ export default function App() {
 
   function onSelectTab(tab: MainTab) {
     if (tab === "artifact") {
-      if (lastArtifactId) setRoute({ name: "artifact", artifactId: lastArtifactId });
+      setRoute({ name: "artifacts" });
       return;
     }
     if (tab === "pricing") setRoute({ name: "pricing" });
@@ -305,15 +742,15 @@ export default function App() {
       <CssBaseline />
 
       <Box sx={{ minHeight: "100vh", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
-        <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={Boolean(lastArtifactId)} onSelect={onSelectTab} />
+        <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
 
         <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <ShellTopBar locale={locale} setLocale={setLocale} routeName={route.name} onReset={() => setRoute({ name: "search" })} />
+          <ShellTopBar locale={locale} setLocale={setLocale} routeName={activeTab} onReset={() => setRoute({ name: "search" })} />
 
           <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
-                key={route.name === "artifact" ? route.artifactId : route.name}
+                key={route.name === "artifactDetail" ? route.artifactId : route.name}
                 initial={{ x: 14, opacity: 0.6 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -10, opacity: 0.6 }}
@@ -325,10 +762,18 @@ export default function App() {
                     brands={brands}
                     onOpenArtifact={(id) => {
                       setLastArtifactId(id);
-                      setRoute({ name: "artifact", artifactId: id });
+                      setRoute({ name: "artifactDetail", artifactId: id });
                     }}
                   />
-                ) : route.name === "artifact" ? (
+                ) : route.name === "artifacts" ? (
+                  <ArtifactsScreen
+                    locale={locale}
+                    onOpenArtifact={(id) => {
+                      setLastArtifactId(id);
+                      setRoute({ name: "artifactDetail", artifactId: id });
+                    }}
+                  />
+                ) : route.name === "artifactDetail" ? (
                   artifact ? (
                     <ArtifactDetail locale={locale} artifact={artifact} />
                   ) : (
@@ -349,7 +794,7 @@ export default function App() {
         </Box>
       </Box>
 
-      <MobileBottomNav locale={locale} activeTab={activeTab} canOpenArtifact={Boolean(lastArtifactId)} onSelect={onSelectTab} />
+      <MobileBottomNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
     </ThemeProvider>
   );
 }
