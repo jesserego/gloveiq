@@ -2408,7 +2408,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
                 sx={{
                   mt: 2,
                   width: "100%",
-                  background: idx === 1 ? "linear-gradient(180deg, #3763E9, #314FC7)" : undefined,
+                  background: idx === 1 ? "linear-gradient(180deg, #0A84FF, #0073F0)" : undefined,
                 }}
                 onClick={onStartFree}
               >
@@ -2484,10 +2484,10 @@ export default function App() {
             borderColor: { xs: "transparent", md: "divider" },
             boxShadow: (theme) => ({
               xs: "none",
-              md: theme.palette.mode === "dark" ? "0 22px 52px rgba(0,0,0,0.45)" : "0 18px 44px rgba(17,24,39,0.10)",
+              md: theme.palette.mode === "dark" ? "0 22px 52px rgba(0,0,0,0.5)" : "0 18px 44px rgba(15,23,42,0.14)",
             }),
-            backgroundColor: (theme) => theme.palette.mode === "dark" ? "rgba(18,24,38,0.92)" : "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(22px) saturate(120%)",
+            backgroundColor: (theme) => theme.palette.mode === "dark" ? "rgba(28,28,30,0.84)" : "rgba(255,255,255,0.84)",
+            backdropFilter: "blur(24px) saturate(135%)",
           }}
         >
           <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>

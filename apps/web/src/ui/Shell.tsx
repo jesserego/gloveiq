@@ -10,6 +10,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
@@ -68,8 +69,11 @@ export function SidebarNav({
         flexDirection: "column",
         p: 2,
         gap: 1.5,
-        background: isDark ? "linear-gradient(180deg, #121826, #0B0E14)" : "linear-gradient(180deg, #FFFFFF, #F2F4F7)",
-        borderRight: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`,
+        background: isDark
+          ? "linear-gradient(180deg, rgba(28,28,30,0.92), rgba(18,18,20,0.88))"
+          : "linear-gradient(180deg, rgba(255,255,255,0.90), rgba(242,242,247,0.88))",
+        backdropFilter: "blur(22px) saturate(130%)",
+        borderRight: `1px solid ${theme.palette.divider}`,
         color: "text.primary",
       }}
     >
@@ -121,18 +125,18 @@ export function SidebarNav({
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(55,99,233,0.32)" : "transparent",
-                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
+                borderColor: active ? alpha(theme.palette.primary.main, 0.45) : "transparent",
+                backgroundColor: active ? alpha(theme.palette.primary.main, 0.16) : "transparent",
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: disabled ? "transparent" : isDark ? "rgba(255,255,255,0.06)" : "rgba(17,24,39,0.05)",
+                  backgroundColor: disabled ? "transparent" : isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : isDark ? "rgba(255,255,255,0.08)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? alpha(theme.palette.primary.main, 0.2) : isDark ? "rgba(120,120,128,0.24)" : "rgba(120,120,128,0.16)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -145,7 +149,7 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Divider sx={{ borderColor: isDark ? "#2A3142" : "#E3E8EF", my: 0.75 }} />
+      <Divider sx={{ borderColor: theme.palette.divider, my: 0.75 }} />
 
       <Stack spacing={0.75}>
         {utilityItems.map((item) => {
@@ -167,17 +171,17 @@ export function SidebarNav({
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(55,99,233,0.32)" : "transparent",
-                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
+                borderColor: active ? alpha(theme.palette.primary.main, 0.45) : "transparent",
+                backgroundColor: active ? alpha(theme.palette.primary.main, 0.16) : "transparent",
                 cursor: "pointer",
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(17,24,39,0.05)",
+                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : isDark ? "rgba(255,255,255,0.08)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? alpha(theme.palette.primary.main, 0.2) : isDark ? "rgba(120,120,128,0.24)" : "rgba(120,120,128,0.16)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -195,8 +199,8 @@ export function SidebarNav({
           p: 1.1,
           mt: 0.25,
           borderRadius: 2,
-          border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`,
-          backgroundColor: isDark ? "#1A2233" : "#F2F4F7",
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)",
         }}
       >
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
@@ -212,7 +216,7 @@ export function SidebarNav({
 
       <Box sx={{ mt: "auto" }} />
 
-      <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`, backgroundColor: isDark ? "#1A2233" : "#F2F4F7", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
+      <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
         <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
         <br />
         Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
@@ -232,6 +236,8 @@ export function ShellTopBar({
   routeName: ShellRouteName;
   onReset: () => void;
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const subtitle = routeName === "search"
     ? "Overview"
     : routeName === "artifact"
@@ -251,8 +257,8 @@ export function ShellTopBar({
         justifyContent: "space-between",
         gap: 1.5,
         px: { xs: 1.25, md: 2.25 },
-        borderBottom: "1px solid #E3E8EF",
-        backgroundColor: "rgba(255,255,255,0.92)",
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: isDark ? "rgba(28,28,30,0.86)" : "rgba(255,255,255,0.86)",
         backdropFilter: "blur(16px) saturate(160%)",
         position: "sticky",
         top: 0,
@@ -270,8 +276,8 @@ export function ShellTopBar({
             borderRadius: 1.2,
             objectFit: "contain",
             p: 0.2,
-            border: "1px solid #E3E8EF",
-            backgroundColor: "#F2F4F7",
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: isDark ? "rgba(120,120,128,0.2)" : "rgba(120,120,128,0.14)",
             filter: BRAND_LOGO_BLUE_FILTER,
           }}
         />
@@ -283,8 +289,8 @@ export function ShellTopBar({
             px: 1.5,
             py: 1,
             borderRadius: 999,
-            backgroundColor: "#FFFFFF",
-            border: "1px solid #E3E8EF",
+            backgroundColor: isDark ? "rgba(120,120,128,0.22)" : "rgba(120,120,128,0.14)",
+            border: `1px solid ${theme.palette.divider}`,
             boxShadow: "0 1px 0 rgba(0,0,0,0.02) inset",
             minWidth: 0,
             maxWidth: 740,
@@ -306,7 +312,7 @@ export function ShellTopBar({
               width: "100%",
             }}
           />
-          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "text.secondary", border: "1px solid #E3E8EF", px: 0.8, py: 0.25, borderRadius: 1 }}>⌘K</Box>
+          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "text.secondary", border: `1px solid ${theme.palette.divider}`, px: 0.8, py: 0.25, borderRadius: 1, backgroundColor: isDark ? "rgba(120,120,128,0.2)" : "rgba(120,120,128,0.12)" }}>⌘K</Box>
         </Box>
 
         <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
@@ -326,7 +332,7 @@ export function ShellTopBar({
           </Select>
         </FormControl>
         <Button color="inherit" sx={{ borderRadius: 999, minWidth: 0, px: 1.4, display: { xs: "none", sm: "inline-flex" } }} onClick={onReset}>+ New</Button>
-        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: "1px solid #E3E8EF", backgroundColor: "#FFFFFF", display: "grid", placeItems: "center" }}>
+        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(120,120,128,0.2)" : "rgba(255,255,255,0.8)", display: "grid", placeItems: "center" }}>
           <NotificationsNoneOutlinedIcon fontSize="small" />
         </Box>
       </Stack>
@@ -345,6 +351,8 @@ export function MobileBottomNav({
   canOpenArtifact: boolean;
   onSelect: (tab: MainTab) => void;
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const tabs = [
     { name: "search" as const, label: t(locale, "tab.search"), icon: <SearchIcon fontSize="small" /> },
     { name: "artifact" as const, label: t(locale, "tab.artifact"), icon: <SportsBaseballIcon fontSize="small" /> },
@@ -362,11 +370,11 @@ export function MobileBottomNav({
         right: 10,
         bottom: 10,
         zIndex: 1200,
-        border: "1px solid #E3E8EF",
+        border: `1px solid ${theme.palette.divider}`,
         borderRadius: 3,
         backdropFilter: "blur(20px) saturate(170%)",
-        backgroundColor: "rgba(255,255,255,0.94)",
-        boxShadow: "0 12px 28px rgba(0,0,0,0.14)",
+        backgroundColor: isDark ? "rgba(28,28,30,0.9)" : "rgba(255,255,255,0.92)",
+        boxShadow: isDark ? "0 14px 30px rgba(0,0,0,0.45)" : "0 12px 28px rgba(15,23,42,0.14)",
       }}
     >
       <Stack direction="row" spacing={0.5} sx={{ p: 0.75 }}>
@@ -390,8 +398,8 @@ export function MobileBottomNav({
                 py: 0.75,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(55,99,233,0.26)" : "transparent",
-                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
+                borderColor: active ? alpha(theme.palette.primary.main, 0.4) : "transparent",
+                backgroundColor: active ? alpha(theme.palette.primary.main, 0.15) : "transparent",
                 color: disabled ? "text.disabled" : "text.primary",
                 opacity: disabled ? 0.5 : 1,
               }}
