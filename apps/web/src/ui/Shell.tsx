@@ -73,7 +73,7 @@ export function SidebarNav({
         color: "text.primary",
       }}
     >
-      <Stack spacing={0.6} alignItems="flex-start" sx={{ px: 0.2, py: 0.4 }}>
+      <Stack spacing={0.6} alignItems="center" sx={{ px: 0.2, py: 0.4, width: "100%" }}>
         <Box
           sx={{
             width: 152,
@@ -95,7 +95,7 @@ export function SidebarNav({
             }}
           />
         </Box>
-        <Typography sx={{ fontSize: 12, color: "text.secondary", letterSpacing: 0.2, ml: "30px" }} noWrap>
+        <Typography sx={{ fontSize: 12, color: "text.secondary", letterSpacing: 0.2, textAlign: "center" }} noWrap>
           v0.1.0 • Update 2026.02.12
         </Typography>
       </Stack>

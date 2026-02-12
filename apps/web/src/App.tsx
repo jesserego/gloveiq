@@ -15,6 +15,7 @@ import {
   Container,
   CssBaseline,
   Divider,
+  Dialog,
   FormControl,
   FormControlLabel,
   LinearProgress,
@@ -27,6 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 
 import SearchIcon from "@mui/icons-material/Search";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
@@ -36,9 +38,25 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import SecurityIcon from "@mui/icons-material/Security";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
+const FIGMA_TAG_BASE_SX = {
+  height: 24,
+  borderRadius: "999px",
+  "& .MuiChip-label": { px: 1.15, py: 0.1, fontWeight: 700, fontSize: 12, lineHeight: "16px" },
+} as const;
+const FIGMA_OPEN_BUTTON_SX = {
+  height: 28,
+  minHeight: 28,
+  borderRadius: "999px",
+  px: 1.85,
+  py: 0,
+  fontSize: 12,
+  lineHeight: "16px",
+  fontWeight: 700,
+} as const;
 
 type Route =
   | { name: "search" }
@@ -135,6 +153,7 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
   const [sortBy, setSortBy] = useState<"relevance" | "value_desc" | "value_asc" | "condition_desc">("relevance");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
 
   async function refresh(query?: string) {
     setLoading(true); setErr(null);
@@ -207,8 +226,22 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
             </Box>
             <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.search")} />
-              <Button onClick={() => refresh(q)} startIcon={<SearchIcon />}>Search</Button>
-              <Button color="inherit" onClick={() => { setQ(""); refresh(""); }}>Clear</Button>
+              <Button onClick={() => refresh(q)} sx={{ ...FIGMA_OPEN_BUTTON_SX, minWidth: 74 }}>Search</Button>
+              <Button
+                color="inherit"
+                onClick={() => { setQ(""); refresh(""); }}
+                sx={{
+                  ...FIGMA_OPEN_BUTTON_SX,
+                  minWidth: 66,
+                  bgcolor: "transparent",
+                  color: "text.secondary",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  boxShadow: "none !important",
+                }}
+              >
+                Clear
+              </Button>
             </Stack>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
@@ -216,38 +249,47 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
               <Chip key={qq} size="small" label={qq} onClick={() => { setQ(qq); refresh(qq); }} clickable />
             ))}
           </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
-            <Chip label={`Type: ${typeFilter}`} color="primary" variant="outlined" />
-            <Chip label={`Verification: ${verificationFilter}`} color="primary" variant="outlined" />
-            <Chip label={`Brand: ${brandFilter}`} color="primary" variant="outlined" />
-            <Chip label={`Sort: ${sortBy}`} color="primary" variant="outlined" />
-          </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-            <Chip label="All types" color={typeFilter === "all" ? "primary" : "default"} onClick={() => setTypeFilter("all")} clickable />
-            <Chip label="Cataloged only" color={typeFilter === "cataloged" ? "primary" : "default"} onClick={() => setTypeFilter("cataloged")} clickable />
-            <Chip label="Artifacts only" color={typeFilter === "artifact" ? "primary" : "default"} onClick={() => setTypeFilter("artifact")} clickable />
-            <Chip label="All statuses" color={verificationFilter === "all" ? "primary" : "default"} onClick={() => setVerificationFilter("all")} clickable />
-            <Chip label="Verified" color={verificationFilter === "verified" ? "primary" : "default"} onClick={() => setVerificationFilter("verified")} clickable />
-            <Chip label="Needs review" color={verificationFilter === "unverified" ? "primary" : "default"} onClick={() => setVerificationFilter("unverified")} clickable />
-          </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-            <Chip label="Any brand" color={brandFilter === "all" ? "primary" : "default"} onClick={() => setBrandFilter("all")} clickable />
-            {brands.map((b) => (
-              <Chip
-                key={b.brand_key}
-                label={b.brand_key}
-                color={brandFilter === b.brand_key ? "primary" : "default"}
-                onClick={() => setBrandFilter(b.brand_key)}
-                clickable
-              />
-            ))}
-          </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-            <Chip label="Sort A-Z" color={sortBy === "relevance" ? "primary" : "default"} onClick={() => setSortBy("relevance")} clickable />
-            <Chip label="Value high-low" color={sortBy === "value_desc" ? "primary" : "default"} onClick={() => setSortBy("value_desc")} clickable />
-            <Chip label="Value low-high" color={sortBy === "value_asc" ? "primary" : "default"} onClick={() => setSortBy("value_asc")} clickable />
-            <Chip label="Condition" color={sortBy === "condition_desc" ? "primary" : "default"} onClick={() => setSortBy("condition_desc")} clickable />
-          </Stack>
+          <Box sx={{ mt: 1.5, p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2, backgroundColor: "background.paper" }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, gap: 1.1 }}>
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, px: 0.2 }}>Type</Typography>
+                <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as "all" | "cataloged" | "artifact")}>
+                  <MenuItem value="all">All types</MenuItem>
+                  <MenuItem value="cataloged">Cataloged only</MenuItem>
+                  <MenuItem value="artifact">Artifacts only</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, px: 0.2 }}>Verification</Typography>
+                <Select value={verificationFilter} onChange={(e) => setVerificationFilter(e.target.value as "all" | "verified" | "unverified")}>
+                  <MenuItem value="all">All statuses</MenuItem>
+                  <MenuItem value="verified">Verified</MenuItem>
+                  <MenuItem value="unverified">Needs review</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, px: 0.2 }}>Brand</Typography>
+                <Select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value as "all" | string)}>
+                  <MenuItem value="all">Any brand</MenuItem>
+                  {seededBrands.map((b) => (
+                    <MenuItem key={b.brand_key} value={b.brand_key}>{b.display_name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, px: 0.2 }}>Sort</Typography>
+                <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as "relevance" | "value_desc" | "value_asc" | "condition_desc")}>
+                  <MenuItem value="relevance">Sort A-Z</MenuItem>
+                  <MenuItem value="value_desc">Value high-low</MenuItem>
+                  <MenuItem value="value_asc">Value low-high</MenuItem>
+                  <MenuItem value="condition_desc">Condition</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </Box>
           {loading ? <LinearProgress sx={{ mt: 2 }} /> : null}
           {err ? <Typography sx={{ mt: 2 }} color="error">{err}</Typography> : null}
         </CardContent></Card>
@@ -303,58 +345,101 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
                       <Box sx={{ minWidth: 0 }}>
                         <Stack direction="row" spacing={1.2} alignItems="center">
                           <Box
-                            component="img"
-                            src={thumb}
-                            alt={`${a.id} thumbnail`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setPreviewImage({ src: thumb, title: a.id })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setPreviewImage({ src: thumb, title: a.id });
+                              }
+                            }}
                             sx={{
                               width: 70,
                               height: 52,
                               borderRadius: 1.4,
                               border: "1px solid",
                               borderColor: "divider",
-                              objectFit: "cover",
                               flexShrink: 0,
+                              position: "relative",
+                              overflow: "hidden",
+                              cursor: "zoom-in",
+                              "&:hover .thumb-overlay": { opacity: 1 },
                             }}
-                          />
+                          >
+                            <Box
+                              component="img"
+                              src={thumb}
+                              alt={`${a.id} thumbnail`}
+                              sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                            />
+                            <Box
+                              className="thumb-overlay"
+                              sx={{
+                                position: "absolute",
+                                inset: 0,
+                                display: "grid",
+                                placeItems: "center",
+                                background: "rgba(15,23,42,0.42)",
+                                opacity: { xs: 1, md: 0 },
+                                transition: "opacity 140ms ease",
+                                color: "#fff",
+                              }}
+                            >
+                              <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+                            </Box>
+                          </Box>
                           <Box sx={{ minWidth: 0 }}>
                             <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
                             <Typography variant="body2" color="text.secondary" noWrap>
                               {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.size_in ? `${a.size_in}"` : "—")}
                             </Typography>
-                            <Typography
-                              component="a"
-                              href={thumb}
-                              target="_blank"
-                              rel="noreferrer"
-                              sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.3, fontSize: 12, color: "primary.main", textDecoration: "none", fontWeight: 700 }}
-                            >
-                              Open image
-                              <OpenInNewIcon sx={{ fontSize: 14 }} />
-                            </Typography>
                           </Box>
                         </Stack>
                       </Box>
-                      <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          columnGap: { xs: 0.5, md: 0.75 },
+                          rowGap: { xs: 0.5, md: 0.75 },
+                        }}
+                      >
                         <Chip
                           size="small"
                           label={verified ? "Verified" : "Needs review"}
-                          color={verified ? "success" : "warning"}
-                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                          sx={{
+                            ...FIGMA_TAG_BASE_SX,
+                            bgcolor: verified ? alpha("#22C55E", 0.14) : alpha("#F59E0B", 0.16),
+                            color: verified ? "#15803D" : "#B45309",
+                            border: "1px solid",
+                            borderColor: verified ? alpha("#22C55E", 0.34) : alpha("#F59E0B", 0.38),
+                          }}
                         />
                         <Chip
                           size="small"
                           label={ready.p0Ready ? "P0 ready" : `Missing ${ready.missing.join(",")}`}
-                          color={ready.p0Ready ? "info" : "error"}
-                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                          sx={{
+                            ...FIGMA_TAG_BASE_SX,
+                            bgcolor: ready.p0Ready ? alpha("#3B82F6", 0.14) : alpha("#EF4444", 0.14),
+                            color: ready.p0Ready ? "#1D4ED8" : "#B91C1C",
+                            border: "1px solid",
+                            borderColor: ready.p0Ready ? alpha("#3B82F6", 0.34) : alpha("#EF4444", 0.34),
+                          }}
                         />
                         <Chip
                           size="small"
                           label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"}
-                          color="primary"
-                          variant="outlined"
-                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                          sx={{
+                            ...FIGMA_TAG_BASE_SX,
+                            bgcolor: alpha("#3763E9", 0.12),
+                            color: "#314FC7",
+                            border: "1px solid",
+                            borderColor: alpha("#3763E9", 0.34),
+                          }}
                         />
-                      </Stack>
+                      </Box>
                       <Box>
                         <Typography sx={{ fontWeight: 900 }}>{a.valuation_estimate != null ? money(a.valuation_estimate) : "—"}</Typography>
                         <Typography variant="caption" color="text.secondary">
@@ -362,7 +447,12 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
                         </Typography>
                       </Box>
                       <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                        <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
+                        <Button
+                          onClick={() => onOpenArtifact(a.id)}
+                          sx={FIGMA_OPEN_BUTTON_SX}
+                        >
+                          Open
+                        </Button>
                       </Box>
                     </Box>
                   </Box>
@@ -417,6 +507,26 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
             ))}
           </Box>
         </CardContent></Card>
+        <Dialog
+          open={Boolean(previewImage)}
+          onClose={() => setPreviewImage(null)}
+          maxWidth="md"
+          fullWidth
+        >
+          {previewImage ? (
+            <Box sx={{ p: 1.2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>
+                {previewImage.title}
+              </Typography>
+              <Box
+                component="img"
+                src={previewImage.src}
+                alt={`${previewImage.title} preview`}
+                sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", maxHeight: "72vh", objectFit: "contain" }}
+              />
+            </Box>
+          ) : null}
+        </Dialog>
       </Stack>
     </Container>
   );
