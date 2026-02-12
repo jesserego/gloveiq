@@ -968,9 +968,9 @@ function AccountScreen({ locale }: { locale: Locale }) {
 
         {!isLoggedIn ? (
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
-            <Card sx={{ backgroundColor: "#101820", color: "white" }}><CardContent>
+            <Card><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>Sign in</Typography>
-              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.75)", mt: 0.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Continue to profile settings, security controls, and alert management.
               </Typography>
               <Stack spacing={1.25} sx={{ mt: 2 }}>
@@ -1276,10 +1276,10 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
               key={p.name}
               sx={{
                 minHeight: "100%",
-                backgroundColor: "rgba(16,24,38,0.92)",
-                backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
+                backgroundColor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
+                boxShadow: "0px 4px 12px rgba(0,0,0,0.10)",
               }}
             ><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{p.name}</Typography>
@@ -1292,7 +1292,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
                 sx={{
                   mt: 2,
                   width: "100%",
-                  background: idx === 1 ? "linear-gradient(135deg, rgba(74,141,255,0.34), rgba(32,192,122,0.24))" : undefined,
+                  background: idx === 1 ? "linear-gradient(180deg, #3763E9, #314FC7)" : undefined,
                 }}
                 onClick={onStartFree}
               >
@@ -1352,9 +1352,9 @@ export default function App() {
             minHeight: { xs: "100vh", md: "calc(100vh - 24px)" },
             borderRadius: { xs: 0, md: 2.5 },
             overflow: "hidden",
-            border: { xs: "none", md: "1px solid rgba(255,255,255,0.1)" },
-            boxShadow: { xs: "none", md: "0 28px 64px rgba(0,0,0,0.45)" },
-            backgroundColor: "rgba(22,27,35,0.88)",
+            border: { xs: "none", md: "1px solid #E3E8EF" },
+            boxShadow: { xs: "none", md: "0 18px 44px rgba(17,24,39,0.10)" },
+            backgroundColor: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(22px) saturate(120%)",
           }}
         >

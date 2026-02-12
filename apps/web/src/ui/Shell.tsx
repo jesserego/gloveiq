@@ -54,9 +54,9 @@ export function SidebarNav({
         flexDirection: "column",
         p: 2,
         gap: 1.5,
-        background: "linear-gradient(180deg, rgba(34,38,47,0.96), rgba(28,31,39,0.96))",
-        borderRight: "1px solid rgba(255,255,255,0.08)",
-        color: "rgba(247,250,255,0.93)",
+        background: "linear-gradient(180deg, #FFFFFF, #F2F4F7)",
+        borderRight: "1px solid #E3E8EF",
+        color: "text.primary",
       }}
     >
       <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: 0.2, py: 0.4 }}>
@@ -74,7 +74,7 @@ export function SidebarNav({
           <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }} noWrap>
             GloveIQ
           </Typography>
-          <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.68)" }} noWrap>
+          <Typography sx={{ fontSize: 12, color: "text.secondary" }} noWrap>
             v0.1.0 • Update 2026.02.12
           </Typography>
         </Box>
@@ -101,23 +101,23 @@ export function SidebarNav({
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(105,173,255,0.35)" : "transparent",
-                backgroundColor: active ? "rgba(10,132,255,0.14)" : "transparent",
+                borderColor: active ? "rgba(55,99,233,0.32)" : "transparent",
+                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: disabled ? "transparent" : "rgba(255,255,255,0.06)",
+                  backgroundColor: disabled ? "transparent" : "rgba(17,24,39,0.05)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(10,132,255,.28)" : "rgba(255,255,255,0.08)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
-                  <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.68)", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                  <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
                 </Box>
               </Stack>
             </Box>
@@ -127,7 +127,7 @@ export function SidebarNav({
 
       <Box sx={{ mt: "auto" }} />
 
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)", my: 0.75 }} />
+      <Divider sx={{ borderColor: "#E3E8EF", my: 0.75 }} />
 
       <Stack spacing={0.75}>
         {utilityItems.map((item) => {
@@ -149,22 +149,22 @@ export function SidebarNav({
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(105,173,255,0.35)" : "transparent",
-                backgroundColor: active ? "rgba(10,132,255,0.14)" : "transparent",
+                borderColor: active ? "rgba(55,99,233,0.32)" : "transparent",
+                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
                 cursor: "pointer",
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: "rgba(255,255,255,0.06)",
+                  backgroundColor: "rgba(17,24,39,0.05)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(10,132,255,.28)" : "rgba(255,255,255,0.08)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
-                  <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.68)", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                  <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
                 </Box>
               </Stack>
             </Box>
@@ -172,10 +172,10 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)", my: 0.75 }} />
+      <Divider sx={{ borderColor: "#E3E8EF", my: 0.75 }} />
 
-      <Box sx={{ p: 1.2, borderRadius: 2, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.72)", fontSize: 12, lineHeight: 1.35 }}>
-        <Typography component="span" sx={{ color: "rgba(255,255,255,0.93)", fontWeight: 700 }}>Prototype mode</Typography>
+      <Box sx={{ p: 1.2, borderRadius: 2, border: "1px solid #E3E8EF", backgroundColor: "#F2F4F7", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
+        <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
         <br />
         Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
       </Box>
@@ -213,8 +213,8 @@ export function ShellTopBar({
         justifyContent: "space-between",
         gap: 1.5,
         px: { xs: 1.25, md: 2.25 },
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        backgroundColor: "rgba(10,14,24,0.82)",
+        borderBottom: "1px solid #E3E8EF",
+        backgroundColor: "rgba(255,255,255,0.92)",
         backdropFilter: "blur(16px) saturate(160%)",
         position: "sticky",
         top: 0,
@@ -232,8 +232,8 @@ export function ShellTopBar({
             borderRadius: 1.2,
             objectFit: "contain",
             p: 0.2,
-            border: "1px solid rgba(255,255,255,0.15)",
-            backgroundColor: "rgba(255,255,255,0.05)",
+            border: "1px solid #E3E8EF",
+            backgroundColor: "#F2F4F7",
           }}
         />
         <Box
@@ -244,15 +244,15 @@ export function ShellTopBar({
             px: 1.5,
             py: 1,
             borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow: "0 1px 0 rgba(255,255,255,0.05) inset",
+            backgroundColor: "#FFFFFF",
+            border: "1px solid #E3E8EF",
+            boxShadow: "0 1px 0 rgba(0,0,0,0.02) inset",
             minWidth: 0,
             maxWidth: 740,
             width: "100%",
           }}
         >
-          <SearchIcon fontSize="small" sx={{ color: "rgba(255,255,255,0.65)" }} />
+          <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
           <Box
             component="input"
             placeholder={t(locale, "search.placeholder")}
@@ -261,13 +261,13 @@ export function ShellTopBar({
               border: 0,
               outline: 0,
               background: "transparent",
-              color: "rgba(255,255,255,0.92)",
+              color: "text.primary",
               fontSize: 14,
               minWidth: 0,
               width: "100%",
             }}
           />
-          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.16)", px: 0.8, py: 0.25, borderRadius: 1 }}>⌘K</Box>
+          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "text.secondary", border: "1px solid #E3E8EF", px: 0.8, py: 0.25, borderRadius: 1 }}>⌘K</Box>
         </Box>
 
         <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
@@ -280,14 +280,14 @@ export function ShellTopBar({
           <Select
             value={locale}
             onChange={(e) => setLocale(e.target.value as Locale)}
-            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.06)", "& .MuiSelect-select": { py: 0.8 } }}
+            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: "#FFFFFF", "& .MuiSelect-select": { py: 0.8 } }}
           >
             <MenuItem value="en">EN</MenuItem>
             <MenuItem value="ja">JA</MenuItem>
           </Select>
         </FormControl>
         <Button color="inherit" sx={{ borderRadius: 999, minWidth: 0, px: 1.4, display: { xs: "none", sm: "inline-flex" } }} onClick={onReset}>+ New</Button>
-        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", backgroundColor: "rgba(255,255,255,0.06)", display: "grid", placeItems: "center" }}>
+        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: "1px solid #E3E8EF", backgroundColor: "#FFFFFF", display: "grid", placeItems: "center" }}>
           <NotificationsNoneOutlinedIcon fontSize="small" />
         </Box>
       </Stack>
@@ -323,11 +323,11 @@ export function MobileBottomNav({
         right: 10,
         bottom: 10,
         zIndex: 1200,
-        border: "1px solid rgba(255,255,255,0.14)",
+        border: "1px solid #E3E8EF",
         borderRadius: 3,
         backdropFilter: "blur(20px) saturate(170%)",
-        backgroundColor: "rgba(10,14,24,0.88)",
-        boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
+        backgroundColor: "rgba(255,255,255,0.94)",
+        boxShadow: "0 12px 28px rgba(0,0,0,0.14)",
       }}
     >
       <Stack direction="row" spacing={0.5} sx={{ p: 0.75 }}>
@@ -351,8 +351,8 @@ export function MobileBottomNav({
                 py: 0.75,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(43,127,255,0.26)" : "transparent",
-                backgroundColor: active ? "rgba(43,127,255,0.12)" : "transparent",
+                borderColor: active ? "rgba(55,99,233,0.26)" : "transparent",
+                backgroundColor: active ? "rgba(55,99,233,0.10)" : "transparent",
                 color: disabled ? "text.disabled" : "text.primary",
                 opacity: disabled ? 0.5 : 1,
               }}
