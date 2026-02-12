@@ -3,7 +3,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
   en: {
     "app.title": "GloveIQ",
     "tab.search": "Search",
-    "tab.artifact": "Artifact",
+    "tab.artifact": "Variants",
     "tab.appraisal": "Appraisal",
     "tab.account": "Account",
     "tab.pricing": "Pricing",
@@ -22,7 +22,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
   ja: {
     "app.title": "GloveIQ",
     "tab.search": "検索",
-    "tab.artifact": "アーティファクト",
+    "tab.artifact": "バリアント",
     "tab.appraisal": "査定",
     "tab.account": "アカウント",
     "tab.pricing": "料金",

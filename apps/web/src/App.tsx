@@ -899,6 +899,17 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const artifactOnlyCount = rows.filter((r) => r.object_type === "ARTIFACT").length;
   const p0ReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0).length;
   const valuationReadyCount = rows.filter((r) => evidenceGap(r).missingP0.length === 0 && r.valuation_estimate != null).length;
+  const variantLibrary = [
+    { id: "VAR-RAW-PRO1000", brand: "Rawlings", model: "PRO1000", family: "Heart of the Hide", size: '11.5"' },
+    { id: "VAR-WIL-A2000-1786", brand: "Wilson", model: "A2000 1786", family: "A2000", size: '11.5"' },
+    { id: "VAR-MIZ-PRO-SELECT", brand: "Mizuno", model: "Pro Select", family: "Pro Select", size: '11.75"' },
+    { id: "VAR-44-CUSTOM-INFIELD", brand: "44 Pro", model: "Custom Infield", family: "44 Custom", size: '11.5"' },
+    { id: "VAR-ZETT-PROSTATUS", brand: "Zett", model: "ProStatus", family: "ProStatus", size: '11.75"' },
+    { id: "VAR-HAT-CATCHERS-MITT", brand: "Hatakeyama", model: "Catcher's Mitt", family: "Pro Series", size: '33"' },
+    { id: "VAR-NOK-ALPHA-SELECT", brand: "Nokona", model: "Alpha Select", family: "Alpha", size: '12"' },
+    { id: "VAR-SSK-Z9-SPECIAL", brand: "SSK", model: "Z9 Special", family: "Z9", size: '11.75"' },
+    { id: "VAR-DON-PRO-ORDER", brand: "Donaiya", model: "Pro Order", family: "Donaiya Order", size: '11.5"' },
+  ];
 
   const verificationQueue = rows
     .map((r) => {
@@ -925,7 +936,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.artifact")}</Typography>
-              <Typography variant="body2" color="text.secondary">Catalog and user artifacts with verification and valuation readiness.</Typography>
+              <Typography variant="body2" color="text.secondary">Variant catalog and user-submitted gloves with verification and valuation readiness.</Typography>
             </Box>
             <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.artifact")} />
@@ -957,7 +968,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
               clickable
             />
             <Chip label={`Cataloged ${rows.length - artifactOnlyCount}`} />
-            <Chip label={`Custom artifacts ${artifactOnlyCount}`} />
+            <Chip label={`Custom variants ${artifactOnlyCount}`} />
             <Chip label={`P0-ready ${p0ReadyCount}/${rows.length}`} />
             <Chip label={`Valuation-ready ${valuationReadyCount}/${rows.length}`} />
           </Stack>
@@ -968,13 +979,13 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
         {view === "overview" ? (
           <>
             <Card><CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Today&apos;s Artifact Snapshot</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Today&apos;s Variant Snapshot</Typography>
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 1.25 }}>
                 <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
                   <Typography variant="caption" color="text.secondary">Total records</Typography>
                   <Typography variant="h5" sx={{ fontWeight: 900 }}>{rows.length}</Typography>
-                  <Typography variant="caption" color="text.secondary">Catalog + custom artifacts</Typography>
+                  <Typography variant="caption" color="text.secondary">Catalog + custom variants</Typography>
                 </Box>
                 <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
                   <Typography variant="caption" color="text.secondary">Verified</Typography>
@@ -1021,51 +1032,76 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
         ) : null}
 
         {view === "catalog" ? (
-          <Card><CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Catalog</Typography>
-              <Chip label={`${filtered.length} shown`} />
-            </Stack>
-            <Divider sx={{ my: 2 }} />
-            <Stack spacing={1.25}>
-              {filtered.map((a) => {
-                const verified = isVerified(a);
-                const showEstimate = a.valuation_estimate != null;
-                return (
-                  <Box
-                    key={a.id}
-                    sx={{ p: 1.75, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
-                  >
-                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap>
-                          {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
-                        </Typography>
-                        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                          <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
-                          <Chip size="small" label={verified ? "Verified" : "Needs Review"} color={verified ? "success" : "warning"} />
-                          <Chip size="small" label={`Condition ${a.condition_score ?? "—"}`} />
-                        </Stack>
-                      </Box>
-                      <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
-                        <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                          <Typography sx={{ fontWeight: 900 }}>{showEstimate ? money(a.valuation_estimate) : "—"}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {a.valuation_low != null && a.valuation_high != null ? `${money(a.valuation_low)}–${money(a.valuation_high)}` : "Range unavailable"}
-                          </Typography>
-                        </Box>
-                        <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
-                      </Stack>
-                    </Stack>
+          <>
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Library</Typography>
+                <Chip label={`${variantLibrary.length} placeholders`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" }, gap: 1.25 }}>
+                {variantLibrary.map((v) => (
+                  <Box key={v.id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Box
+                      component="img"
+                      src={glovePlaceholderImage}
+                      alt={`${v.brand} ${v.model} placeholder`}
+                      sx={{ width: "100%", height: 128, objectFit: "cover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}
+                    />
+                    <Typography sx={{ fontWeight: 900, mt: 1 }} noWrap>{v.brand} {v.model}</Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap>{v.family} • {v.size}</Typography>
+                    <Typography variant="caption" color="text.secondary">{v.id}</Typography>
                   </Box>
-                );
-              })}
-              {filtered.length === 0 && !loading ? (
-                <Typography variant="body2" color="text.secondary">No artifacts match the current filters.</Typography>
-              ) : null}
-            </Stack>
-          </CardContent></Card>
+                ))}
+              </Box>
+            </CardContent></Card>
+
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Records</Typography>
+                <Chip label={`${filtered.length} shown`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1.25}>
+                {filtered.map((a) => {
+                  const verified = isVerified(a);
+                  const showEstimate = a.valuation_estimate != null;
+                  return (
+                    <Box
+                      key={a.id}
+                      sx={{ p: 1.75, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                    >
+                      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                          <Typography variant="body2" color="text.secondary" noWrap>
+                            {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
+                          </Typography>
+                          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+                            <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
+                            <Chip size="small" label={verified ? "Verified" : "Needs Review"} color={verified ? "success" : "warning"} />
+                            <Chip size="small" label={`Condition ${a.condition_score ?? "—"}`} />
+                          </Stack>
+                        </Box>
+                        <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
+                          <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+                            <Typography sx={{ fontWeight: 900 }}>{showEstimate ? money(a.valuation_estimate) : "—"}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {a.valuation_low != null && a.valuation_high != null ? `${money(a.valuation_low)}–${money(a.valuation_high)}` : "Range unavailable"}
+                            </Typography>
+                          </Box>
+                          <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  );
+                })}
+                {filtered.length === 0 && !loading ? (
+                  <Typography variant="body2" color="text.secondary">No variants match the current filters.</Typography>
+                ) : null}
+              </Stack>
+            </CardContent></Card>
+          </>
         ) : null}
 
         {view === "verification" ? (
