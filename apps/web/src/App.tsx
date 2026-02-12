@@ -1342,63 +1342,119 @@ export default function App() {
     else setRoute({ name: "search" });
   }
 
+  const windowTitle =
+    activeTab === "search"
+      ? "GloveIQ Search"
+      : activeTab === "artifact"
+        ? "GloveIQ Artifacts"
+        : activeTab === "appraisal"
+          ? "GloveIQ Appraisal"
+          : activeTab === "account"
+            ? "GloveIQ Account"
+            : "GloveIQ Pricing";
+
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
 
-      <Box sx={{ minHeight: "100vh", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
-        <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
+      <Box sx={{ minHeight: "100vh", p: { xs: 0, md: 1.5 }, pb: { xs: 8, md: 1.5 } }}>
+        <Box
+          sx={{
+            minHeight: { xs: "100vh", md: "calc(100vh - 24px)" },
+            borderRadius: { xs: 0, md: 2.5 },
+            overflow: "hidden",
+            border: { xs: "none", md: "1px solid rgba(255,255,255,0.1)" },
+            boxShadow: { xs: "none", md: "0 28px 64px rgba(0,0,0,0.45)" },
+            backgroundColor: "rgba(22,27,35,0.88)",
+            backdropFilter: "blur(22px) saturate(120%)",
+          }}
+        >
+          <Box
+            sx={{
+              display: { xs: "none", md: "flex" },
+              height: 34,
+              px: 1.5,
+              alignItems: "center",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              background: "linear-gradient(180deg, rgba(51,56,68,0.95), rgba(40,44,56,0.9))",
+              position: "relative",
+            }}
+          >
+            <Stack direction="row" spacing={0.9} sx={{ zIndex: 1 }}>
+              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#ff5f57", border: "1px solid rgba(0,0,0,0.3)" }} />
+              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#ffbd2e", border: "1px solid rgba(0,0,0,0.3)" }} />
+              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#28c840", border: "1px solid rgba(0,0,0,0.3)" }} />
+            </Stack>
+            <Typography
+              variant="caption"
+              sx={{
+                position: "absolute",
+                left: "50%",
+                transform: "translateX(-50%)",
+                color: "rgba(236,242,255,0.82)",
+                fontWeight: 700,
+                letterSpacing: ".015em",
+              }}
+            >
+              {windowTitle}
+            </Typography>
+          </Box>
 
-        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <ShellTopBar locale={locale} setLocale={setLocale} routeName={activeTab} onReset={() => setRoute({ name: "search" })} />
+          <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
+            <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
 
-          <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={route.name === "artifactDetail" ? route.artifactId : route.name}
-                initial={{ x: 14, opacity: 0.6 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: -10, opacity: 0.6 }}
-                transition={NAV_SPRING}
-              >
-                {route.name === "search" ? (
-                  <SearchScreen
-                    locale={locale}
-                    brands={brands}
-                    onOpenArtifact={(id) => {
-                      setLastArtifactId(id);
-                      setRoute({ name: "artifactDetail", artifactId: id });
-                    }}
-                  />
-                ) : route.name === "artifacts" ? (
-                  <ArtifactsScreen
-                    locale={locale}
-                    onOpenArtifact={(id) => {
-                      setLastArtifactId(id);
-                      setRoute({ name: "artifactDetail", artifactId: id });
-                    }}
-                  />
-                ) : route.name === "appraisal" ? (
-                  <AppraisalScreen locale={locale} />
-                ) : route.name === "account" ? (
-                  <AccountScreen locale={locale} />
-                ) : route.name === "artifactDetail" ? (
-                  artifact ? (
-                    <ArtifactDetail locale={locale} artifact={artifact} />
-                  ) : (
-                    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
-                      <Card><CardContent>
-                        <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
-                        <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
-                      </CardContent></Card>
-                    </Container>
-                  )
-                ) : (
-                  <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
-                )}
-              </motion.div>
-            </AnimatePresence>
+            <Box sx={{ minHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <ShellTopBar locale={locale} setLocale={setLocale} routeName={activeTab} onReset={() => setRoute({ name: "search" })} />
+
+              <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div
+                    key={route.name === "artifactDetail" ? route.artifactId : route.name}
+                    initial={{ x: 14, opacity: 0.6 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: -10, opacity: 0.6 }}
+                    transition={NAV_SPRING}
+                  >
+                    {route.name === "search" ? (
+                      <SearchScreen
+                        locale={locale}
+                        brands={brands}
+                        onOpenArtifact={(id) => {
+                          setLastArtifactId(id);
+                          setRoute({ name: "artifactDetail", artifactId: id });
+                        }}
+                      />
+                    ) : route.name === "artifacts" ? (
+                      <ArtifactsScreen
+                        locale={locale}
+                        onOpenArtifact={(id) => {
+                          setLastArtifactId(id);
+                          setRoute({ name: "artifactDetail", artifactId: id });
+                        }}
+                      />
+                    ) : route.name === "appraisal" ? (
+                      <AppraisalScreen locale={locale} />
+                    ) : route.name === "account" ? (
+                      <AccountScreen locale={locale} />
+                    ) : route.name === "artifactDetail" ? (
+                      artifact ? (
+                        <ArtifactDetail locale={locale} artifact={artifact} />
+                      ) : (
+                        <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                          <Card><CardContent>
+                            <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
+                            <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                          </CardContent></Card>
+                        </Container>
+                      )
+                    ) : (
+                      <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </Box>
+            </Box>
           </Box>
         </Box>
       </Box>

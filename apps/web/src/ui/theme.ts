@@ -3,12 +3,12 @@ import { createTheme } from "@mui/material";
 export const appTheme = createTheme({
   palette: {
     mode: "dark",
-    primary: { main: "#4a8dff" },
-    secondary: { main: "#20c07a" },
-    background: { default: "#0a0f1c", paper: "rgba(16,24,38,0.9)" },
-    text: { primary: "rgba(241,245,255,0.95)", secondary: "rgba(179,192,214,0.78)" },
+    primary: { main: "#0a84ff" },
+    secondary: { main: "#30d158" },
+    background: { default: "#111319", paper: "rgba(39,43,54,0.92)" },
+    text: { primary: "rgba(246,248,252,0.96)", secondary: "rgba(197,204,216,0.78)" },
   },
-  shape: { borderRadius: 14 },
+  shape: { borderRadius: 12 },
   typography: {
     fontFamily: [
       "SF Pro Text",
@@ -27,18 +27,18 @@ export const appTheme = createTheme({
         body: {
           margin: 0,
           background:
-            "radial-gradient(1100px 600px at 20% -10%, rgba(24,165,107,.16), transparent 60%), radial-gradient(900px 550px at 90% 0%, rgba(74,141,255,.18), transparent 60%), linear-gradient(180deg,#0a0f1c,#0c1322)",
+            "radial-gradient(1100px 600px at 20% -10%, rgba(10,132,255,.18), transparent 60%), radial-gradient(900px 550px at 90% 0%, rgba(48,209,88,.12), transparent 60%), linear-gradient(180deg,#111319,#131620)",
         },
       },
     },
     MuiCard: {
       styleOverrides: {
         root: {
-          border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(17,24,39,0.88)",
-          backdropFilter: "blur(14px) saturate(160%)",
-          boxShadow: "0 14px 40px rgba(0,0,0,.28)",
-          borderRadius: 18,
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(37,41,50,0.92)",
+          backdropFilter: "blur(20px) saturate(120%)",
+          boxShadow: "0 16px 36px rgba(0,0,0,.35)",
+          borderRadius: 12,
         },
       },
     },
@@ -46,9 +46,9 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 999,
-          border: "1px solid rgba(255,255,255,.14)",
-          backgroundColor: "rgba(255,255,255,.04)",
-          color: "rgba(234,243,255,0.9)",
+          border: "1px solid rgba(255,255,255,.12)",
+          backgroundColor: "rgba(255,255,255,.03)",
+          color: "rgba(236,242,255,0.92)",
           fontWeight: 700,
           fontSize: 11,
           letterSpacing: ".02em",
@@ -57,9 +57,9 @@ export const appTheme = createTheme({
     },
     MuiAlert: {
       styleOverrides: {
-        root: {
-          borderRadius: 12,
-          border: "1px solid rgba(255,255,255,.12)",
+          root: {
+            borderRadius: 12,
+          border: "1px solid rgba(255,255,255,.1)",
           backgroundColor: "rgba(255,255,255,.04)",
         },
       },
@@ -67,15 +67,15 @@ export const appTheme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 10,
           textTransform: "none",
           fontWeight: 700,
         },
         contained: {
-          background: "linear-gradient(135deg, rgba(74,141,255,0.36), rgba(32,192,122,0.24))",
-          border: "1px solid rgba(94,155,255,.35)",
-          color: "#eaf3ff",
-          boxShadow: "none",
+          background: "linear-gradient(180deg, rgba(31,136,255,0.95), rgba(11,120,243,0.95))",
+          border: "1px solid rgba(128,194,255,.35)",
+          color: "#f5f9ff",
+          boxShadow: "0 1px 0 rgba(255,255,255,.2) inset",
         },
       },
     },
@@ -83,7 +83,7 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 999,
-          backgroundColor: "rgba(255,255,255,0.04)",
+          backgroundColor: "rgba(255,255,255,0.03)",
         },
       },
     },
@@ -92,6 +92,37 @@ export const appTheme = createTheme({
         root: {
           "& .MuiInputLabel-root": { color: "rgba(188,201,224,0.72)" },
           "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.14)" },
+        },
+      },
+    },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,.12)",
+          backgroundColor: "rgba(34,38,48,0.95)",
+          color: "rgba(242,246,255,.95)",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: ".01em",
+        },
+      },
+    },
+    MuiSwitch: {
+      styleOverrides: {
+        switchBase: {
+          "&.Mui-checked": {
+            color: "#ffffff",
+          },
+          "&.Mui-checked + .MuiSwitch-track": {
+            backgroundColor: "#0a84ff",
+            opacity: 1,
+          },
+        },
+        track: {
+          borderRadius: 999,
+          backgroundColor: "rgba(255,255,255,.2)",
+          opacity: 1,
         },
       },
     },

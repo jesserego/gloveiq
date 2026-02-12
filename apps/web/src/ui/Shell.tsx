@@ -40,6 +40,8 @@ export function SidebarNav({
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
     { tab: "appraisal" as const, label: t(locale, "tab.appraisal"), subtitle: "Upload and estimate", icon: <UploadFileOutlinedIcon fontSize="small" /> },
+  ];
+  const utilityItems = [
     { tab: "account" as const, label: t(locale, "tab.account"), subtitle: "Login, profile, security", icon: <AccountCircleOutlinedIcon fontSize="small" /> },
     { tab: "pricing" as const, label: t(locale, "tab.pricing"), subtitle: "Plans and usage", icon: <CreditCardOutlinedIcon fontSize="small" /> },
   ];
@@ -52,12 +54,12 @@ export function SidebarNav({
         flexDirection: "column",
         p: 2,
         gap: 1.5,
-        background: "linear-gradient(180deg, #0b2a22, #0a241e)",
-        borderRight: "1px solid rgba(255,255,255,0.1)",
-        color: "rgba(255,255,255,0.92)",
+        background: "linear-gradient(180deg, rgba(34,38,47,0.96), rgba(28,31,39,0.96))",
+        borderRight: "1px solid rgba(255,255,255,0.08)",
+        color: "rgba(247,250,255,0.93)",
       }}
     >
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.2, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.2, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
         <Box
           component="img"
           src={gloveIqLogo}
@@ -99,22 +101,22 @@ export function SidebarNav({
                 }
               }}
               sx={{
-                px: 1.2,
-                py: 1,
+                px: 1.1,
+                py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: active ? "rgba(255,255,255,0.16)" : "transparent",
-                backgroundColor: active ? "rgba(255,255,255,0.1)" : "transparent",
+                borderColor: active ? "rgba(105,173,255,0.35)" : "transparent",
+                backgroundColor: active ? "rgba(10,132,255,0.14)" : "transparent",
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: disabled ? "transparent" : "rgba(255,255,255,0.07)",
+                  backgroundColor: disabled ? "transparent" : "rgba(255,255,255,0.06)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 28, height: 28, borderRadius: 1.5, backgroundColor: "rgba(255,255,255,0.09)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(10,132,255,.28)" : "rgba(255,255,255,0.08)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -127,9 +129,56 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)", my: 0.5 }} />
+      <Box sx={{ mt: "auto" }} />
 
-      <Box sx={{ p: 1.4, borderRadius: 2, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.72)", fontSize: 12, lineHeight: 1.35 }}>
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)", my: 0.75 }} />
+
+      <Stack spacing={0.75}>
+        {utilityItems.map((item) => {
+          const active = item.tab === activeTab;
+          return (
+            <Box
+              key={item.tab}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelect(item.tab)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(item.tab);
+                }
+              }}
+              sx={{
+                px: 1.2,
+                py: 0.95,
+                borderRadius: 2,
+                border: "1px solid",
+                borderColor: active ? "rgba(105,173,255,0.35)" : "transparent",
+                backgroundColor: active ? "rgba(10,132,255,0.14)" : "transparent",
+                cursor: "pointer",
+                transition: "all 140ms ease",
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                },
+              }}
+            >
+              <Stack direction="row" spacing={1.2} alignItems="center">
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(10,132,255,.28)" : "rgba(255,255,255,0.08)", display: "grid", placeItems: "center" }}>
+                  {item.icon}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
+                  <Typography sx={{ fontSize: 11, color: "rgba(255,255,255,0.68)", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                </Box>
+              </Stack>
+            </Box>
+          );
+        })}
+      </Stack>
+
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.12)", my: 0.75 }} />
+
+      <Box sx={{ p: 1.2, borderRadius: 2, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.72)", fontSize: 12, lineHeight: 1.35 }}>
         <Typography component="span" sx={{ color: "rgba(255,255,255,0.93)", fontWeight: 700 }}>Prototype mode</Typography>
         <br />
         Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
