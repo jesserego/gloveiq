@@ -8,18 +8,23 @@ import { appTheme } from "./ui/theme";
 import { MainTab, MobileBottomNav, ShellTopBar, SidebarNav } from "./ui/Shell";
 
 import {
+  Alert,
+  Avatar,
   Box,
   Chip,
   Container,
   CssBaseline,
   Divider,
   FormControl,
+  FormControlLabel,
   LinearProgress,
   MenuItem,
   Select,
   Stack,
+  Switch,
   TextField,
   ThemeProvider,
+  Tooltip,
   Typography,
 } from "@mui/material";
 
@@ -28,6 +33,9 @@ import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import SecurityIcon from "@mui/icons-material/Security";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 
@@ -35,6 +43,7 @@ type Route =
   | { name: "search" }
   | { name: "artifacts" }
   | { name: "appraisal" }
+  | { name: "account" }
   | { name: "artifactDetail"; artifactId: string }
   | { name: "pricing" };
 
@@ -47,6 +56,7 @@ function money(n: number | null | undefined) {
 function routeToTab(route: Route): MainTab {
   if (route.name === "artifacts" || route.name === "artifactDetail") return "artifact";
   if (route.name === "appraisal") return "appraisal";
+  if (route.name === "account") return "account";
   return route.name;
 }
 
@@ -885,6 +895,254 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
   );
 }
 
+function AccountScreen({ locale }: { locale: Locale }) {
+  const [authStep, setAuthStep] = useState<"login" | "2fa" | "done">("login");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", remember: true });
+  const [otpCode, setOtpCode] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const [section, setSection] = useState<"profile" | "security" | "alerts">("profile");
+  const [profile, setProfile] = useState({
+    fullName: "Jesse Rego",
+    displayName: "JR",
+    timezone: "America/Los_Angeles",
+    locale: locale,
+    bio: "Collector and builder focused on explainable glove valuation.",
+  });
+  const [security, setSecurity] = useState({
+    twoFactorEnabled: false,
+    backupCodes: true,
+    deviceAlerts: true,
+    activeSessions: 2,
+  });
+  const [alertsPrefs, setAlertsPrefs] = useState({
+    appraisalReady: true,
+    security: true,
+    compDrops: true,
+    weeklyDigest: false,
+  });
+  const [alertsFeed, setAlertsFeed] = useState([
+    { id: "a1", level: "info" as const, text: "New comp cluster detected for PRO1000 in the last 24h." },
+    { id: "a2", level: "warning" as const, text: "2FA is disabled. Enable to secure account access." },
+    { id: "a3", level: "success" as const, text: "Your last appraisal request was delivered successfully." },
+  ]);
+
+  const isLoggedIn = authStep === "done";
+
+  function submitLogin() {
+    setAuthError(null);
+    if (!loginForm.email || !loginForm.password) {
+      setAuthError("Enter email and password.");
+      return;
+    }
+    setAuthStep("2fa");
+  }
+
+  function verify2fa() {
+    setAuthError(null);
+    if (otpCode.trim() !== "246810") {
+      setAuthError("Invalid verification code. Use 246810 for this demo.");
+      return;
+    }
+    setAuthStep("done");
+  }
+
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <Stack spacing={2}>
+        <Card><CardContent>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.account")}</Typography>
+              <Typography variant="body2" color="text.secondary">Profile, login state, authentication, 2FA, alerts, and account settings.</Typography>
+            </Box>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              <Chip label={isLoggedIn ? "Authenticated" : "Signed out"} color={isLoggedIn ? "success" : "warning"} />
+              <Chip label={`2FA ${security.twoFactorEnabled ? "On" : "Off"}`} color={security.twoFactorEnabled ? "success" : "default"} />
+              <Tooltip title="Demo code for verification is 246810">
+                <Chip label="Help" icon={<InfoOutlinedIcon />} />
+              </Tooltip>
+            </Stack>
+          </Stack>
+        </CardContent></Card>
+
+        {!isLoggedIn ? (
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
+            <Card sx={{ backgroundColor: "#101820", color: "white" }}><CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>Sign in</Typography>
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.75)", mt: 0.5 }}>
+                Continue to profile settings, security controls, and alert management.
+              </Typography>
+              <Stack spacing={1.25} sx={{ mt: 2 }}>
+                {authStep === "login" ? (
+                  <>
+                    <TextField
+                      size="small"
+                      label="Email"
+                      value={loginForm.email}
+                      onChange={(e) => setLoginForm((s) => ({ ...s, email: e.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      size="small"
+                      label="Password"
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm((s) => ({ ...s, password: e.target.value }))}
+                      fullWidth
+                    />
+                    <FormControlLabel
+                      control={<Switch checked={loginForm.remember} onChange={(e) => setLoginForm((s) => ({ ...s, remember: e.target.checked }))} />}
+                      label="Remember this device"
+                    />
+                    <Button onClick={submitLogin}>Sign in</Button>
+                  </>
+                ) : (
+                  <>
+                    <Alert severity="info">Two-factor verification required. Enter code to continue.</Alert>
+                    <TextField size="small" label="Verification code" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} fullWidth />
+                    <Stack direction="row" spacing={1}>
+                      <Button onClick={verify2fa}>Verify 2FA</Button>
+                      <Button color="inherit" onClick={() => setAuthStep("login")}>Back</Button>
+                    </Stack>
+                  </>
+                )}
+                {authError ? <Alert severity="error">{authError}</Alert> : null}
+              </Stack>
+            </CardContent></Card>
+
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication Notes</Typography>
+              <Divider sx={{ my: 1.5 }} />
+              <Stack spacing={1}>
+                <Alert severity="info">Session auth state is required before profile and security settings are editable.</Alert>
+                <Alert severity="warning">2FA gates high-trust actions like payout settings and API key management.</Alert>
+                <Alert severity="success">Enable security and alerts to receive suspicious-login notifications.</Alert>
+              </Stack>
+            </CardContent></Card>
+          </Box>
+        ) : (
+          <>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              <Chip label="Profile Settings" color={section === "profile" ? "primary" : "default"} onClick={() => setSection("profile")} clickable />
+              <Chip label="Login & Security" color={section === "security" ? "primary" : "default"} onClick={() => setSection("security")} clickable />
+              <Chip label="Alerts Center" color={section === "alerts" ? "primary" : "default"} onClick={() => setSection("alerts")} clickable />
+            </Stack>
+
+            {section === "profile" ? (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "0.9fr 1.3fr" }, gap: 2 }}>
+                <Card><CardContent>
+                  <Stack spacing={1.25} alignItems="center">
+                    <Avatar sx={{ width: 80, height: 80 }}>JR</Avatar>
+                    <Typography sx={{ fontWeight: 900 }}>{profile.fullName}</Typography>
+                    <Typography variant="body2" color="text.secondary">{profile.displayName}</Typography>
+                    <Chip size="small" label={`Sessions: ${security.activeSessions}`} />
+                  </Stack>
+                </CardContent></Card>
+                <Card><CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Profile Settings</Typography>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.25 }}>
+                    <TextField size="small" label="Full name" value={profile.fullName} onChange={(e) => setProfile((s) => ({ ...s, fullName: e.target.value }))} />
+                    <TextField size="small" label="Display name" value={profile.displayName} onChange={(e) => setProfile((s) => ({ ...s, displayName: e.target.value }))} />
+                    <TextField size="small" label="Timezone" value={profile.timezone} onChange={(e) => setProfile((s) => ({ ...s, timezone: e.target.value }))} />
+                    <FormControl size="small">
+                      <Select value={profile.locale} onChange={(e) => setProfile((s) => ({ ...s, locale: e.target.value as Locale }))}>
+                        <MenuItem value="en">English</MenuItem>
+                        <MenuItem value="ja">Japanese</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                  <TextField size="small" label="Bio" value={profile.bio} onChange={(e) => setProfile((s) => ({ ...s, bio: e.target.value }))} multiline minRows={3} fullWidth sx={{ mt: 1.25 }} />
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
+                    <Button>Save Profile</Button>
+                    <Button color="inherit">Discard</Button>
+                  </Stack>
+                </CardContent></Card>
+              </Box>
+            ) : null}
+
+            {section === "security" ? (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                <Card><CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <SecurityIcon fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication & 2FA</Typography>
+                  </Stack>
+                  <Divider sx={{ my: 1.5 }} />
+                  <FormControlLabel
+                    control={<Switch checked={security.twoFactorEnabled} onChange={(e) => setSecurity((s) => ({ ...s, twoFactorEnabled: e.target.checked }))} />}
+                    label="Enable two-factor authentication"
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={security.backupCodes} onChange={(e) => setSecurity((s) => ({ ...s, backupCodes: e.target.checked }))} />}
+                    label="Enable backup recovery codes"
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={security.deviceAlerts} onChange={(e) => setSecurity((s) => ({ ...s, deviceAlerts: e.target.checked }))} />}
+                    label="Alert on new device login"
+                  />
+                  <Alert severity={security.twoFactorEnabled ? "success" : "warning"} sx={{ mt: 1 }}>
+                    {security.twoFactorEnabled ? "2FA enabled and protecting this account." : "2FA currently disabled. Enable for stronger account security."}
+                  </Alert>
+                </CardContent></Card>
+
+                <Card><CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Password & Sessions</Typography>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Stack spacing={1.25}>
+                    <TextField size="small" type="password" label="Current password" />
+                    <TextField size="small" type="password" label="New password" />
+                    <TextField size="small" type="password" label="Confirm new password" />
+                    <Stack direction="row" spacing={1}>
+                      <Button>Update Password</Button>
+                      <Button color="inherit">Sign out other sessions</Button>
+                    </Stack>
+                  </Stack>
+                </CardContent></Card>
+              </Box>
+            ) : null}
+
+            {section === "alerts" ? (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                <Card><CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <NotificationsActiveIcon fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Alert Preferences</Typography>
+                  </Stack>
+                  <Divider sx={{ my: 1.5 }} />
+                  <FormControlLabel control={<Switch checked={alertsPrefs.appraisalReady} onChange={(e) => setAlertsPrefs((s) => ({ ...s, appraisalReady: e.target.checked }))} />} label="Appraisal-ready notifications" />
+                  <FormControlLabel control={<Switch checked={alertsPrefs.security} onChange={(e) => setAlertsPrefs((s) => ({ ...s, security: e.target.checked }))} />} label="Security alerts" />
+                  <FormControlLabel control={<Switch checked={alertsPrefs.compDrops} onChange={(e) => setAlertsPrefs((s) => ({ ...s, compDrops: e.target.checked }))} />} label="Comp-drop notifications" />
+                  <FormControlLabel control={<Switch checked={alertsPrefs.weeklyDigest} onChange={(e) => setAlertsPrefs((s) => ({ ...s, weeklyDigest: e.target.checked }))} />} label="Weekly digest email" />
+                </CardContent></Card>
+
+                <Card><CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Recent Alerts</Typography>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Stack spacing={1}>
+                    {alertsFeed.map((a) => (
+                      <motion.div key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                        <Alert
+                          severity={a.level}
+                          action={<Button color="inherit" onClick={() => setAlertsFeed((s) => s.filter((x) => x.id !== a.id))}>Dismiss</Button>}
+                        >
+                          {a.text}
+                        </Alert>
+                      </motion.div>
+                    ))}
+                    {alertsFeed.length === 0 ? <Alert severity="success">No active alerts.</Alert> : null}
+                  </Stack>
+                </CardContent></Card>
+              </Box>
+            ) : null}
+          </>
+        )}
+      </Stack>
+    </Container>
+  );
+}
+
 function UploadPanel({ locale }: { locale: Locale }) {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<{ photo_id: string; deduped: boolean } | null>(null);
@@ -1018,10 +1276,10 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
               key={p.name}
               sx={{
                 minHeight: "100%",
-                backgroundColor: "#ffffff",
-                backdropFilter: "none",
-                border: "1px solid rgba(15,23,42,0.12)",
-                boxShadow: "0 10px 28px rgba(15,23,42,0.08)",
+                backgroundColor: "rgba(16,24,38,0.92)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
               }}
             ><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{p.name}</Typography>
@@ -1034,7 +1292,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
                 sx={{
                   mt: 2,
                   width: "100%",
-                  background: idx === 1 ? "linear-gradient(135deg, rgba(43,127,255,0.22), rgba(24,165,107,0.16))" : undefined,
+                  background: idx === 1 ? "linear-gradient(135deg, rgba(74,141,255,0.34), rgba(32,192,122,0.24))" : undefined,
                 }}
                 onClick={onStartFree}
               >
@@ -1074,6 +1332,10 @@ export default function App() {
     }
     if (tab === "appraisal") {
       setRoute({ name: "appraisal" });
+      return;
+    }
+    if (tab === "account") {
+      setRoute({ name: "account" });
       return;
     }
     if (tab === "pricing") setRoute({ name: "pricing" });
@@ -1118,6 +1380,8 @@ export default function App() {
                   />
                 ) : route.name === "appraisal" ? (
                   <AppraisalScreen locale={locale} />
+                ) : route.name === "account" ? (
+                  <AccountScreen locale={locale} />
                 ) : route.name === "artifactDetail" ? (
                   artifact ? (
                     <ArtifactDetail locale={locale} artifact={artifact} />

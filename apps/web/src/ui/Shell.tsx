@@ -15,13 +15,15 @@ import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 import type { Locale } from "../i18n/strings";
 import { t } from "../i18n/strings";
 import { Button } from "./Primitives";
+import gloveIqLogo from "../assets/GloveIQ.logo.svg";
 
-export type MainTab = "search" | "artifact" | "appraisal" | "pricing";
-export type ShellRouteName = "search" | "artifact" | "appraisal" | "pricing";
+export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
+export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
 
 export function SidebarNav({
   locale,
@@ -38,6 +40,7 @@ export function SidebarNav({
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
     { tab: "appraisal" as const, label: t(locale, "tab.appraisal"), subtitle: "Upload and estimate", icon: <UploadFileOutlinedIcon fontSize="small" /> },
+    { tab: "account" as const, label: t(locale, "tab.account"), subtitle: "Login, profile, security", icon: <AccountCircleOutlinedIcon fontSize="small" /> },
     { tab: "pricing" as const, label: t(locale, "tab.pricing"), subtitle: "Plans and usage", icon: <CreditCardOutlinedIcon fontSize="small" /> },
   ];
 
@@ -56,22 +59,19 @@ export function SidebarNav({
     >
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.2, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
         <Box
-          aria-hidden
+          component="img"
+          src={gloveIqLogo}
+          alt="GloveIQ logo"
           sx={{
             width: 42,
             height: 42,
             borderRadius: 2,
-            display: "grid",
-            placeItems: "center",
-            fontWeight: 900,
-            fontSize: 13,
-            color: "white",
-            background: "linear-gradient(135deg, rgba(24,165,107,0.95), rgba(43,127,255,0.9))",
+            objectFit: "cover",
             boxShadow: "0 10px 22px rgba(0,0,0,0.25)",
+            backgroundColor: "rgba(255,255,255,0.08)",
+            p: 0.4,
           }}
-        >
-          GQ
-        </Box>
+        />
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }} noWrap>
             GloveIQ
@@ -155,6 +155,8 @@ export function ShellTopBar({
       ? "Artifacts Workspace"
       : routeName === "appraisal"
         ? "Appraisal Intake"
+        : routeName === "account"
+          ? "Profile and Security"
         : "Plans and Billing";
 
   return (
@@ -166,8 +168,8 @@ export function ShellTopBar({
         justifyContent: "space-between",
         gap: 1.5,
         px: { xs: 1.25, md: 2.25 },
-        borderBottom: "1px solid rgba(15,23,42,0.1)",
-        backgroundColor: "rgba(246,247,245,0.78)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        backgroundColor: "rgba(10,14,24,0.82)",
         backdropFilter: "blur(16px) saturate(160%)",
         position: "sticky",
         top: 0,
@@ -176,6 +178,20 @@ export function ShellTopBar({
     >
       <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
         <Box
+          component="img"
+          src={gloveIqLogo}
+          alt="GloveIQ logo"
+          sx={{
+            width: 28,
+            height: 28,
+            borderRadius: 1.2,
+            objectFit: "cover",
+            p: 0.2,
+            border: "1px solid rgba(255,255,255,0.15)",
+            backgroundColor: "rgba(255,255,255,0.05)",
+          }}
+        />
+        <Box
           sx={{
             display: "flex",
             alignItems: "center",
@@ -183,15 +199,15 @@ export function ShellTopBar({
             px: 1.5,
             py: 1,
             borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.72)",
-            border: "1px solid rgba(15,23,42,0.1)",
-            boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+            backgroundColor: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.05) inset",
             minWidth: 0,
             maxWidth: 740,
             width: "100%",
           }}
         >
-          <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
+          <SearchIcon fontSize="small" sx={{ color: "rgba(255,255,255,0.65)" }} />
           <Box
             component="input"
             placeholder={t(locale, "search.placeholder")}
@@ -200,13 +216,13 @@ export function ShellTopBar({
               border: 0,
               outline: 0,
               background: "transparent",
-              color: "text.primary",
+              color: "rgba(255,255,255,0.92)",
               fontSize: 14,
               minWidth: 0,
               width: "100%",
             }}
           />
-          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "rgba(15,23,42,.55)", border: "1px solid rgba(15,23,42,.12)", px: 0.8, py: 0.25, borderRadius: 1 }}>⌘K</Box>
+          <Box sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, color: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.16)", px: 0.8, py: 0.25, borderRadius: 1 }}>⌘K</Box>
         </Box>
 
         <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
@@ -219,14 +235,14 @@ export function ShellTopBar({
           <Select
             value={locale}
             onChange={(e) => setLocale(e.target.value as Locale)}
-            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.72)", "& .MuiSelect-select": { py: 0.8 } }}
+            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.06)", "& .MuiSelect-select": { py: 0.8 } }}
           >
             <MenuItem value="en">EN</MenuItem>
             <MenuItem value="ja">JA</MenuItem>
           </Select>
         </FormControl>
         <Button color="inherit" sx={{ borderRadius: 999, minWidth: 0, px: 1.4, display: { xs: "none", sm: "inline-flex" } }} onClick={onReset}>+ New</Button>
-        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: "1px solid rgba(15,23,42,0.12)", backgroundColor: "rgba(255,255,255,0.72)", display: "grid", placeItems: "center" }}>
+        <Box sx={{ width: 34, height: 34, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", backgroundColor: "rgba(255,255,255,0.06)", display: "grid", placeItems: "center" }}>
           <NotificationsNoneOutlinedIcon fontSize="small" />
         </Box>
       </Stack>
@@ -249,6 +265,7 @@ export function MobileBottomNav({
     { name: "search" as const, label: t(locale, "tab.search"), icon: <SearchIcon fontSize="small" /> },
     { name: "artifact" as const, label: t(locale, "tab.artifact"), icon: <SportsBaseballIcon fontSize="small" /> },
     { name: "appraisal" as const, label: t(locale, "tab.appraisal"), icon: <UploadFileOutlinedIcon fontSize="small" /> },
+    { name: "account" as const, label: t(locale, "tab.account"), icon: <AccountCircleOutlinedIcon fontSize="small" /> },
     { name: "pricing" as const, label: t(locale, "tab.pricing"), icon: <LocalOfferIcon fontSize="small" /> },
   ];
 
@@ -261,11 +278,11 @@ export function MobileBottomNav({
         right: 10,
         bottom: 10,
         zIndex: 1200,
-        border: "1px solid rgba(15,23,42,0.12)",
+        border: "1px solid rgba(255,255,255,0.14)",
         borderRadius: 3,
         backdropFilter: "blur(20px) saturate(170%)",
-        backgroundColor: "rgba(255,255,255,0.76)",
-        boxShadow: "0 12px 28px rgba(15,23,42,0.12)",
+        backgroundColor: "rgba(10,14,24,0.88)",
+        boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
       }}
     >
       <Stack direction="row" spacing={0.5} sx={{ p: 0.75 }}>
