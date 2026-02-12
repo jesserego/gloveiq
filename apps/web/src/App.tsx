@@ -150,35 +150,18 @@ const BRAND_COMPANY_INFO: Record<string, { company: string; contact: string }> =
   KUBOTA_SLUGGER: { company: "Kubota Slugger", contact: "www.kyu-kubota.co.jp" },
 };
 
-const BRAND_LOGO_DOMAIN: Record<string, string> = {
-  RAWLINGS: "rawlings.com",
-  WILSON: "wilson.com",
-  MIZUNO: "mizunousa.com",
-  EASTON: "easton.com",
-  MARUCCI: "maruccisports.com",
-  FRANKLIN: "franklinsports.com",
-  LOUISVILLE_SLUGGER: "slugger.com",
-  NIKE: "nike.com",
-  FORTY_FOUR: "44pro.com",
-  SSK: "sskbaseballshop.com",
-  ADIDAS: "adidas.com",
-  JAX: "jaxbaseball.com",
-  NAKONA: "nokona.com",
-  YARDLEY: "yardleygloves.com",
-  HATAKEYAMA: "hatakeyama-web.com",
-  ZETT: "zett-baseball.jp",
-  STUDIO_RYU: "studioryu.jp",
-  HI_GOLD: "hi-gold.co.jp",
-  ATOMS: "atoms-baseball.jp",
-  IP_SELECT: "ipselect.jp",
-  DONAIYA: "donaiya.com",
-  FIVE_BASEBALL: "five-baseball.jp",
-  XANAX_BASEBALL: "xanax-baseball.jp",
-  KUBOTA_SLUGGER: "kyu-kubota.co.jp",
-};
+function logoDomainFromContact(contact: string) {
+  const normalized = contact.trim().toLowerCase();
+  if (!normalized) return "";
+  const urlMatch = normalized.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/i);
+  if (urlMatch?.[1]) return urlMatch[1];
+  const emailMatch = normalized.match(/@([a-z0-9.-]+\.[a-z]{2,})/i);
+  if (emailMatch?.[1]) return emailMatch[1];
+  return "";
+}
 
-function brandLogoSrc(brandKey: string) {
-  const domain = BRAND_LOGO_DOMAIN[brandKey];
+function brandLogoSrc(contact: string) {
+  const domain = logoDomainFromContact(contact);
   if (!domain) return "";
   return `https://logo.clearbit.com/${domain}`;
 }
@@ -604,12 +587,12 @@ function SearchScreen({
             <Chip label={`${brandHierarchy.length} shown`} />
           </Stack>
           <Divider sx={{ my: 2 }} />
-          <Stack spacing={1.25}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", xl: "1fr 1fr 1fr" }, gap: 1.25 }}>
             {brandHierarchy.map(({ brand, details, families: familyNodes }) => (
               <Box key={brand.brand_key} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
                 <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.6 }}>
                   <Avatar
-                    src={brandLogoSrc(brand.brand_key)}
+                    src={brandLogoSrc(details.contact)}
                     imgProps={{ referrerPolicy: "no-referrer" }}
                     sx={{
                       width: 28,
@@ -652,8 +635,8 @@ function SearchScreen({
                 </Stack>
               </Box>
             ))}
-            {brandHierarchy.length === 0 ? <Typography variant="body2" color="text.secondary">No brand seeds match current search.</Typography> : null}
-          </Stack>
+          </Box>
+          {brandHierarchy.length === 0 ? <Typography variant="body2" color="text.secondary">No brand seeds match current search.</Typography> : null}
         </CardContent></Card>
         <Dialog
           open={Boolean(previewImage)}
