@@ -5,7 +5,7 @@ import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
 import { appTheme } from "./ui/theme";
-import { MainTab, MobileBottomNav, ShellTopBar, SidebarNav } from "./ui/Shell";
+import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 
 import {
   Alert,
@@ -1342,17 +1342,6 @@ export default function App() {
     else setRoute({ name: "search" });
   }
 
-  const windowTitle =
-    activeTab === "search"
-      ? "GloveIQ Search"
-      : activeTab === "artifact"
-        ? "GloveIQ Artifacts"
-        : activeTab === "appraisal"
-          ? "GloveIQ Appraisal"
-          : activeTab === "account"
-            ? "GloveIQ Account"
-            : "GloveIQ Pricing";
-
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
@@ -1369,43 +1358,10 @@ export default function App() {
             backdropFilter: "blur(22px) saturate(120%)",
           }}
         >
-          <Box
-            sx={{
-              display: { xs: "none", md: "flex" },
-              height: 34,
-              px: 1.5,
-              alignItems: "center",
-              borderBottom: "1px solid rgba(255,255,255,0.08)",
-              background: "linear-gradient(180deg, rgba(51,56,68,0.95), rgba(40,44,56,0.9))",
-              position: "relative",
-            }}
-          >
-            <Stack direction="row" spacing={0.9} sx={{ zIndex: 1 }}>
-              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#ff5f57", border: "1px solid rgba(0,0,0,0.3)" }} />
-              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#ffbd2e", border: "1px solid rgba(0,0,0,0.3)" }} />
-              <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: "#28c840", border: "1px solid rgba(0,0,0,0.3)" }} />
-            </Stack>
-            <Typography
-              variant="caption"
-              sx={{
-                position: "absolute",
-                left: "50%",
-                transform: "translateX(-50%)",
-                color: "rgba(236,242,255,0.82)",
-                fontWeight: 700,
-                letterSpacing: ".015em",
-              }}
-            >
-              {windowTitle}
-            </Typography>
-          </Box>
-
           <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
             <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
 
             <Box sx={{ minHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <ShellTopBar locale={locale} setLocale={setLocale} routeName={activeTab} onReset={() => setRoute({ name: "search" })} />
-
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
