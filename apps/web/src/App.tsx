@@ -4,7 +4,7 @@ import { api } from "./lib/api";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
-import { appTheme } from "./ui/theme";
+import { buildAppTheme, type AppThemeMode } from "./ui/theme";
 import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 
 import {
@@ -1607,6 +1607,11 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
 }
 
 export default function App() {
+  const [colorMode, setColorMode] = useState<AppThemeMode>(() => {
+    if (typeof window === "undefined") return "light";
+    return (window.localStorage.getItem("gloveiq-theme-mode") as AppThemeMode) || "light";
+  });
+  const appTheme = useMemo(() => buildAppTheme(colorMode), [colorMode]);
   const [locale, setLocale] = useState<Locale>("en");
   const [route, setRoute] = useState<Route>({ name: "search" });
   const [brands, setBrands] = useState<BrandConfig[]>([]);
@@ -1614,6 +1619,9 @@ export default function App() {
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
+  useEffect(() => {
+    window.localStorage.setItem("gloveiq-theme-mode", colorMode);
+  }, [colorMode]);
   useEffect(() => {
     if (route.name === "artifactDetail") {
       setLastArtifactId(route.artifactId);
@@ -1652,14 +1660,25 @@ export default function App() {
             minHeight: { xs: "100vh", md: "calc(100vh - 24px)" },
             borderRadius: { xs: 0, md: 2.5 },
             overflow: "hidden",
-            border: { xs: "none", md: "1px solid #E3E8EF" },
-            boxShadow: { xs: "none", md: "0 18px 44px rgba(17,24,39,0.10)" },
-            backgroundColor: "rgba(255,255,255,0.92)",
+            border: { xs: "none", md: "1px solid" },
+            borderColor: { xs: "transparent", md: "divider" },
+            boxShadow: (theme) => ({
+              xs: "none",
+              md: theme.palette.mode === "dark" ? "0 22px 52px rgba(0,0,0,0.45)" : "0 18px 44px rgba(17,24,39,0.10)",
+            }),
+            backgroundColor: (theme) => theme.palette.mode === "dark" ? "rgba(18,24,38,0.92)" : "rgba(255,255,255,0.92)",
             backdropFilter: "blur(22px) saturate(120%)",
           }}
         >
           <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
-            <SidebarNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
+            <SidebarNav
+              locale={locale}
+              activeTab={activeTab}
+              canOpenArtifact={true}
+              colorMode={colorMode}
+              onToggleColorMode={() => setColorMode((m) => (m === "light" ? "dark" : "light"))}
+              onSelect={onSelectTab}
+            />
 
             <Box sx={{ minHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>

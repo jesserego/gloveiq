@@ -6,7 +6,9 @@ import {
   MenuItem,
   Select,
   Stack,
+  Switch,
   Typography,
+  useTheme,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
@@ -16,11 +18,14 @@ import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
+import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
+import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 
 import type { Locale } from "../i18n/strings";
 import { t } from "../i18n/strings";
 import { Button } from "./Primitives";
 import gloveIqLogo from "../assets/GloveIQ.logo.png";
+import type { AppThemeMode } from "./theme";
 
 export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
 export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
@@ -29,13 +34,19 @@ export function SidebarNav({
   locale,
   activeTab,
   canOpenArtifact,
+  colorMode,
+  onToggleColorMode,
   onSelect,
 }: {
   locale: Locale;
   activeTab: MainTab;
   canOpenArtifact: boolean;
+  colorMode: AppThemeMode;
+  onToggleColorMode: () => void;
   onSelect: (tab: MainTab) => void;
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const items = [
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
@@ -54,8 +65,8 @@ export function SidebarNav({
         flexDirection: "column",
         p: 2,
         gap: 1.5,
-        background: "linear-gradient(180deg, #FFFFFF, #F2F4F7)",
-        borderRight: "1px solid #E3E8EF",
+        background: isDark ? "linear-gradient(180deg, #121826, #0B0E14)" : "linear-gradient(180deg, #FFFFFF, #F2F4F7)",
+        borderRight: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`,
         color: "text.primary",
       }}
     >
@@ -107,12 +118,12 @@ export function SidebarNav({
                 opacity: disabled ? 0.5 : 1,
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: disabled ? "transparent" : "rgba(17,24,39,0.05)",
+                  backgroundColor: disabled ? "transparent" : isDark ? "rgba(255,255,255,0.06)" : "rgba(17,24,39,0.05)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : isDark ? "rgba(255,255,255,0.08)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -127,7 +138,7 @@ export function SidebarNav({
 
       <Box sx={{ mt: "auto" }} />
 
-      <Divider sx={{ borderColor: "#E3E8EF", my: 0.75 }} />
+      <Divider sx={{ borderColor: isDark ? "#2A3142" : "#E3E8EF", my: 0.75 }} />
 
       <Stack spacing={0.75}>
         {utilityItems.map((item) => {
@@ -154,12 +165,12 @@ export function SidebarNav({
                 cursor: "pointer",
                 transition: "all 140ms ease",
                 "&:hover": {
-                  backgroundColor: "rgba(17,24,39,0.05)",
+                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(17,24,39,0.05)",
                 },
               }}
             >
               <Stack direction="row" spacing={1.2} alignItems="center">
-                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
+                <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? "rgba(55,99,233,.18)" : isDark ? "rgba(255,255,255,0.08)" : "rgba(17,24,39,0.06)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -172,9 +183,28 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Divider sx={{ borderColor: "#E3E8EF", my: 0.75 }} />
+      <Divider sx={{ borderColor: isDark ? "#2A3142" : "#E3E8EF", my: 0.75 }} />
 
-      <Box sx={{ p: 1.2, borderRadius: 2, border: "1px solid #E3E8EF", backgroundColor: "#F2F4F7", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
+      <Box
+        sx={{
+          p: 1.1,
+          borderRadius: 2,
+          border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`,
+          backgroundColor: isDark ? "#1A2233" : "#F2F4F7",
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+          <Stack direction="row" alignItems="center" spacing={0.8}>
+            {isDark ? <DarkModeOutlinedIcon fontSize="small" /> : <LightModeOutlinedIcon fontSize="small" />}
+            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+              {colorMode === "dark" ? "Dark mode" : "Light mode"}
+            </Typography>
+          </Stack>
+          <Switch checked={colorMode === "dark"} onChange={onToggleColorMode} inputProps={{ "aria-label": "Toggle light/dark mode" }} />
+        </Stack>
+      </Box>
+
+      <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`, backgroundColor: isDark ? "#1A2233" : "#F2F4F7", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
         <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
         <br />
         Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
