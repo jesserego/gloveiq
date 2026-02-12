@@ -43,6 +43,7 @@ import SecurityIcon from "@mui/icons-material/Security";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 import aiLabelSchema from "./data/ai-label-schema.json";
 import aiTaxonomy from "./data/ai-taxonomy.json";
@@ -172,6 +173,12 @@ function brandLogoMark(name: string) {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
+type BrandHierarchyNode = {
+  brand: BrandConfig;
+  details: { company: string; contact: string };
+  families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
+};
+
 function SearchScreen({
   locale,
   brands,
@@ -194,6 +201,7 @@ function SearchScreen({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [brandDetailOpen, setBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
   const [resultsExpanded, setResultsExpanded] = useState(false);
   const [resultsPage, setResultsPage] = useState(1);
 
@@ -290,11 +298,7 @@ function SearchScreen({
         if (!brandHit && familyNodes.length === 0) return null;
         return { brand, details, families: familyNodes };
       })
-      .filter(Boolean) as Array<{
-      brand: BrandConfig;
-      details: { company: string; contact: string };
-      families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
-    }>;
+      .filter(Boolean) as BrandHierarchyNode[];
   }, [seededBrands, families, patterns, q, brandFilter]);
 
   return (
@@ -608,6 +612,16 @@ function SearchScreen({
                   </Avatar>
                   <Typography sx={{ fontWeight: 900 }}>{brand.display_name}</Typography>
                   <Chip size="small" label={`${familyNodes.length} families`} />
+                  {familyNodes.length > 0 ? (
+                    <Button
+                      color="inherit"
+                      sx={{ ...FIGMA_OPEN_BUTTON_SX, ml: "auto", minWidth: 0, px: 1.1 }}
+                      endIcon={<KeyboardArrowRightIcon sx={{ fontSize: 16 }} />}
+                      onClick={() => setBrandDetailOpen({ brand, details, families: familyNodes })}
+                    >
+                      View
+                    </Button>
+                  ) : null}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">Country hint: {brand.country_hint || "—"}</Typography>
                 <Typography variant="body2" color="text.secondary">Company: {details.company}</Typography>
@@ -616,19 +630,7 @@ function SearchScreen({
                   {familyNodes.map(({ family, patterns: familyPatterns }) => (
                     <Box key={family.family_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
                       <Typography sx={{ fontWeight: 800 }}>{family.display_name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{family.family_key} • {family.tier}</Typography>
-                      <Stack direction="row" spacing={0.8} sx={{ mt: 0.8, flexWrap: "wrap" }}>
-                        {familyPatterns.slice(0, 8).map((pattern) => (
-                          <Chip
-                            key={pattern.pattern_id}
-                            size="small"
-                            label={`${pattern.pattern_code} • ${pattern.canonical_position}`}
-                            sx={{ ...FIGMA_TAG_BASE_SX, height: 22 }}
-                          />
-                        ))}
-                        {familyPatterns.length > 8 ? <Chip size="small" label={`+${familyPatterns.length - 8} more`} sx={{ ...FIGMA_TAG_BASE_SX, height: 22 }} /> : null}
-                        {familyPatterns.length === 0 ? <Typography variant="caption" color="text.secondary">No patterns seeded.</Typography> : null}
-                      </Stack>
+                      <Typography variant="body2" color="text.secondary">{family.family_key} • {family.tier} • {familyPatterns.length} patterns</Typography>
                     </Box>
                   ))}
                   {familyNodes.length === 0 ? <Typography variant="body2" color="text.secondary">No matching families or patterns.</Typography> : null}
@@ -655,6 +657,64 @@ function SearchScreen({
                 alt={`${previewImage.title} preview`}
                 sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", maxHeight: "72vh", objectFit: "contain" }}
               />
+            </Box>
+          ) : null}
+        </Dialog>
+        <Dialog
+          open={Boolean(brandDetailOpen)}
+          onClose={() => setBrandDetailOpen(null)}
+          maxWidth="lg"
+          fullWidth
+        >
+          {brandDetailOpen ? (
+            <Box sx={{ p: 1.4 }}>
+              <Stack direction="row" spacing={1.1} alignItems="center">
+                <Avatar
+                  src={brandLogoSrc(brandDetailOpen.details.contact)}
+                  imgProps={{ referrerPolicy: "no-referrer" }}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: "rgba(55,99,233,0.12)",
+                    color: "primary.main",
+                    border: "1px solid rgba(55,99,233,0.24)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  {brandLogoMark(brandDetailOpen.brand.display_name)}
+                </Avatar>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                  {brandDetailOpen.brand.display_name} • Family & Pattern Catalog
+                </Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
+                Country hint: {brandDetailOpen.brand.country_hint || "—"} • Company: {brandDetailOpen.details.company} • Contact: {brandDetailOpen.details.contact}
+              </Typography>
+              <Divider sx={{ my: 1.4 }} />
+              <Stack spacing={1}>
+                {brandDetailOpen.families.map(({ family, patterns: familyPatterns }) => (
+                  <Box key={family.family_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.6 }}>
+                    <Typography sx={{ fontWeight: 900 }}>{family.display_name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {family.family_key} • {family.tier} • {familyPatterns.length} patterns
+                    </Typography>
+                    <Stack spacing={0.8} sx={{ mt: 1 }}>
+                      {familyPatterns.map((pattern) => (
+                        <Box key={pattern.pattern_id} sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.25 }}>
+                          <Typography sx={{ fontWeight: 800 }}>{pattern.pattern_code}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {pattern.canonical_position} • {pattern.canonical_size_in ? `${pattern.canonical_size_in}"` : "size n/a"}
+                            {pattern.canonical_web ? ` • ${pattern.canonical_web}` : ""}
+                          </Typography>
+                        </Box>
+                      ))}
+                      {familyPatterns.length === 0 ? <Typography variant="caption" color="text.secondary">No patterns seeded for this family.</Typography> : null}
+                    </Stack>
+                  </Box>
+                ))}
+                {brandDetailOpen.families.length === 0 ? <Typography variant="body2" color="text.secondary">No families found for this brand.</Typography> : null}
+              </Stack>
             </Box>
           ) : null}
         </Dialog>

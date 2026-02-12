@@ -145,8 +145,6 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Box sx={{ mt: "auto" }} />
-
       <Divider sx={{ borderColor: isDark ? "#2A3142" : "#E3E8EF", my: 0.75 }} />
 
       <Stack spacing={0.75}>
@@ -165,7 +163,7 @@ export function SidebarNav({
                 }
               }}
               sx={{
-                px: 1.2,
+                px: 1.1,
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
@@ -192,11 +190,10 @@ export function SidebarNav({
         })}
       </Stack>
 
-      <Divider sx={{ borderColor: isDark ? "#2A3142" : "#E3E8EF", my: 0.75 }} />
-
       <Box
         sx={{
           p: 1.1,
+          mt: 0.25,
           borderRadius: 2,
           border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`,
           backgroundColor: isDark ? "#1A2233" : "#F2F4F7",
@@ -212,6 +209,8 @@ export function SidebarNav({
           <Switch checked={colorMode === "dark"} onChange={onToggleColorMode} inputProps={{ "aria-label": "Toggle light/dark mode" }} />
         </Stack>
       </Box>
+
+      <Box sx={{ mt: "auto" }} />
 
       <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${isDark ? "#2A3142" : "#E3E8EF"}`, backgroundColor: isDark ? "#1A2233" : "#F2F4F7", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
         <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
