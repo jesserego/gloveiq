@@ -150,6 +150,39 @@ const BRAND_COMPANY_INFO: Record<string, { company: string; contact: string }> =
   KUBOTA_SLUGGER: { company: "Kubota Slugger", contact: "www.kyu-kubota.co.jp" },
 };
 
+const BRAND_LOGO_DOMAIN: Record<string, string> = {
+  RAWLINGS: "rawlings.com",
+  WILSON: "wilson.com",
+  MIZUNO: "mizunousa.com",
+  EASTON: "easton.com",
+  MARUCCI: "maruccisports.com",
+  FRANKLIN: "franklinsports.com",
+  LOUISVILLE_SLUGGER: "slugger.com",
+  NIKE: "nike.com",
+  FORTY_FOUR: "44pro.com",
+  SSK: "sskbaseballshop.com",
+  ADIDAS: "adidas.com",
+  JAX: "jaxbaseball.com",
+  NAKONA: "nokona.com",
+  YARDLEY: "yardleygloves.com",
+  HATAKEYAMA: "hatakeyama-web.com",
+  ZETT: "zett-baseball.jp",
+  STUDIO_RYU: "studioryu.jp",
+  HI_GOLD: "hi-gold.co.jp",
+  ATOMS: "atoms-baseball.jp",
+  IP_SELECT: "ipselect.jp",
+  DONAIYA: "donaiya.com",
+  FIVE_BASEBALL: "five-baseball.jp",
+  XANAX_BASEBALL: "xanax-baseball.jp",
+  KUBOTA_SLUGGER: "kyu-kubota.co.jp",
+};
+
+function brandLogoSrc(brandKey: string) {
+  const domain = BRAND_LOGO_DOMAIN[brandKey];
+  if (!domain) return "";
+  return `https://logo.clearbit.com/${domain}`;
+}
+
 function brandLogoMark(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -178,6 +211,8 @@ function SearchScreen({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [resultsExpanded, setResultsExpanded] = useState(false);
+  const [resultsPage, setResultsPage] = useState(1);
 
   async function refresh(query?: string) {
     setLoading(true); setErr(null);
@@ -187,6 +222,7 @@ function SearchScreen({
   }
 
   useEffect(() => { refresh(""); }, []);
+  useEffect(() => { setResultsPage(1); }, [q, typeFilter, verificationFilter, brandFilter, sortBy, resultsExpanded]);
 
   const quickQueries = ["PRO1000", "A2000", "Japan", "Unverified", "Artifact"];
   const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
@@ -225,22 +261,6 @@ function SearchScreen({
       return a.id.localeCompare(b.id);
     });
 
-  const filteredFamilies = families
-    .filter((f) => {
-      const query = q.trim().toLowerCase();
-      if (!query) return true;
-      return `${f.display_name} ${f.family_key} ${f.brand_key} ${f.tier}`.toLowerCase().includes(query);
-    })
-    .slice(0, 18);
-
-  const filteredPatterns = patterns
-    .filter((p) => {
-      const query = q.trim().toLowerCase();
-      if (!query) return true;
-      return `${p.pattern_code} ${p.brand_key} ${p.canonical_position} ${p.canonical_web || ""}`.toLowerCase().includes(query);
-    })
-    .slice(0, 24);
-
   const total = rows.length;
   const verifiedCount = rows.filter(isVerified).length;
   const p0ReadyCount = rows.filter((row) => readiness(row).p0Ready).length;
@@ -254,6 +274,45 @@ function SearchScreen({
     for (const b of brands) byKey.set(b.brand_key, b);
     return Array.from(byKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [brands]);
+  const resultsPageSize = 10;
+  const resultsCollapsedSize = 5;
+  const resultsPageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
+  const visibleResults = resultsExpanded
+    ? filtered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize)
+    : filtered.slice(0, resultsCollapsedSize);
+  const brandHierarchy = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return seededBrands
+      .filter((brand) => (brandFilter === "all" ? true : brand.brand_key === brandFilter))
+      .map((brand) => {
+        const details = BRAND_COMPANY_INFO[brand.brand_key] || {
+          company: `${brand.display_name} Brand Team`,
+          contact: "support@brand.example",
+        };
+        const familyNodes = families
+          .filter((family) => family.brand_key === brand.brand_key)
+          .map((family) => {
+            const familyPatterns = patterns.filter((pattern) => pattern.family_id === family.family_id);
+            return { family, patterns: familyPatterns };
+          })
+          .filter((node) => {
+            if (!query) return true;
+            const familyHit = `${node.family.display_name} ${node.family.family_key} ${node.family.tier}`.toLowerCase().includes(query);
+            const patternHit = node.patterns.some((pattern) =>
+              `${pattern.pattern_code} ${pattern.canonical_position} ${pattern.canonical_web || ""}`.toLowerCase().includes(query),
+            );
+            return familyHit || patternHit;
+          });
+        const brandHit = `${brand.display_name} ${details.company} ${details.contact} ${brand.country_hint || ""}`.toLowerCase().includes(query);
+        if (!brandHit && familyNodes.length === 0) return null;
+        return { brand, details, families: familyNodes };
+      })
+      .filter(Boolean) as Array<{
+      brand: BrandConfig;
+      details: { company: string; contact: string };
+      families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
+    }>;
+  }, [seededBrands, families, patterns, q, brandFilter]);
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -368,7 +427,7 @@ function SearchScreen({
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "search.results")}</Typography>
-            <Chip label={`${filtered.length} shown`} />
+            <Chip label={resultsExpanded ? `${visibleResults.length} on page` : `${visibleResults.length} shown`} />
           </Stack>
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)", gap: 1, px: 1, pb: 1 }}>
@@ -378,7 +437,7 @@ function SearchScreen({
             <Typography variant="caption" color="text.secondary" align="right">Action</Typography>
           </Box>
           <Stack spacing={1}>
-            {filtered.map((a) => {
+            {visibleResults.map((a) => {
               const verified = isVerified(a);
               const ready = readiness(a);
               const thumb = a.photos?.[0]?.url || glovePlaceholderImage;
@@ -507,88 +566,94 @@ function SearchScreen({
               <Typography variant="body2" color="text.secondary">No records matched your search and filters.</Typography>
             ) : null}
           </Stack>
-        </CardContent></Card>
-
-        <Card><CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Family Catalog</Typography>
-            <Chip label={`${filteredFamilies.length} shown`} />
-          </Stack>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.1 }}>
-            {filteredFamilies.map((family) => (
-              <Box key={family.family_id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1.75 }}>
-                <Typography sx={{ fontWeight: 800 }}>{family.display_name}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {family.brand_key} • {family.family_key} • {family.tier}
-                </Typography>
-              </Box>
-            ))}
-            {filteredFamilies.length === 0 ? <Typography variant="body2" color="text.secondary">No families match current search.</Typography> : null}
-          </Box>
-        </CardContent></Card>
-
-        <Card><CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Pattern Catalog</Typography>
-            <Chip label={`${filteredPatterns.length} shown`} />
-          </Stack>
-          <Divider sx={{ my: 2 }} />
-          <Stack spacing={1}>
-            {filteredPatterns.map((pattern) => (
-              <Box key={pattern.pattern_id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1.75 }}>
-                <Typography sx={{ fontWeight: 800 }}>{pattern.pattern_code}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pattern.brand_key} • {pattern.canonical_position} • {pattern.canonical_size_in ? `${pattern.canonical_size_in}"` : "size n/a"}
-                  {pattern.canonical_web ? ` • ${pattern.canonical_web}` : ""}
-                </Typography>
-              </Box>
-            ))}
-            {filteredPatterns.length === 0 ? <Typography variant="body2" color="text.secondary">No patterns match current search.</Typography> : null}
-          </Stack>
+          {filtered.length > resultsCollapsedSize ? (
+            <Stack direction="row" spacing={1} sx={{ mt: 1.25, flexWrap: "wrap" }} alignItems="center">
+              <Button
+                color="inherit"
+                onClick={() => {
+                  setResultsExpanded((v) => !v);
+                  setResultsPage(1);
+                }}
+                sx={FIGMA_OPEN_BUTTON_SX}
+              >
+                {resultsExpanded ? "Collapse" : `Expand (${filtered.length})`}
+              </Button>
+              {resultsExpanded && filtered.length > resultsPageSize ? (
+                <>
+                  <Button color="inherit" sx={FIGMA_OPEN_BUTTON_SX} disabled={resultsPage <= 1} onClick={() => setResultsPage((p) => Math.max(1, p - 1))}>
+                    Prev
+                  </Button>
+                  <Chip size="small" label={`Page ${resultsPage} / ${resultsPageCount}`} />
+                  <Button
+                    color="inherit"
+                    sx={FIGMA_OPEN_BUTTON_SX}
+                    disabled={resultsPage >= resultsPageCount}
+                    onClick={() => setResultsPage((p) => Math.min(resultsPageCount, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </>
+              ) : null}
+            </Stack>
+          ) : null}
         </CardContent></Card>
 
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Seeds</Typography>
-            <Chip label={seededBrands.length} />
+            <Chip label={`${brandHierarchy.length} shown`} />
           </Stack>
           <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" }, gap: 1.5 }}>
-            {seededBrands.map((b) => (
-              <Box key={b.brand_key} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                {(() => {
-                  const details = BRAND_COMPANY_INFO[b.brand_key] || {
-                    company: `${b.display_name} Brand Team`,
-                    contact: "support@brand.example",
-                  };
-                  return (
-                    <>
-                      <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.25 }}>
-                        <Avatar
-                          sx={{
-                            width: 28,
-                            height: 28,
-                            bgcolor: "rgba(55,99,233,0.12)",
-                            color: "primary.main",
-                            border: "1px solid rgba(55,99,233,0.24)",
-                            fontSize: 12,
-                            fontWeight: 900,
-                          }}
-                        >
-                          {brandLogoMark(b.display_name)}
-                        </Avatar>
-                        <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
+          <Stack spacing={1.25}>
+            {brandHierarchy.map(({ brand, details, families: familyNodes }) => (
+              <Box key={brand.brand_key} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.6 }}>
+                  <Avatar
+                    src={brandLogoSrc(brand.brand_key)}
+                    imgProps={{ referrerPolicy: "no-referrer" }}
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      bgcolor: "rgba(55,99,233,0.12)",
+                      color: "primary.main",
+                      border: "1px solid rgba(55,99,233,0.24)",
+                      fontSize: 12,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {brandLogoMark(brand.display_name)}
+                  </Avatar>
+                  <Typography sx={{ fontWeight: 900 }}>{brand.display_name}</Typography>
+                  <Chip size="small" label={`${familyNodes.length} families`} />
+                </Stack>
+                <Typography variant="body2" color="text.secondary">Country hint: {brand.country_hint || "—"}</Typography>
+                <Typography variant="body2" color="text.secondary">Company: {details.company}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Contact: {details.contact}</Typography>
+                <Stack spacing={1}>
+                  {familyNodes.map(({ family, patterns: familyPatterns }) => (
+                    <Box key={family.family_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                      <Typography sx={{ fontWeight: 800 }}>{family.display_name}</Typography>
+                      <Typography variant="body2" color="text.secondary">{family.family_key} • {family.tier}</Typography>
+                      <Stack direction="row" spacing={0.8} sx={{ mt: 0.8, flexWrap: "wrap" }}>
+                        {familyPatterns.slice(0, 8).map((pattern) => (
+                          <Chip
+                            key={pattern.pattern_id}
+                            size="small"
+                            label={`${pattern.pattern_code} • ${pattern.canonical_position}`}
+                            sx={{ ...FIGMA_TAG_BASE_SX, height: 22 }}
+                          />
+                        ))}
+                        {familyPatterns.length > 8 ? <Chip size="small" label={`+${familyPatterns.length - 8} more`} sx={{ ...FIGMA_TAG_BASE_SX, height: 22 }} /> : null}
+                        {familyPatterns.length === 0 ? <Typography variant="caption" color="text.secondary">No patterns seeded.</Typography> : null}
                       </Stack>
-                      <Typography variant="body2" color="text.secondary">Country hint: {b.country_hint || "—"}</Typography>
-                      <Typography variant="body2" color="text.secondary">Company: {details.company}</Typography>
-                      <Typography variant="body2" color="text.secondary">Contact: {details.contact}</Typography>
-                    </>
-                  );
-                })()}
+                    </Box>
+                  ))}
+                  {familyNodes.length === 0 ? <Typography variant="body2" color="text.secondary">No matching families or patterns.</Typography> : null}
+                </Stack>
               </Box>
             ))}
-          </Box>
+            {brandHierarchy.length === 0 ? <Typography variant="body2" color="text.secondary">No brand seeds match current search.</Typography> : null}
+          </Stack>
         </CardContent></Card>
         <Dialog
           open={Boolean(previewImage)}
