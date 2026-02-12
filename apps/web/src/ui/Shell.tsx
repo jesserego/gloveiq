@@ -27,6 +27,8 @@ import { Button } from "./Primitives";
 import gloveIqLogo from "../assets/GloveIQ.logo.png";
 import type { AppThemeMode } from "./theme";
 
+const BRAND_LOGO_BLUE_FILTER = "hue-rotate(205deg) saturate(185%) brightness(0.95)";
+
 export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
 export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
 
@@ -70,25 +72,31 @@ export function SidebarNav({
         color: "text.primary",
       }}
     >
-      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: 0.2, py: 0.4 }}>
+      <Stack spacing={0.6} alignItems="flex-start" sx={{ px: 0.2, py: 0.4 }}>
         <Box
-          component="img"
-          src={gloveIqLogo}
-          alt="GloveIQ logo"
           sx={{
-            width: 50,
-            height: 50,
-            objectFit: "contain",
+            width: 176,
+            height: 59,
+            overflow: "visible",
+            ml: "-14px",
           }}
-        />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }} noWrap>
-            GloveIQ
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: "text.secondary" }} noWrap>
-            v0.1.0 • Update 2026.02.12
-          </Typography>
+        >
+          <Box
+            component="img"
+            src={gloveIqLogo}
+            alt="GloveIQ logo"
+            sx={{
+              width: 176,
+              height: 59,
+              objectFit: "contain",
+              filter: BRAND_LOGO_BLUE_FILTER,
+              display: "block",
+            }}
+          />
         </Box>
+        <Typography sx={{ fontSize: 12, color: "text.secondary" }} noWrap>
+          v0.1.0 • Update 2026.02.12
+        </Typography>
       </Stack>
 
       <Stack spacing={0.75}>
@@ -264,6 +272,7 @@ export function ShellTopBar({
             p: 0.2,
             border: "1px solid #E3E8EF",
             backgroundColor: "#F2F4F7",
+            filter: BRAND_LOGO_BLUE_FILTER,
           }}
         />
         <Box
