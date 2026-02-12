@@ -34,6 +34,7 @@ const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as
 type Route =
   | { name: "search" }
   | { name: "artifacts" }
+  | { name: "appraisal" }
   | { name: "artifactDetail"; artifactId: string }
   | { name: "pricing" };
 
@@ -45,6 +46,7 @@ function money(n: number | null | undefined) {
 
 function routeToTab(route: Route): MainTab {
   if (route.name === "artifacts" || route.name === "artifactDetail") return "artifact";
+  if (route.name === "appraisal") return "appraisal";
   return route.name;
 }
 
@@ -597,7 +599,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [rows, setRows] = useState<Artifact[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "verified" | "unverified">("all");
-  const [view, setView] = useState<"overview" | "catalog" | "verification" | "intake">("overview");
+  const [view, setView] = useState<"overview" | "catalog" | "verification">("overview");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -676,7 +678,6 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
             <Chip label="Overview" color={view === "overview" ? "primary" : "default"} onClick={() => setView("overview")} clickable />
             <Chip label="Catalog" color={view === "catalog" ? "primary" : "default"} onClick={() => setView("catalog")} clickable />
             <Chip label="Verification" color={view === "verification" ? "primary" : "default"} onClick={() => setView("verification")} clickable />
-            <Chip label="Intake" color={view === "intake" ? "primary" : "default"} onClick={() => setView("intake")} clickable />
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
             <Chip
@@ -863,32 +864,22 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           </>
         ) : null}
 
-        {view === "intake" ? (
-          <>
-            <Card><CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Intake</Typography>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="body2" color="text.secondary">
-                Use intake to upload evidence, dedupe photo submissions, and move artifacts from unverified to valuation-ready.
-              </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" }, gap: 1.25, mt: 1.5 }}>
-                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Typography variant="caption" color="text.secondary">Uploads deduped</Typography>
-                  <Typography sx={{ fontWeight: 900 }}>Hash cache on</Typography>
-                </Box>
-                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Typography variant="caption" color="text.secondary">Ready for review</Typography>
-                  <Typography sx={{ fontWeight: 900 }}>{p0ReadyCount} artifacts</Typography>
-                </Box>
-                <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Typography variant="caption" color="text.secondary">Still blocked</Typography>
-                  <Typography sx={{ fontWeight: 900 }}>{rows.length - p0ReadyCount} artifacts</Typography>
-                </Box>
-              </Box>
-            </CardContent></Card>
-            <AppraisalIntakeWidget locale={locale} />
-          </>
-        ) : null}
+      </Stack>
+    </Container>
+  );
+}
+
+function AppraisalScreen({ locale }: { locale: Locale }) {
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <Stack spacing={2}>
+        <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.appraisal")}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Upload your glove photos, provide structured evidence, and submit for an appraisal-grade market estimate.
+          </Typography>
+        </CardContent></Card>
+        <AppraisalIntakeWidget locale={locale} />
       </Stack>
     </Container>
   );
@@ -1081,6 +1072,10 @@ export default function App() {
       setRoute({ name: "artifacts" });
       return;
     }
+    if (tab === "appraisal") {
+      setRoute({ name: "appraisal" });
+      return;
+    }
     if (tab === "pricing") setRoute({ name: "pricing" });
     else setRoute({ name: "search" });
   }
@@ -1121,6 +1116,8 @@ export default function App() {
                       setRoute({ name: "artifactDetail", artifactId: id });
                     }}
                   />
+                ) : route.name === "appraisal" ? (
+                  <AppraisalScreen locale={locale} />
                 ) : route.name === "artifactDetail" ? (
                   artifact ? (
                     <ArtifactDetail locale={locale} artifact={artifact} />

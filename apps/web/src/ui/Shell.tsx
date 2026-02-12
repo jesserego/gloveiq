@@ -14,13 +14,14 @@ import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 
 import type { Locale } from "../i18n/strings";
 import { t } from "../i18n/strings";
 import { Button } from "./Primitives";
 
-export type MainTab = "search" | "artifact" | "pricing";
-export type ShellRouteName = "search" | "artifact" | "pricing";
+export type MainTab = "search" | "artifact" | "appraisal" | "pricing";
+export type ShellRouteName = "search" | "artifact" | "appraisal" | "pricing";
 
 export function SidebarNav({
   locale,
@@ -36,6 +37,7 @@ export function SidebarNav({
   const items = [
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
+    { tab: "appraisal" as const, label: t(locale, "tab.appraisal"), subtitle: "Upload and estimate", icon: <UploadFileOutlinedIcon fontSize="small" /> },
     { tab: "pricing" as const, label: t(locale, "tab.pricing"), subtitle: "Plans and usage", icon: <CreditCardOutlinedIcon fontSize="small" /> },
   ];
 
@@ -151,7 +153,9 @@ export function ShellTopBar({
     ? "Overview"
     : routeName === "artifact"
       ? "Artifacts Workspace"
-      : "Plans and Billing";
+      : routeName === "appraisal"
+        ? "Appraisal Intake"
+        : "Plans and Billing";
 
   return (
     <Box
@@ -244,6 +248,7 @@ export function MobileBottomNav({
   const tabs = [
     { name: "search" as const, label: t(locale, "tab.search"), icon: <SearchIcon fontSize="small" /> },
     { name: "artifact" as const, label: t(locale, "tab.artifact"), icon: <SportsBaseballIcon fontSize="small" /> },
+    { name: "appraisal" as const, label: t(locale, "tab.appraisal"), icon: <UploadFileOutlinedIcon fontSize="small" /> },
     { name: "pricing" as const, label: t(locale, "tab.pricing"), icon: <LocalOfferIcon fontSize="small" /> },
   ];
 
