@@ -65,6 +65,39 @@ const PAGE_CONTAINER_SX = {
   px: { xs: 1.5, sm: 2.5, md: 3 },
 } as const;
 
+const FULL_BRAND_SEEDS: BrandConfig[] = [
+  { brand_key: "RAWLINGS", display_name: "Rawlings", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "WILSON", display_name: "Wilson", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "MIZUNO", display_name: "Mizuno", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "EASTON", display_name: "Easton", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "MARUCCI", display_name: "Marucci", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "FRANKLIN", display_name: "Franklin", country_hint: "USA", supports_variant_ai: false },
+  { brand_key: "LOUISVILLE_SLUGGER", display_name: "Louisville Slugger", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "NIKE", display_name: "Nike", country_hint: "USA", supports_variant_ai: false },
+  { brand_key: "FORTY_FOUR", display_name: "44 Pro", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "SSK", display_name: "SSK", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "ADIDAS", display_name: "Adidas", country_hint: "Germany", supports_variant_ai: false },
+  { brand_key: "JAX", display_name: "JAX", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "NAKONA", display_name: "Nokona", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "YARDLEY", display_name: "Yardley", country_hint: "USA", supports_variant_ai: true },
+  { brand_key: "HATAKEYAMA", display_name: "Hatakeyama", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "ZETT", display_name: "Zett", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "STUDIO_RYU", display_name: "Studio Ryu", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "HI_GOLD", display_name: "Hi-Gold", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "ATOMS", display_name: "Atoms", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "IP_SELECT", display_name: "IP Select", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "DONAIYA", display_name: "Donaiya", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "FIVE_BASEBALL", display_name: "Five Baseball", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "XANAX_BASEBALL", display_name: "Xanax Baseball", country_hint: "Japan", supports_variant_ai: true },
+  { brand_key: "KUBOTA_SLUGGER", display_name: "Kubota Slugger", country_hint: "Japan", supports_variant_ai: true },
+];
+
+function brandLogoMark(name: string) {
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
 function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; brands: BrandConfig[]; onOpenArtifact: (id: string) => void; }) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Artifact[]>([]);
@@ -128,6 +161,12 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
   const averageEstimate =
     rows.filter((row) => row.valuation_estimate != null).reduce((sum, row) => sum + Number(row.valuation_estimate || 0), 0) /
     Math.max(1, rows.filter((row) => row.valuation_estimate != null).length);
+  const seededBrands = useMemo(() => {
+    const byKey = new Map<string, BrandConfig>();
+    for (const b of FULL_BRAND_SEEDS) byKey.set(b.brand_key, b);
+    for (const b of brands) byKey.set(b.brand_key, b);
+    return Array.from(byKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }, [brands]);
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -264,15 +303,30 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
 
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brands (seed)</Typography>
-            <Chip label={brands.length} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Seeds</Typography>
+            <Chip label={seededBrands.length} />
           </Stack>
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" }, gap: 1.5 }}>
-            {brands.map((b) => (
+            {seededBrands.map((b) => (
               <Box key={b.brand_key} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.25 }}>
+                  <Avatar
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      bgcolor: "rgba(55,99,233,0.12)",
+                      color: "primary.main",
+                      border: "1px solid rgba(55,99,233,0.24)",
+                      fontSize: 12,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {brandLogoMark(b.display_name)}
+                  </Avatar>
+                  <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
+                </Stack>
                 <Typography variant="caption" color="text.secondary">{b.brand_key}</Typography>
-                <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
                 <Typography variant="body2" color="text.secondary">Country hint: {b.country_hint || "—"}</Typography>
                 <Typography variant="body2" color="text.secondary">AI: {b.supports_variant_ai ? "Variant-level (gated)" : "Family-level"}</Typography>
               </Box>
