@@ -9,6 +9,7 @@ import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 
 import {
   Alert,
+  Autocomplete,
   Avatar,
   Box,
   Chip,
@@ -202,6 +203,7 @@ function SearchScreen({
   const [err, setErr] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [brandDetailOpen, setBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
+  const [resultsFilterInput, setResultsFilterInput] = useState("");
   const [resultsExpanded, setResultsExpanded] = useState(false);
   const [resultsPage, setResultsPage] = useState(1);
 
@@ -213,7 +215,7 @@ function SearchScreen({
   }
 
   useEffect(() => { refresh(""); }, []);
-  useEffect(() => { setResultsPage(1); }, [q, typeFilter, verificationFilter, brandFilter, sortBy, resultsExpanded]);
+  useEffect(() => { setResultsPage(1); }, [q, typeFilter, verificationFilter, brandFilter, sortBy, resultsExpanded, resultsFilterInput]);
 
   const quickQueries = ["PRO1000", "A2000", "Japan", "Unverified", "Artifact"];
   const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
@@ -265,12 +267,31 @@ function SearchScreen({
     for (const b of brands) byKey.set(b.brand_key, b);
     return Array.from(byKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [brands]);
+  const resultAutocompleteOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const row of filtered) {
+      values.add(row.id);
+      if (row.brand_key) values.add(row.brand_key);
+      if (row.family) values.add(row.family);
+      if (row.model_code) values.add(row.model_code);
+      if (row.made_in) values.add(row.made_in);
+      if (row.verification_status) values.add(String(row.verification_status));
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b)).slice(0, 50);
+  }, [filtered]);
+  const suggestedResultFilters = resultAutocompleteOptions.slice(0, 6);
+  const resultsFilterTerm = resultsFilterInput.trim().toLowerCase();
+  const resultsFiltered = filtered.filter((row) => {
+    if (!resultsFilterTerm) return true;
+    const hay = `${row.id} ${row.brand_key || ""} ${row.family || ""} ${row.model_code || ""} ${row.verification_status || ""} ${row.made_in || ""} ${row.position || ""}`.toLowerCase();
+    return hay.includes(resultsFilterTerm);
+  });
   const resultsPageSize = 10;
   const resultsCollapsedSize = 5;
-  const resultsPageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
+  const resultsPageCount = Math.max(1, Math.ceil(resultsFiltered.length / resultsPageSize));
   const visibleResults = resultsExpanded
-    ? filtered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize)
-    : filtered.slice(0, resultsCollapsedSize);
+    ? resultsFiltered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize)
+    : resultsFiltered.slice(0, resultsCollapsedSize);
   const brandHierarchy = useMemo(() => {
     const query = q.trim().toLowerCase();
     return seededBrands
@@ -417,6 +438,39 @@ function SearchScreen({
             <Chip label={resultsExpanded ? `${visibleResults.length} on page` : `${visibleResults.length} shown`} />
           </Stack>
           <Divider sx={{ my: 2 }} />
+          <Stack spacing={1.1} sx={{ mb: 1.4 }}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+              <Autocomplete
+                freeSolo
+                options={resultAutocompleteOptions}
+                inputValue={resultsFilterInput}
+                onInputChange={(_event, value) => setResultsFilterInput(value)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Filter results (type, autocomplete, suggestions)"
+                  />
+                )}
+                sx={{ flex: 1 }}
+              />
+              <Button color="inherit" sx={FIGMA_OPEN_BUTTON_SX} onClick={() => setResultsFilterInput("")}>
+                Clear Filter
+              </Button>
+            </Stack>
+            <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+              {suggestedResultFilters.map((option) => (
+                <Chip
+                  key={option}
+                  size="small"
+                  label={option}
+                  onClick={() => setResultsFilterInput(option)}
+                  clickable
+                />
+              ))}
+              {suggestedResultFilters.length > 0 ? <Chip size="small" label="Suggested" /> : null}
+            </Stack>
+          </Stack>
           <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)", gap: 1, px: 1, pb: 1 }}>
             <Typography variant="caption" color="text.secondary">Artifact</Typography>
             <Typography variant="caption" color="text.secondary">Verification</Typography>
@@ -549,11 +603,11 @@ function SearchScreen({
                 </motion.div>
               );
             })}
-            {!loading && filtered.length === 0 ? (
+            {!loading && resultsFiltered.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No records matched your search and filters.</Typography>
             ) : null}
           </Stack>
-          {filtered.length > resultsCollapsedSize ? (
+          {resultsFiltered.length > resultsCollapsedSize ? (
             <Stack direction="row" spacing={1} sx={{ mt: 1.25, flexWrap: "wrap" }} alignItems="center">
               <Button
                 color="inherit"
@@ -563,9 +617,9 @@ function SearchScreen({
                 }}
                 sx={FIGMA_OPEN_BUTTON_SX}
               >
-                {resultsExpanded ? "Collapse" : `Expand (${filtered.length})`}
+                {resultsExpanded ? "Collapse" : `Expand (${resultsFiltered.length})`}
               </Button>
-              {resultsExpanded && filtered.length > resultsPageSize ? (
+              {resultsExpanded && resultsFiltered.length > resultsPageSize ? (
                 <>
                   <Button color="inherit" sx={FIGMA_OPEN_BUTTON_SX} disabled={resultsPage <= 1} onClick={() => setResultsPage((p) => Math.max(1, p - 1))}>
                     Prev
