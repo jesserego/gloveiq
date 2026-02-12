@@ -20,7 +20,7 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import type { Locale } from "../i18n/strings";
 import { t } from "../i18n/strings";
 import { Button } from "./Primitives";
-import gloveIqLogo from "../assets/GloveIQ.logo.svg";
+import gloveIqLogo from "../assets/GloveIQ.logo.png";
 
 export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
 export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
@@ -59,19 +59,15 @@ export function SidebarNav({
         color: "rgba(247,250,255,0.93)",
       }}
     >
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.2, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}>
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: 0.2, py: 0.4 }}>
         <Box
           component="img"
           src={gloveIqLogo}
           alt="GloveIQ logo"
           sx={{
-            width: 42,
-            height: 42,
-            borderRadius: 2,
-            objectFit: "cover",
-            boxShadow: "0 10px 22px rgba(0,0,0,0.25)",
-            backgroundColor: "rgba(255,255,255,0.08)",
-            p: 0.4,
+            width: 50,
+            height: 50,
+            objectFit: "contain",
           }}
         />
         <Box sx={{ minWidth: 0 }}>
@@ -79,7 +75,7 @@ export function SidebarNav({
             GloveIQ
           </Typography>
           <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.68)" }} noWrap>
-            Desktop Dashboard
+            v0.1.0 • Update 2026.02.12
           </Typography>
         </Box>
       </Stack>
@@ -231,10 +227,10 @@ export function ShellTopBar({
           src={gloveIqLogo}
           alt="GloveIQ logo"
           sx={{
-            width: 28,
-            height: 28,
+            width: 34,
+            height: 34,
             borderRadius: 1.2,
-            objectFit: "cover",
+            objectFit: "contain",
             p: 0.2,
             border: "1px solid rgba(255,255,255,0.15)",
             backgroundColor: "rgba(255,255,255,0.05)",
