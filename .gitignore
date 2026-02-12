@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Build tool caches
+.vite/
+**/.vite/
+
+# OS artifacts
+.DS_Store
+**/.DS_Store
