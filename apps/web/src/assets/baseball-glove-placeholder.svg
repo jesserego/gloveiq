@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="leather" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b45309"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="24" fill="url(#bg)"/>
+  <g transform="translate(180 72)">
+    <path d="M116 14c35 0 61 22 72 55l15 48c8 26-3 54-27 67l-48 27c-20 11-45 11-65 0L15 184c-24-13-35-41-27-67l15-48c11-33 37-55 72-55h41z" fill="url(#leather)" stroke="#f59e0b" stroke-width="6"/>
+    <path d="M55 74l29 123M95 66l29 138M135 66l29 138M175 74l29 123" stroke="#fde68a" stroke-linecap="round" stroke-width="8"/>
+    <circle cx="95" cy="232" r="11" fill="#fcd34d"/>
+    <circle cx="131" cy="232" r="11" fill="#fcd34d"/>
+    <circle cx="167" cy="232" r="11" fill="#fcd34d"/>
+  </g>
+  <text x="320" y="372" fill="#cbd5e1" font-size="26" font-family="Inter, Arial, sans-serif" text-anchor="middle">
+    Baseball Glove Placeholder
+  </text>
+</svg>

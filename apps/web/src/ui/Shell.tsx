@@ -28,7 +28,7 @@ import gloveIqLogo from "../assets/GloveIQ.logo.png";
 import type { AppThemeMode } from "./theme";
 
 const BRAND_LOGO_BLUE_FILTER = "hue-rotate(205deg) saturate(185%) brightness(0.95)";
-const SIDEBAR_LOGO_SHIFT_X = -24;
+const SIDEBAR_LOGO_SHIFT_X = -28;
 
 export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
 export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
@@ -76,8 +76,8 @@ export function SidebarNav({
       <Stack spacing={0.6} alignItems="flex-start" sx={{ px: 0.2, py: 0.4 }}>
         <Box
           sx={{
-            width: 160,
-            height: 56,
+            width: 152,
+            height: 52,
             overflow: "hidden",
           }}
         >
@@ -86,8 +86,8 @@ export function SidebarNav({
             src={gloveIqLogo}
             alt="GloveIQ logo"
             sx={{
-              width: 184,
-              height: 59,
+              width: 182,
+              height: 58,
               objectFit: "contain",
               filter: BRAND_LOGO_BLUE_FILTER,
               display: "block",
@@ -95,7 +95,7 @@ export function SidebarNav({
             }}
           />
         </Box>
-        <Typography sx={{ fontSize: 12, color: "text.secondary" }} noWrap>
+        <Typography sx={{ fontSize: 12, color: "text.secondary", letterSpacing: 0.2, ml: "30px" }} noWrap>
           v0.1.0 • Update 2026.02.12
         </Typography>
       </Stack>

@@ -36,6 +36,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import SecurityIcon from "@mui/icons-material/Security";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 
@@ -91,6 +92,33 @@ const FULL_BRAND_SEEDS: BrandConfig[] = [
   { brand_key: "XANAX_BASEBALL", display_name: "Xanax Baseball", country_hint: "Japan", supports_variant_ai: true },
   { brand_key: "KUBOTA_SLUGGER", display_name: "Kubota Slugger", country_hint: "Japan", supports_variant_ai: true },
 ];
+
+const BRAND_COMPANY_INFO: Record<string, { company: string; contact: string }> = {
+  RAWLINGS: { company: "Rawlings Sporting Goods", contact: "support@rawlings.com" },
+  WILSON: { company: "Wilson Sporting Goods", contact: "www.wilson.com/contact-us" },
+  MIZUNO: { company: "Mizuno Corporation", contact: "www.mizunousa.com/support" },
+  EASTON: { company: "Easton Diamond Sports", contact: "support.easton@rawlings.com" },
+  MARUCCI: { company: "Marucci Sports", contact: "www.maruccisports.com/pages/contact" },
+  FRANKLIN: { company: "Franklin Sports", contact: "customerservice@franklinsports.com" },
+  LOUISVILLE_SLUGGER: { company: "Louisville Slugger", contact: "www.slugger.com/en-us/contact-us" },
+  NIKE: { company: "Nike, Inc.", contact: "www.nike.com/help" },
+  FORTY_FOUR: { company: "44 Pro Gloves", contact: "support@44pro.com" },
+  SSK: { company: "SSK Corporation", contact: "www.sskbaseballshop.com/pages/contact" },
+  ADIDAS: { company: "adidas AG", contact: "www.adidas.com/us/help" },
+  JAX: { company: "JAX Baseball", contact: "hello@jaxbaseball.com" },
+  NAKONA: { company: "Nokona Ballgloves", contact: "www.nokona.com/pages/contact" },
+  YARDLEY: { company: "Yardley Gloves", contact: "support@yardleygloves.com" },
+  HATAKEYAMA: { company: "Hatakeyama Co., Ltd.", contact: "www.hatakeyama-web.com" },
+  ZETT: { company: "ZETT Corporation", contact: "www.zett-baseball.jp" },
+  STUDIO_RYU: { company: "Studio Ryu", contact: "info@studioryu.jp" },
+  HI_GOLD: { company: "Hi-Gold Co., Ltd.", contact: "www.hi-gold.co.jp" },
+  ATOMS: { company: "Atoms Baseball", contact: "www.atoms-baseball.jp" },
+  IP_SELECT: { company: "IP Select", contact: "www.ipselect.jp" },
+  DONAIYA: { company: "Donaiya", contact: "www.donaiya.com" },
+  FIVE_BASEBALL: { company: "Five Baseball", contact: "info@five-baseball.jp" },
+  XANAX_BASEBALL: { company: "Xanax Baseball", contact: "www.xanax-baseball.jp" },
+  KUBOTA_SLUGGER: { company: "Kubota Slugger", contact: "www.kyu-kubota.co.jp" },
+};
 
 function brandLogoMark(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
@@ -267,19 +295,65 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
             {filtered.map((a) => {
               const verified = isVerified(a);
               const ready = readiness(a);
+              const thumb = a.photos?.[0]?.url || glovePlaceholderImage;
               return (
                 <motion.div key={a.id} layout>
                   <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)" }, gap: 1.25, alignItems: "center" }}>
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap>
-                          {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.size_in ? `${a.size_in}"` : "—")}
-                        </Typography>
+                        <Stack direction="row" spacing={1.2} alignItems="center">
+                          <Box
+                            component="img"
+                            src={thumb}
+                            alt={`${a.id} thumbnail`}
+                            sx={{
+                              width: 70,
+                              height: 52,
+                              borderRadius: 1.4,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              objectFit: "cover",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.size_in ? `${a.size_in}"` : "—")}
+                            </Typography>
+                            <Typography
+                              component="a"
+                              href={thumb}
+                              target="_blank"
+                              rel="noreferrer"
+                              sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.3, fontSize: 12, color: "primary.main", textDecoration: "none", fontWeight: 700 }}
+                            >
+                              Open image
+                              <OpenInNewIcon sx={{ fontSize: 14 }} />
+                            </Typography>
+                          </Box>
+                        </Stack>
                       </Box>
                       <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={verified ? "Verified" : "Needs review"} color={verified ? "success" : "warning"} />
-                        <Chip size="small" label={ready.p0Ready ? "P0 ready" : `Missing ${ready.missing.join(",")}`} color={ready.p0Ready ? "success" : "warning"} />
+                        <Chip
+                          size="small"
+                          label={verified ? "Verified" : "Needs review"}
+                          color={verified ? "success" : "warning"}
+                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                        />
+                        <Chip
+                          size="small"
+                          label={ready.p0Ready ? "P0 ready" : `Missing ${ready.missing.join(",")}`}
+                          color={ready.p0Ready ? "info" : "error"}
+                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                        />
+                        <Chip
+                          size="small"
+                          label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"}
+                          color="primary"
+                          variant="outlined"
+                          sx={{ "& .MuiChip-label": { px: 1.05, py: 0.2, fontWeight: 800 } }}
+                        />
                       </Stack>
                       <Box>
                         <Typography sx={{ fontWeight: 900 }}>{a.valuation_estimate != null ? money(a.valuation_estimate) : "—"}</Typography>
@@ -310,24 +384,35 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" }, gap: 1.5 }}>
             {seededBrands.map((b) => (
               <Box key={b.brand_key} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.25 }}>
-                  <Avatar
-                    sx={{
-                      width: 28,
-                      height: 28,
-                      bgcolor: "rgba(55,99,233,0.12)",
-                      color: "primary.main",
-                      border: "1px solid rgba(55,99,233,0.24)",
-                      fontSize: 12,
-                      fontWeight: 900,
-                    }}
-                  >
-                    {brandLogoMark(b.display_name)}
-                  </Avatar>
-                  <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
-                </Stack>
-                <Typography variant="body2" color="text.secondary">Country hint: {b.country_hint || "—"}</Typography>
-                <Typography variant="body2" color="text.secondary">AI: {b.supports_variant_ai ? "Variant-level (gated)" : "Family-level"}</Typography>
+                {(() => {
+                  const details = BRAND_COMPANY_INFO[b.brand_key] || {
+                    company: `${b.display_name} Brand Team`,
+                    contact: "support@brand.example",
+                  };
+                  return (
+                    <>
+                      <Stack direction="row" spacing={1.1} alignItems="center" sx={{ mb: 0.25 }}>
+                        <Avatar
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            bgcolor: "rgba(55,99,233,0.12)",
+                            color: "primary.main",
+                            border: "1px solid rgba(55,99,233,0.24)",
+                            fontSize: 12,
+                            fontWeight: 900,
+                          }}
+                        >
+                          {brandLogoMark(b.display_name)}
+                        </Avatar>
+                        <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">Country hint: {b.country_hint || "—"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Company: {details.company}</Typography>
+                      <Typography variant="body2" color="text.secondary">Contact: {details.contact}</Typography>
+                    </>
+                  );
+                })()}
               </Box>
             ))}
           </Box>
