@@ -326,7 +326,6 @@ function SearchScreen({ locale, brands, onOpenArtifact }: { locale: Locale; bran
                   </Avatar>
                   <Typography sx={{ fontWeight: 900 }}>{b.display_name}</Typography>
                 </Stack>
-                <Typography variant="caption" color="text.secondary">{b.brand_key}</Typography>
                 <Typography variant="body2" color="text.secondary">Country hint: {b.country_hint || "—"}</Typography>
                 <Typography variant="body2" color="text.secondary">AI: {b.supports_variant_ai ? "Variant-level (gated)" : "Family-level"}</Typography>
               </Box>
@@ -951,45 +950,86 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
 
 function AccountScreen({ locale }: { locale: Locale }) {
   const [authStep, setAuthStep] = useState<"login" | "2fa" | "done">("login");
-  const [loginForm, setLoginForm] = useState({ email: "", password: "", remember: true });
-  const [otpCode, setOtpCode] = useState("");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", remember: true, trustDevice: false });
+  const [otpCode, setOtpCode] = useState("246810");
   const [authError, setAuthError] = useState<string | null>(null);
-
-  const [section, setSection] = useState<"profile" | "security" | "alerts">("profile");
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
+  const [section, setSection] = useState<"overview" | "profile" | "security" | "settings">("overview");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [profile, setProfile] = useState({
     fullName: "Jesse Rego",
-    displayName: "JR",
+    displayName: "Jesse",
+    email: "jesse@gloveiq.ai",
+    phone: "+1 (555) 014-2456",
+    company: "GloveIQ",
+    role: "Founder",
     timezone: "America/Los_Angeles",
     locale: locale,
+    city: "San Francisco",
+    country: "United States",
+    website: "https://gloveiq.ai",
     bio: "Collector and builder focused on explainable glove valuation.",
   });
   const [security, setSecurity] = useState({
     twoFactorEnabled: false,
+    twoFactorMethod: "auth_app" as "auth_app" | "sms",
     backupCodes: true,
     deviceAlerts: true,
+    payoutLock: true,
+    apiAccess: false,
     activeSessions: 2,
   });
-  const [alertsPrefs, setAlertsPrefs] = useState({
+  const [settings, setSettings] = useState({
+    theme: "light" as "light" | "system",
+    currency: "USD" as "USD" | "JPY",
     appraisalReady: true,
-    security: true,
-    compDrops: true,
+    securityDigest: true,
+    compAlerts: true,
+    productNews: false,
     weeklyDigest: false,
   });
+  const [twoFactorSetupCode, setTwoFactorSetupCode] = useState("246810");
+  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
+  const [activeSessions, setActiveSessions] = useState([
+    { id: "s1", device: "MacBook Pro • Safari", location: "San Francisco, CA", lastSeen: "Active now", current: true },
+    { id: "s2", device: "iPhone 15 Pro • iOS App", location: "San Francisco, CA", lastSeen: "12m ago", current: false },
+  ]);
   const [alertsFeed, setAlertsFeed] = useState([
     { id: "a1", level: "info" as const, text: "New comp cluster detected for PRO1000 in the last 24h." },
     { id: "a2", level: "warning" as const, text: "2FA is disabled. Enable to secure account access." },
     { id: "a3", level: "success" as const, text: "Your last appraisal request was delivered successfully." },
   ]);
+  const [loginHistory] = useState([
+    { id: "l1", ts: "Today • 09:12 AM", status: "Success", geo: "San Francisco, US" },
+    { id: "l2", ts: "Yesterday • 11:47 PM", status: "Success", geo: "San Francisco, US" },
+    { id: "l3", ts: "Yesterday • 06:18 PM", status: "Challenge", geo: "Los Angeles, US" },
+  ]);
 
   const isLoggedIn = authStep === "done";
+  const avatarPreview = useMemo(() => (avatarFile ? URL.createObjectURL(avatarFile) : null), [avatarFile]);
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  const securityScore = useMemo(() => {
+    let score = 58;
+    if (security.twoFactorEnabled) score += 24;
+    if (security.backupCodes) score += 8;
+    if (security.deviceAlerts) score += 5;
+    if (security.payoutLock) score += 5;
+    return Math.min(100, score);
+  }, [security.twoFactorEnabled, security.backupCodes, security.deviceAlerts, security.payoutLock]);
 
   function submitLogin() {
     setAuthError(null);
-    if (!loginForm.email || !loginForm.password) {
+    if (!loginForm.email.trim() || !loginForm.password.trim()) {
       setAuthError("Enter email and password.");
       return;
     }
     setAuthStep("2fa");
+    setOtpCode("246810");
   }
 
   function verify2fa() {
@@ -999,6 +1039,45 @@ function AccountScreen({ locale }: { locale: Locale }) {
       return;
     }
     setAuthStep("done");
+    setSection("overview");
+    setAccountNotice("Logged in successfully. Account controls are now unlocked.");
+  }
+
+  function enableTwoFactor() {
+    if (twoFactorSetupCode.trim() !== "246810") {
+      setAccountNotice("Invalid setup code. Use 246810 in this prototype.");
+      return;
+    }
+    setSecurity((s) => ({ ...s, twoFactorEnabled: true }));
+    setAccountNotice("Two-factor authentication is now enabled.");
+  }
+
+  function disableTwoFactor() {
+    setSecurity((s) => ({ ...s, twoFactorEnabled: false }));
+    setAccountNotice("Two-factor authentication has been disabled.");
+  }
+
+  function saveProfile() {
+    setAccountNotice("Profile details saved.");
+  }
+
+  function updatePassword() {
+    if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
+      setAccountNotice("Enter current and new password fields.");
+      return;
+    }
+    if (passwordForm.next !== passwordForm.confirm) {
+      setAccountNotice("New password and confirmation do not match.");
+      return;
+    }
+    setPasswordForm({ current: "", next: "", confirm: "" });
+    setAccountNotice("Password updated.");
+  }
+
+  function signOutOtherSessions() {
+    setActiveSessions((list) => list.filter((s) => s.current));
+    setSecurity((s) => ({ ...s, activeSessions: 1 }));
+    setAccountNotice("Other sessions were signed out.");
   }
 
   return (
@@ -1008,17 +1087,25 @@ function AccountScreen({ locale }: { locale: Locale }) {
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.account")}</Typography>
-              <Typography variant="body2" color="text.secondary">Profile, login state, authentication, 2FA, alerts, and account settings.</Typography>
+              <Typography variant="body2" color="text.secondary">
+                SaaS-grade account center for profile, authentication, security posture, and account settings.
+              </Typography>
             </Box>
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
               <Chip label={isLoggedIn ? "Authenticated" : "Signed out"} color={isLoggedIn ? "success" : "warning"} />
               <Chip label={`2FA ${security.twoFactorEnabled ? "On" : "Off"}`} color={security.twoFactorEnabled ? "success" : "default"} />
-              <Tooltip title="Demo code for verification is 246810">
+              <Chip label={`Security score ${securityScore}/100`} color={securityScore >= 85 ? "success" : securityScore >= 70 ? "warning" : "default"} />
+              <Tooltip title="Demo verification/setup code is 246810 in this prototype">
                 <Chip label="Help" icon={<InfoOutlinedIcon />} />
               </Tooltip>
             </Stack>
           </Stack>
         </CardContent></Card>
+        {accountNotice ? (
+          <Alert severity="success" action={<Button color="inherit" onClick={() => setAccountNotice(null)}>Dismiss</Button>}>
+            {accountNotice}
+          </Alert>
+        ) : null}
 
         {!isLoggedIn ? (
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
@@ -1049,6 +1136,10 @@ function AccountScreen({ locale }: { locale: Locale }) {
                       control={<Switch checked={loginForm.remember} onChange={(e) => setLoginForm((s) => ({ ...s, remember: e.target.checked }))} />}
                       label="Remember this device"
                     />
+                    <FormControlLabel
+                      control={<Switch checked={loginForm.trustDevice} onChange={(e) => setLoginForm((s) => ({ ...s, trustDevice: e.target.checked }))} />}
+                      label="Trust this browser for 30 days"
+                    />
                     <Button onClick={submitLogin}>Sign in</Button>
                   </>
                 ) : (
@@ -1066,39 +1157,139 @@ function AccountScreen({ locale }: { locale: Locale }) {
             </CardContent></Card>
 
             <Card><CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication Notes</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication Overview</Typography>
               <Divider sx={{ my: 1.5 }} />
-              <Stack spacing={1}>
-                <Alert severity="info">Session auth state is required before profile and security settings are editable.</Alert>
+              <Stack spacing={1.25}>
+                <Box sx={{ p: 1.4, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Session policy</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>MFA challenge for sensitive account actions</Typography>
+                </Box>
+                <Box sx={{ p: 1.4, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Risk controls</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>Device alerts + payout lock + backup recovery codes</Typography>
+                </Box>
                 <Alert severity="warning">2FA gates high-trust actions like payout settings and API key management.</Alert>
-                <Alert severity="success">Enable security and alerts to receive suspicious-login notifications.</Alert>
               </Stack>
             </CardContent></Card>
           </Box>
         ) : (
           <>
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-              <Chip label="Profile Settings" color={section === "profile" ? "primary" : "default"} onClick={() => setSection("profile")} clickable />
-              <Chip label="Login & Security" color={section === "security" ? "primary" : "default"} onClick={() => setSection("security")} clickable />
-              <Chip label="Alerts Center" color={section === "alerts" ? "primary" : "default"} onClick={() => setSection("alerts")} clickable />
+              <Chip label="Overview" color={section === "overview" ? "primary" : "default"} onClick={() => setSection("overview")} clickable />
+              <Chip label="Profile" color={section === "profile" ? "primary" : "default"} onClick={() => setSection("profile")} clickable />
+              <Chip label="Security" color={section === "security" ? "primary" : "default"} onClick={() => setSection("security")} clickable />
+              <Chip label="Settings" color={section === "settings" ? "primary" : "default"} onClick={() => setSection("settings")} clickable />
             </Stack>
+
+            {section === "overview" ? (
+              <>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4,1fr)" }, gap: 1.25 }}>
+                  <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Security score</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>{securityScore}/100</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Active sessions</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>{activeSessions.length}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary">2FA status</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>{security.twoFactorEnabled ? "Enabled" : "Disabled"}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Alert items</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>{alertsFeed.length}</Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.1fr 0.9fr" }, gap: 2 }}>
+                  <Card><CardContent>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Recent Login Activity</Typography>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Stack spacing={1}>
+                      {loginHistory.map((row) => (
+                        <Box key={row.id} sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1}>
+                            <Box>
+                              <Typography sx={{ fontWeight: 800 }}>{row.ts}</Typography>
+                              <Typography variant="body2" color="text.secondary">{row.geo}</Typography>
+                            </Box>
+                            <Chip size="small" label={row.status} color={row.status === "Success" ? "success" : "warning"} />
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </CardContent></Card>
+                  <Card><CardContent>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Security Posture</Typography>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Stack spacing={1.2}>
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">2FA coverage</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 800 }}>{security.twoFactorEnabled ? "100%" : "0%"}</Typography>
+                        </Stack>
+                        <LinearProgress variant="determinate" value={security.twoFactorEnabled ? 100 : 0} sx={{ mt: 0.5 }} />
+                      </Box>
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">Session hardening</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 800 }}>{security.deviceAlerts ? "80%" : "35%"}</Typography>
+                        </Stack>
+                        <LinearProgress variant="determinate" value={security.deviceAlerts ? 80 : 35} sx={{ mt: 0.5 }} />
+                      </Box>
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">Account recovery readiness</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 800 }}>{security.backupCodes ? "90%" : "30%"}</Typography>
+                        </Stack>
+                        <LinearProgress variant="determinate" value={security.backupCodes ? 90 : 30} sx={{ mt: 0.5 }} />
+                      </Box>
+                    </Stack>
+                  </CardContent></Card>
+                </Box>
+              </>
+            ) : null}
 
             {section === "profile" ? (
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "0.9fr 1.3fr" }, gap: 2 }}>
                 <Card><CardContent>
                   <Stack spacing={1.25} alignItems="center">
-                    <Avatar sx={{ width: 80, height: 80 }}>JR</Avatar>
+                    <Avatar src={avatarPreview || undefined} sx={{ width: 84, height: 84 }}>
+                      {profile.displayName.slice(0, 2).toUpperCase()}
+                    </Avatar>
                     <Typography sx={{ fontWeight: 900 }}>{profile.fullName}</Typography>
-                    <Typography variant="body2" color="text.secondary">{profile.displayName}</Typography>
-                    <Chip size="small" label={`Sessions: ${security.activeSessions}`} />
+                    <Typography variant="body2" color="text.secondary">{profile.role} • {profile.company}</Typography>
+                    <input
+                      id="avatar-upload-input"
+                      hidden
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const next = e.target.files?.[0] || null;
+                        setAvatarFile(next);
+                        if (next) setAccountNotice(`Selected image: ${next.name}`);
+                      }}
+                    />
+                    <Button color="inherit" onClick={() => document.getElementById("avatar-upload-input")?.click()}>
+                      Change profile image
+                    </Button>
+                    {avatarFile ? <Chip size="small" label={avatarFile.name} /> : null}
+                    <Chip size="small" label={`Sessions: ${activeSessions.length}`} />
                   </Stack>
                 </CardContent></Card>
                 <Card><CardContent>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Profile Settings</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Profile and Personal Data</Typography>
                   <Divider sx={{ my: 1.5 }} />
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.25 }}>
                     <TextField size="small" label="Full name" value={profile.fullName} onChange={(e) => setProfile((s) => ({ ...s, fullName: e.target.value }))} />
                     <TextField size="small" label="Display name" value={profile.displayName} onChange={(e) => setProfile((s) => ({ ...s, displayName: e.target.value }))} />
+                    <TextField size="small" label="Email" value={profile.email} onChange={(e) => setProfile((s) => ({ ...s, email: e.target.value }))} />
+                    <TextField size="small" label="Phone" value={profile.phone} onChange={(e) => setProfile((s) => ({ ...s, phone: e.target.value }))} />
+                    <TextField size="small" label="Company" value={profile.company} onChange={(e) => setProfile((s) => ({ ...s, company: e.target.value }))} />
+                    <TextField size="small" label="Role" value={profile.role} onChange={(e) => setProfile((s) => ({ ...s, role: e.target.value }))} />
+                    <TextField size="small" label="City" value={profile.city} onChange={(e) => setProfile((s) => ({ ...s, city: e.target.value }))} />
+                    <TextField size="small" label="Country" value={profile.country} onChange={(e) => setProfile((s) => ({ ...s, country: e.target.value }))} />
+                    <TextField size="small" label="Website" value={profile.website} onChange={(e) => setProfile((s) => ({ ...s, website: e.target.value }))} />
                     <TextField size="small" label="Timezone" value={profile.timezone} onChange={(e) => setProfile((s) => ({ ...s, timezone: e.target.value }))} />
                     <FormControl size="small">
                       <Select value={profile.locale} onChange={(e) => setProfile((s) => ({ ...s, locale: e.target.value as Locale }))}>
@@ -1109,8 +1300,8 @@ function AccountScreen({ locale }: { locale: Locale }) {
                   </Box>
                   <TextField size="small" label="Bio" value={profile.bio} onChange={(e) => setProfile((s) => ({ ...s, bio: e.target.value }))} multiline minRows={3} fullWidth sx={{ mt: 1.25 }} />
                   <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
-                    <Button>Save Profile</Button>
-                    <Button color="inherit">Discard</Button>
+                    <Button onClick={saveProfile}>Save Profile</Button>
+                    <Button color="inherit" onClick={() => setAccountNotice("Reverted unsaved profile changes for this prototype view.")}>Discard</Button>
                   </Stack>
                 </CardContent></Card>
               </Box>
@@ -1121,13 +1312,22 @@ function AccountScreen({ locale }: { locale: Locale }) {
                 <Card><CardContent>
                   <Stack direction="row" spacing={1} alignItems="center">
                     <SecurityIcon fontSize="small" />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication & 2FA</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Authentication and 2FA Setup</Typography>
                   </Stack>
                   <Divider sx={{ my: 1.5 }} />
                   <FormControlLabel
                     control={<Switch checked={security.twoFactorEnabled} onChange={(e) => setSecurity((s) => ({ ...s, twoFactorEnabled: e.target.checked }))} />}
                     label="Enable two-factor authentication"
                   />
+                  <FormControl size="small" sx={{ mt: 1, minWidth: 200 }}>
+                    <Select
+                      value={security.twoFactorMethod}
+                      onChange={(e) => setSecurity((s) => ({ ...s, twoFactorMethod: e.target.value as "auth_app" | "sms" }))}
+                    >
+                      <MenuItem value="auth_app">Authenticator App (TOTP)</MenuItem>
+                      <MenuItem value="sms">SMS OTP</MenuItem>
+                    </Select>
+                  </FormControl>
                   <FormControlLabel
                     control={<Switch checked={security.backupCodes} onChange={(e) => setSecurity((s) => ({ ...s, backupCodes: e.target.checked }))} />}
                     label="Enable backup recovery codes"
@@ -1136,6 +1336,22 @@ function AccountScreen({ locale }: { locale: Locale }) {
                     control={<Switch checked={security.deviceAlerts} onChange={(e) => setSecurity((s) => ({ ...s, deviceAlerts: e.target.checked }))} />}
                     label="Alert on new device login"
                   />
+                  <FormControlLabel
+                    control={<Switch checked={security.payoutLock} onChange={(e) => setSecurity((s) => ({ ...s, payoutLock: e.target.checked }))} />}
+                    label="Require 2FA for payout/profile-critical updates"
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={security.apiAccess} onChange={(e) => setSecurity((s) => ({ ...s, apiAccess: e.target.checked }))} />}
+                    label="Allow personal API token access"
+                  />
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+                    <TextField size="small" label="2FA verification code" value={twoFactorSetupCode} onChange={(e) => setTwoFactorSetupCode(e.target.value)} />
+                    {!security.twoFactorEnabled ? (
+                      <Button onClick={enableTwoFactor}>Complete 2FA Setup</Button>
+                    ) : (
+                      <Button color="inherit" onClick={disableTwoFactor}>Disable 2FA</Button>
+                    )}
+                  </Stack>
                   <Alert severity={security.twoFactorEnabled ? "success" : "warning"} sx={{ mt: 1 }}>
                     {security.twoFactorEnabled ? "2FA enabled and protecting this account." : "2FA currently disabled. Enable for stronger account security."}
                   </Alert>
@@ -1145,30 +1361,60 @@ function AccountScreen({ locale }: { locale: Locale }) {
                   <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Password & Sessions</Typography>
                   <Divider sx={{ my: 1.5 }} />
                   <Stack spacing={1.25}>
-                    <TextField size="small" type="password" label="Current password" />
-                    <TextField size="small" type="password" label="New password" />
-                    <TextField size="small" type="password" label="Confirm new password" />
+                    <TextField size="small" type="password" label="Current password" value={passwordForm.current} onChange={(e) => setPasswordForm((s) => ({ ...s, current: e.target.value }))} />
+                    <TextField size="small" type="password" label="New password" value={passwordForm.next} onChange={(e) => setPasswordForm((s) => ({ ...s, next: e.target.value }))} />
+                    <TextField size="small" type="password" label="Confirm new password" value={passwordForm.confirm} onChange={(e) => setPasswordForm((s) => ({ ...s, confirm: e.target.value }))} />
                     <Stack direction="row" spacing={1}>
-                      <Button>Update Password</Button>
-                      <Button color="inherit">Sign out other sessions</Button>
+                      <Button onClick={updatePassword}>Update Password</Button>
+                      <Button color="inherit" onClick={signOutOtherSessions}>Sign out other sessions</Button>
                     </Stack>
+                    <Divider />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Active Sessions</Typography>
+                    {activeSessions.map((session) => (
+                      <Box key={session.id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" spacing={1}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 800 }}>{session.device}</Typography>
+                            <Typography variant="body2" color="text.secondary">{session.location}</Typography>
+                          </Box>
+                          <Stack alignItems="flex-end" spacing={0.5}>
+                            <Typography variant="caption" color="text.secondary">{session.lastSeen}</Typography>
+                            {session.current ? <Chip size="small" label="Current" color="success" /> : null}
+                          </Stack>
+                        </Stack>
+                      </Box>
+                    ))}
                   </Stack>
                 </CardContent></Card>
               </Box>
             ) : null}
 
-            {section === "alerts" ? (
+            {section === "settings" ? (
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
                 <Card><CardContent>
                   <Stack direction="row" spacing={1} alignItems="center">
                     <NotificationsActiveIcon fontSize="small" />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Alert Preferences</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Preferences & Notifications</Typography>
                   </Stack>
                   <Divider sx={{ my: 1.5 }} />
-                  <FormControlLabel control={<Switch checked={alertsPrefs.appraisalReady} onChange={(e) => setAlertsPrefs((s) => ({ ...s, appraisalReady: e.target.checked }))} />} label="Appraisal-ready notifications" />
-                  <FormControlLabel control={<Switch checked={alertsPrefs.security} onChange={(e) => setAlertsPrefs((s) => ({ ...s, security: e.target.checked }))} />} label="Security alerts" />
-                  <FormControlLabel control={<Switch checked={alertsPrefs.compDrops} onChange={(e) => setAlertsPrefs((s) => ({ ...s, compDrops: e.target.checked }))} />} label="Comp-drop notifications" />
-                  <FormControlLabel control={<Switch checked={alertsPrefs.weeklyDigest} onChange={(e) => setAlertsPrefs((s) => ({ ...s, weeklyDigest: e.target.checked }))} />} label="Weekly digest email" />
+                  <FormControl size="small" sx={{ mb: 1.25 }}>
+                    <Select value={settings.theme} onChange={(e) => setSettings((s) => ({ ...s, theme: e.target.value as "light" | "system" }))}>
+                      <MenuItem value="light">Theme: Light</MenuItem>
+                      <MenuItem value="system">Theme: System</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ mb: 1.25 }}>
+                    <Select value={settings.currency} onChange={(e) => setSettings((s) => ({ ...s, currency: e.target.value as "USD" | "JPY" }))}>
+                      <MenuItem value="USD">Currency: USD</MenuItem>
+                      <MenuItem value="JPY">Currency: JPY</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControlLabel control={<Switch checked={settings.appraisalReady} onChange={(e) => setSettings((s) => ({ ...s, appraisalReady: e.target.checked }))} />} label="Appraisal-ready notifications" />
+                  <FormControlLabel control={<Switch checked={settings.securityDigest} onChange={(e) => setSettings((s) => ({ ...s, securityDigest: e.target.checked }))} />} label="Security digests" />
+                  <FormControlLabel control={<Switch checked={settings.compAlerts} onChange={(e) => setSettings((s) => ({ ...s, compAlerts: e.target.checked }))} />} label="Comp-drop notifications" />
+                  <FormControlLabel control={<Switch checked={settings.productNews} onChange={(e) => setSettings((s) => ({ ...s, productNews: e.target.checked }))} />} label="Product updates and release notes" />
+                  <FormControlLabel control={<Switch checked={settings.weeklyDigest} onChange={(e) => setSettings((s) => ({ ...s, weeklyDigest: e.target.checked }))} />} label="Weekly digest email" />
+                  <Button sx={{ mt: 1 }} onClick={() => setAccountNotice("Settings saved.")}>Save Settings</Button>
                 </CardContent></Card>
 
                 <Card><CardContent>
