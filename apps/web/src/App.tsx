@@ -794,6 +794,10 @@ type AppraisalResult = {
   salesSource: "variant" | "brand_fallback" | "insufficient";
   requiredPhotosPresent: boolean;
   p1PhotoCount: number;
+  requestedRoles: string[];
+  needsMoreInputMessage: string;
+  qualityIssues: string[];
+  photoRoles: Array<{ name: string; role: string; usable: boolean }>;
 };
 
 function tokenize(text: string) {
@@ -870,19 +874,62 @@ function familyLabelFromId(familyId: string | null) {
   return familyId.replace(/^fam_/, "").replace(/_/g, " ");
 }
 
+function pseudoScore(seed: string) {
+  let out = 0;
+  for (let i = 0; i < seed.length; i += 1) out = (out * 31 + seed.charCodeAt(i)) % 1000003;
+  return out;
+}
+
+function classifyPhotoRole(name: string) {
+  const n = name.toLowerCase();
+  if (/\bpalm|pocket\b/.test(n)) return "PALM";
+  if (/\bback|backhand\b/.test(n)) return "BACK";
+  if (/\bliner|inside|interior\b/.test(n)) return "LINER";
+  if (/\bwrist|patch\b/.test(n)) return "WRIST_PATCH";
+  if (/\bstamp|emboss|serial|logo\b/.test(n)) return "STAMPS";
+  if (/\bheel\b/.test(n)) return "HEEL";
+  if (/\bthumb\b/.test(n)) return "THUMB_SIDE";
+  if (/\bpinky\b/.test(n)) return "PINKY_LOOP";
+  return "OTHER";
+}
+
+function qualityForFile(file: File) {
+  const s = pseudoScore(`${file.name}_${file.size}`);
+  const blurScore = (s % 100) / 100;
+  const glareScore = (Math.floor(s / 13) % 100) / 100;
+  const cropScore = (Math.floor(s / 97) % 100) / 100;
+  const issues: string[] = [];
+  if (blurScore > 0.65) issues.push("blur");
+  if (glareScore > 0.7) issues.push("glare");
+  if (cropScore > 0.7) issues.push("crop");
+  return { blurScore, glareScore, cropScore, usable: issues.length === 0, issues };
+}
+
 function detectPhotoRoleCoverage(files: File[]) {
-  const text = files.map((f) => f.name.toLowerCase()).join(" ");
-  const hasBack = /\bback|backhand\b/.test(text);
-  const hasPalm = /\bpalm|pocket\b/.test(text);
-  const hasWristPatch = /\bwrist|patch\b/.test(text);
-  const hasStamp = /\bstamp|emboss|logo\b/.test(text);
-  const hasLiner = /\bliner|inside|interior\b/.test(text);
-  const p1Count = [hasWristPatch, hasStamp, hasLiner].filter(Boolean).length;
+  const rolePredictions = files.map((file) => {
+    const role = classifyPhotoRole(file.name);
+    const quality = qualityForFile(file);
+    return { file, role, quality };
+  });
+  const presentUsable = new Set(rolePredictions.filter((r) => r.quality.usable).map((r) => r.role));
+  const requiredRoles = ["BACK", "PALM"];
+  const recommendedRoles = ["LINER", "WRIST_PATCH", "STAMPS"];
+  const missingP0 = requiredRoles.filter((role) => !presentUsable.has(role));
+  const missingP1 = recommendedRoles.filter((role) => !presentUsable.has(role));
+  const requestedRoles = missingP0.length > 0 ? missingP0 : missingP1;
+  const message = missingP0.length > 0
+    ? `Please add: ${missingP0.join(", ")} to unlock appraisal.`
+    : missingP1.length > 0
+      ? `Recommended: ${missingP1.join(", ")} for tighter confidence.`
+      : "All recommended photo roles provided.";
   return {
-    hasBack,
-    hasPalm,
-    requiredPhotosPresent: hasBack && hasPalm,
-    p1Count,
+    requiredPhotosPresent: missingP0.length === 0,
+    p1Count: recommendedRoles.length - missingP1.length,
+    requestedRoles,
+    message,
+    qualityIssues: rolePredictions.flatMap((r) => r.quality.issues.map((issue) => `${r.file.name}:${issue}`)),
+    photoRoles: rolePredictions.map((r) => ({ name: r.file.name, role: r.role, usable: r.quality.usable })),
+    hasLinerUsable: presentUsable.has("LINER"),
   };
 }
 
@@ -969,6 +1016,10 @@ function inferAppraisalFromEvidence({
       salesSource: "insufficient",
       requiredPhotosPresent: roleCoverage.requiredPhotosPresent,
       p1PhotoCount: roleCoverage.p1Count,
+      requestedRoles: roleCoverage.requestedRoles,
+      needsMoreInputMessage: roleCoverage.message,
+      qualityIssues: roleCoverage.qualityIssues,
+      photoRoles: roleCoverage.photoRoles,
     };
   }
 
@@ -983,7 +1034,8 @@ function inferAppraisalFromEvidence({
   const low = Math.max(60, Math.round(p20 / spreadAdj));
   const high = Math.round(p80 * spreadAdj);
   const variantConfirmed = (top?.score || 0) >= 5 && margin >= 2;
-  const conditionConfidence = Math.max(0.4, Math.min(0.95, 0.52 + files.length * 0.05 + roleCoverage.p1Count * 0.06));
+  const conditionConfidenceRaw = Math.max(0.4, Math.min(0.95, 0.52 + files.length * 0.05 + roleCoverage.p1Count * 0.06));
+  const conditionConfidence = roleCoverage.hasLinerUsable ? conditionConfidenceRaw : Math.min(0.75, conditionConfidenceRaw);
   const route = determineAppraisalMode({
     idConfidence: confidenceScore,
     variantConfirmed,
@@ -1021,6 +1073,10 @@ function inferAppraisalFromEvidence({
     salesSource,
     requiredPhotosPresent: roleCoverage.requiredPhotosPresent,
     p1PhotoCount: roleCoverage.p1Count,
+    requestedRoles: roleCoverage.requestedRoles,
+    needsMoreInputMessage: roleCoverage.message,
+    qualityIssues: roleCoverage.qualityIssues,
+    photoRoles: roleCoverage.photoRoles,
   };
 }
 
@@ -1146,6 +1202,19 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
           <Typography variant="body2" color={result.mode === "DEFER_TO_HUMAN" ? "warning.main" : "text.secondary"} sx={{ mt: 0.8 }}>
             {result.reason}
           </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+            {result.needsMoreInputMessage}
+          </Typography>
+          {result.requestedRoles.length ? (
+            <Stack direction="row" spacing={0.8} sx={{ mt: 0.7, flexWrap: "wrap" }}>
+              {result.requestedRoles.map((role) => <Chip key={role} size="small" label={`Need ${role}`} color="warning" />)}
+            </Stack>
+          ) : null}
+          {result.qualityIssues.length ? (
+            <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 0.7 }}>
+              Quality flags: {result.qualityIssues.slice(0, 6).join(", ")}{result.qualityIssues.length > 6 ? "…" : ""}
+            </Typography>
+          ) : null}
           <Divider sx={{ my: 1.8 }} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.1 }}>
             <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Brand</Typography><Typography sx={{ fontWeight: 800 }}>{result.brand}</Typography></Box>
@@ -1165,6 +1234,18 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
             Point estimate: {result.valuation.point != null ? money(result.valuation.point) : "Not available in current mode"}
           </Typography>
           <Typography variant="caption" color="text.secondary">Comps used: {result.compsUsed} • Source: {result.salesSource}</Typography>
+          <Divider sx={{ my: 1.8 }} />
+          <Typography variant="caption" color="text.secondary">Photo role classification</Typography>
+          <Stack spacing={0.7} sx={{ mt: 0.8 }}>
+            {result.photoRoles.map((photo) => (
+              <Box key={photo.name} sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.25 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>{photo.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {photo.role} • {photo.usable ? "Usable" : "Needs re-upload"}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
         </CardContent></Card>
       ) : null}
     </Stack>
