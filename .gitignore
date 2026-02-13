@@ -10,3 +10,11 @@ dist/
 # OS artifacts
 .DS_Store
 **/.DS_Store
+
+# Runtime artifacts
+apps/api/data/runtime/
+apps/api/public/uploads/
+
+# Local env files
+.env
+**/.env

@@ -798,6 +798,12 @@ type AppraisalResult = {
   needsMoreInputMessage: string;
   qualityIssues: string[];
   photoRoles: Array<{ name: string; role: string; usable: boolean }>;
+  recommendation?: {
+    suggestedListPrice: number | null;
+    liquidityScore: number;
+    compareAgainst: Array<{ sale_id: string; variant_id: string; price_usd: number; sale_date: string; source: string }>;
+    vectorNeighbors: Array<{ variant_id: string; score: number; model_code?: string | null; brand_key?: string | null }>;
+  };
 };
 
 function tokenize(text: string) {
@@ -1087,25 +1093,7 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
   const [analysisErr, setAnalysisErr] = useState<string | null>(null);
   const [uploadReceipts, setUploadReceipts] = useState<Array<{ name: string; photoId: string; deduped: boolean }>>([]);
   const [result, setResult] = useState<AppraisalResult | null>(null);
-  const [variantSeed, setVariantSeed] = useState<VariantRecord[]>([]);
-  const [salesSeed, setSalesSeed] = useState<SaleRecord[]>([]);
-  const [seedErr, setSeedErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [variants, sales] = await Promise.all([api.variants(), api.sales()]);
-        if (!cancelled) {
-          setVariantSeed(variants);
-          setSalesSeed(sales);
-        }
-      } catch (e: any) {
-        if (!cancelled) setSeedErr(String(e?.message || e));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const [stageOutput, setStageOutput] = useState<Record<string, any> | null>(null);
 
   async function analyze() {
     if (!files.length) return;
@@ -1113,16 +1101,27 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
     setAnalysisErr(null);
     setResult(null);
     try {
-      const uploaded = await Promise.all(
-        files.map(async (file) => {
-          const out = await api.uploadPhoto(file);
-          return { name: file.name, photoId: out.photo_id, deduped: out.deduped };
-        }),
-      );
-      setUploadReceipts(uploaded);
-      setResult(inferAppraisalFromEvidence({ files, hint: analysisHint, variants: variantSeed, sales: salesSeed }));
+      const out = await api.appraisalAnalyze(files, analysisHint);
+      setUploadReceipts(out.uploads);
+      setResult(out.appraisal as AppraisalResult);
+      setStageOutput(out.stages || null);
     } catch (e: any) {
-      setAnalysisErr(String(e?.message || e));
+      const fallbackErr = String(e?.message || e);
+      setAnalysisErr(`${fallbackErr} Falling back to local heuristic.`);
+      try {
+        const [variants, sales] = await Promise.all([api.variants(), api.sales()]);
+        const uploaded = await Promise.all(
+          files.map(async (file) => {
+            const u = await api.uploadPhoto(file);
+            return { name: file.name, photoId: u.photo_id, deduped: u.deduped };
+          }),
+        );
+        setUploadReceipts(uploaded);
+        setResult(inferAppraisalFromEvidence({ files, hint: analysisHint, variants, sales }));
+        setStageOutput(null);
+      } catch {
+        // keep original error
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -1157,16 +1156,15 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
             {files.length > 5 ? <Chip size="small" label={`+${files.length - 5} more`} /> : null}
           </Stack>
           <Stack direction="row" spacing={1}>
-            <Button onClick={analyze} disabled={!files.length || analyzing || variantSeed.length === 0}>
+            <Button onClick={analyze} disabled={!files.length || analyzing}>
               {analyzing ? "Analyzing..." : "Analyze Glove"}
             </Button>
-            <Button color="inherit" onClick={() => { setFiles([]); setUploadReceipts([]); setResult(null); setAnalysisErr(null); setAnalysisHint(""); }}>
+            <Button color="inherit" onClick={() => { setFiles([]); setUploadReceipts([]); setResult(null); setAnalysisErr(null); setAnalysisHint(""); setStageOutput(null); }}>
               Reset
             </Button>
           </Stack>
           {analyzing ? <LinearProgress /> : null}
           {analysisErr ? <Typography color="error">{analysisErr}</Typography> : null}
-          {seedErr ? <Typography color="error">{seedErr}</Typography> : null}
         </Stack>
       </CardContent></Card>
 
@@ -1234,6 +1232,28 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
             Point estimate: {result.valuation.point != null ? money(result.valuation.point) : "Not available in current mode"}
           </Typography>
           <Typography variant="caption" color="text.secondary">Comps used: {result.compsUsed} • Source: {result.salesSource}</Typography>
+          {result.recommendation ? (
+            <>
+              <Divider sx={{ my: 1.8 }} />
+              <Typography variant="caption" color="text.secondary">Market recommendation</Typography>
+              <Typography sx={{ fontWeight: 900 }}>
+                Suggested list price: {result.recommendation.suggestedListPrice != null ? money(result.recommendation.suggestedListPrice) : "Not available"}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Liquidity score: {result.recommendation.liquidityScore}/100
+              </Typography>
+              <Stack spacing={0.7} sx={{ mt: 1 }}>
+                {result.recommendation.compareAgainst.slice(0, 5).map((comp) => (
+                  <Box key={comp.sale_id} sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.25 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{comp.sale_id}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {comp.variant_id} • {money(comp.price_usd)} • {comp.sale_date} • {comp.source}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </>
+          ) : null}
           <Divider sx={{ my: 1.8 }} />
           <Typography variant="caption" color="text.secondary">Photo role classification</Typography>
           <Stack spacing={0.7} sx={{ mt: 0.8 }}>
@@ -1246,6 +1266,28 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
               </Box>
             ))}
           </Stack>
+        </CardContent></Card>
+      ) : null}
+
+      {stageOutput ? (
+        <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Service Layer Output</Typography>
+          <Divider sx={{ my: 1.3 }} />
+          <Box
+            component="pre"
+            sx={{
+              p: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1.25,
+              bgcolor: "background.default",
+              fontSize: 11,
+              maxHeight: 260,
+              overflow: "auto",
+            }}
+          >
+            {JSON.stringify(stageOutput, null, 2)}
+          </Box>
         </CardContent></Card>
       ) : null}
     </Stack>

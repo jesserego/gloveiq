@@ -61,6 +61,19 @@ export type SaleRecord = {
   is_referral: boolean;
 };
 
+export type AppraisalAnalyzeResponse = {
+  artifactId?: string;
+  uploads: Array<{ name: string; photoId: string; deduped: boolean }>;
+  stages?: {
+    identify?: any;
+    evidence?: any;
+    valuation?: any;
+    recommendation?: any;
+  };
+  appraisal: any;
+  cache?: string;
+};
+
 export const api = {
   brands: () => json<BrandConfig[]>(`${API_BASE}/brands`),
   families: (q?: string) => json<FamilyRecord[]>(`${API_BASE}/families${q ? `?q=${encodeURIComponent(q)}` : ""}`),
@@ -73,5 +86,11 @@ export const api = {
   uploadPhoto: async (file: File) => {
     const fd = new FormData(); fd.append("file", file);
     return json<{ photo_id: string; deduped: boolean }>(`${API_BASE}/photos/upload`, { method: "POST", body: fd });
+  },
+  appraisalAnalyze: async (files: File[], hint?: string) => {
+    const fd = new FormData();
+    for (const file of files) fd.append("files", file);
+    if (hint && hint.trim()) fd.append("hint", hint.trim());
+    return json<AppraisalAnalyzeResponse>(`${API_BASE}/appraisal/analyze`, { method: "POST", body: fd });
   },
 };
