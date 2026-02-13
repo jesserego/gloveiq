@@ -1,0 +1,278 @@
+erDiagram
+  BRAND ||--o{ FAMILY : has
+  BRAND ||--o{ PATTERN : defines
+  BRAND ||--|| BRAND_CONFIG : config
+
+  FAMILY ||--o{ PATTERN : groups
+  PATTERN ||--o{ VARIANT : has
+  PATTERN ||--o{ PATTERN_ALIAS : alias
+
+  VARIANT ||--o{ VARIANT_ATTRIBUTE : has
+  ATTRIBUTE_DEF ||--o{ VARIANT_ATTRIBUTE : defines
+
+  ARTIFACT }o--|| BRAND : claimed_brand
+  ARTIFACT }o--o| FAMILY : claimed_family
+  ARTIFACT }o--o| PATTERN : claimed_pattern
+  ARTIFACT }o--o| VARIANT : claimed_variant
+
+  ARTIFACT ||--o{ ARTIFACT_PHOTO : has
+  PHOTO_ROLE ||--o{ ARTIFACT_PHOTO : role
+
+  ARTIFACT ||--o{ ARTIFACT_DOC : has
+  ARTIFACT ||--o{ CONDITION_ASSESSMENT : scored
+  CONDITION_ASSESSMENT ||--o{ CONDITION_SUBSCORE : includes
+  CONDITION_DIM ||--o{ CONDITION_SUBSCORE : defines
+
+  ARTIFACT ||--o{ VERIFICATION_EVENT : verification
+  ARTIFACT ||--o{ APPRAISAL : appraised
+  APPRAISAL ||--o{ APPRAISAL_EVIDENCE : uses
+  EVIDENCE_SOURCE ||--o{ APPRAISAL_EVIDENCE : source
+  COMP_SALE ||--o{ APPRAISAL_EVIDENCE : cited_comp
+
+  BRAND ||--o{ COMP_SALE : comp_brand
+  PATTERN ||--o{ COMP_SALE : comp_pattern
+  VARIANT ||--o{ COMP_SALE : comp_variant
+  COMP_SALE ||--o{ COMP_MEDIA : media
+
+  BRAND ||--o{ MARKET_LISTING : list_brand
+  PATTERN ||--o{ MARKET_LISTING : list_pattern
+  VARIANT ||--o{ MARKET_LISTING : list_variant
+  MARKET_LISTING ||--o{ LISTING_MEDIA : media
+  MARKET_LISTING ||--o{ REFERRAL_OUT : outbound
+
+  I18N_TEXT }o--|| BRAND : i18n_brand
+  I18N_TEXT }o--|| FAMILY : i18n_family
+  I18N_TEXT }o--|| PATTERN : i18n_pattern
+  I18N_TEXT }o--|| VARIANT : i18n_variant
+  I18N_TEXT }o--|| ATTRIBUTE_DEF : i18n_attr
+
+  BRAND {
+    uuid id PK
+    text brand_key UK
+    text display_name
+    text origin_country
+    boolean is_jp_elite
+    timestamp created_at
+  }
+
+  BRAND_CONFIG {
+    uuid brand_id PK, FK
+    text ai_support_level
+    json required_photo_roles
+    json verification_rules
+    json pattern_system
+    timestamp updated_at
+  }
+
+  FAMILY {
+    uuid id PK
+    uuid brand_id FK
+    text family_key UK
+    text display_name
+    text description
+  }
+
+  PATTERN {
+    uuid id PK
+    uuid brand_id FK
+    uuid family_id FK
+    text pattern_code
+    text position_default
+    numeric size_in_default
+    boolean is_cataloged
+  }
+
+  PATTERN_ALIAS {
+    uuid id PK
+    uuid pattern_id FK
+    text alias UK
+    text type
+  }
+
+  VARIANT {
+    uuid id PK
+    uuid pattern_id FK
+    text variant_key UK
+    text era_start
+    text era_end
+    text made_in
+    text leather_family
+    text colorway
+    text notes
+  }
+
+  ATTRIBUTE_DEF {
+    uuid id PK
+    text key UK
+    text value_type
+    json enum_values
+  }
+
+  VARIANT_ATTRIBUTE {
+    uuid id PK
+    uuid variant_id FK
+    uuid attribute_def_id FK
+    text value_text
+    numeric value_num
+    boolean value_bool
+  }
+
+  ARTIFACT {
+    uuid id PK
+    text artifact_id UK
+    text object_type
+    uuid brand_id FK
+    uuid family_id FK
+    uuid pattern_id FK
+    uuid variant_id FK
+    text confidence_overall
+    text created_by_user_id
+    timestamp created_at
+  }
+
+  PHOTO_ROLE {
+    uuid id PK
+    text role_key UK
+    text priority
+    text description
+  }
+
+  ARTIFACT_PHOTO {
+    uuid id PK
+    uuid artifact_id FK
+    uuid role_id FK
+    text storage_key
+    text mime
+    int width
+    int height
+    text perceptual_hash
+    text ai_fingerprint
+    timestamp created_at
+  }
+
+  ARTIFACT_DOC {
+    uuid id PK
+    uuid artifact_id FK
+    text doc_type
+    text storage_key
+    timestamp created_at
+  }
+
+  CONDITION_ASSESSMENT {
+    uuid id PK
+    uuid artifact_id FK
+    text model_version
+    int score_0_100
+    text tier
+    json flags
+    text notes
+    timestamp created_at
+  }
+
+  CONDITION_DIM {
+    uuid id PK
+    text dim_key UK
+    text label
+    int weight
+  }
+
+  CONDITION_SUBSCORE {
+    uuid id PK
+    uuid assessment_id FK
+    uuid dim_id FK
+    int value_0_100
+  }
+
+  VERIFICATION_EVENT {
+    uuid id PK
+    uuid artifact_id FK
+    text status
+    text actor_type
+    text actor_id
+    text notes
+    timestamp created_at
+  }
+
+  APPRAISAL {
+    uuid id PK
+    uuid artifact_id FK
+    text engine_version
+    text mode
+    int comps_used
+    numeric estimate
+    numeric low
+    numeric high
+    text confidence
+    timestamp created_at
+  }
+
+  EVIDENCE_SOURCE {
+    uuid id PK
+    text source_key UK
+    text reliability_tier
+  }
+
+  APPRAISAL_EVIDENCE {
+    uuid id PK
+    uuid appraisal_id FK
+    uuid source_id FK
+    uuid comp_sale_id FK
+    text rationale
+    numeric weight
+  }
+
+  COMP_SALE {
+    uuid id PK
+    uuid brand_id FK
+    uuid pattern_id FK
+    uuid variant_id FK
+    text source
+    numeric price
+    text currency
+    date sold_date
+    text condition_note
+    text url
+    text match_strength
+  }
+
+  COMP_MEDIA {
+    uuid id PK
+    uuid comp_sale_id FK
+    text storage_key
+  }
+
+  MARKET_LISTING {
+    uuid id PK
+    uuid brand_id FK
+    uuid pattern_id FK
+    uuid variant_id FK
+    text marketplace
+    numeric ask_price
+    text currency
+    text url
+    text status
+    timestamp seen_at
+  }
+
+  LISTING_MEDIA {
+    uuid id PK
+    uuid listing_id FK
+    text storage_key
+  }
+
+  REFERRAL_OUT {
+    uuid id PK
+    uuid listing_id FK
+    text partner
+    text outbound_url
+    numeric expected_cpa
+  }
+
+  I18N_TEXT {
+    uuid id PK
+    text entity_type
+    uuid entity_id
+    text locale
+    text field
+    text value
+  }

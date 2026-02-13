@@ -1,0 +1,218 @@
+Table brand {
+  id uuid [pk]
+  brand_key text [unique, not null] // RAWLINGS, WILSON, KUBOTA_SLUGGER...
+  display_name text [not null]
+  origin_country text
+  is_jp_elite boolean [default: false]
+  created_at timestamp
+}
+
+Table brand_config {
+  brand_id uuid [pk, ref: > brand.id]
+  ai_support_level text // FAMILY|PATTERN|VARIANT
+  required_photo_roles json
+  verification_rules json
+  pattern_system json
+  updated_at timestamp
+}
+
+Table family {
+  id uuid [pk]
+  brand_id uuid [ref: > brand.id]
+  family_key text [unique, not null]
+  display_name text
+  description text
+}
+
+Table pattern {
+  id uuid [pk]
+  brand_id uuid [ref: > brand.id]
+  family_id uuid [ref: > family.id]
+  pattern_code text // PRO1000, 1787...
+  position_default text
+  size_in_default numeric
+  is_cataloged boolean [default: true]
+}
+
+Table pattern_alias {
+  id uuid [pk]
+  pattern_id uuid [ref: > pattern.id]
+  alias text [unique, not null]
+  type text // OCR|SLUG|MARKETING|INTERNAL
+}
+
+Table variant {
+  id uuid [pk]
+  pattern_id uuid [ref: > pattern.id]
+  variant_key text [unique, not null]
+  era_start text
+  era_end text
+  made_in text // Japan|Philippines|USA|Unknown
+  leather_family text // HOH|Primo|Muso|...
+  colorway text
+  notes text
+}
+
+Table attribute_def {
+  id uuid [pk]
+  key text [unique, not null] // patch_type, lace_color, stamp_style...
+  value_type text // ENUM|TEXT|NUMBER|BOOL
+  enum_values json
+}
+
+Table variant_attribute {
+  id uuid [pk]
+  variant_id uuid [ref: > variant.id]
+  attribute_def_id uuid [ref: > attribute_def.id]
+  value_text text
+  value_num numeric
+  value_bool boolean
+}
+
+Table artifact {
+  id uuid [pk]
+  artifact_id text [unique, not null] // GQ-ART-000184
+  object_type text // CATALOGED_MODEL|ARTIFACT
+  brand_id uuid [ref: > brand.id]
+  family_id uuid [ref: > family.id, null]
+  pattern_id uuid [ref: > pattern.id, null]
+  variant_id uuid [ref: > variant.id, null]
+  confidence_overall text // LOW|MEDIUM|HIGH
+  created_by_user_id text
+  created_at timestamp
+}
+
+Table photo_role {
+  id uuid [pk]
+  role_key text [unique, not null] // PHOTO_BACK, PHOTO_PALM...
+  priority text // P0|P1|P2
+  description text
+}
+
+Table artifact_photo {
+  id uuid [pk]
+  artifact_id uuid [ref: > artifact.id]
+  role_id uuid [ref: > photo_role.id]
+  storage_key text
+  mime text
+  width int
+  height int
+  perceptual_hash text
+  ai_fingerprint text
+  created_at timestamp
+}
+
+Table artifact_doc {
+  id uuid [pk]
+  artifact_id uuid [ref: > artifact.id]
+  doc_type text // ORDER_SHEET|INVOICE|COA|CHAT_LOG
+  storage_key text
+  created_at timestamp
+}
+
+Table condition_assessment {
+  id uuid [pk]
+  artifact_id uuid [ref: > artifact.id]
+  model_version text
+  score_0_100 int
+  tier text // LOW|MEDIUM|HIGH
+  flags json
+  notes text
+  created_at timestamp
+}
+
+Table condition_dim {
+  id uuid [pk]
+  dim_key text [unique, not null] // PALM|HEEL|LINER|FINGERS...
+  label text
+  weight int
+}
+
+Table condition_subscore {
+  id uuid [pk]
+  assessment_id uuid [ref: > condition_assessment.id]
+  dim_id uuid [ref: > condition_dim.id]
+  value_0_100 int
+}
+
+Table verification_event {
+  id uuid [pk]
+  artifact_id uuid [ref: > artifact.id]
+  status text // UNVERIFIED|COMMUNITY|MAKER|PROVENANCE
+  actor_type text // USER|MOD|MAKER
+  actor_id text
+  notes text
+  created_at timestamp
+}
+
+Table appraisal {
+  id uuid [pk]
+  artifact_id uuid [ref: > artifact.id]
+  engine_version text
+  mode text // DISABLED|RANGE_ONLY|ESTIMATE_AND_RANGE
+  comps_used int
+  estimate numeric
+  low numeric
+  high numeric
+  confidence text // LOW|MEDIUM|HIGH
+  created_at timestamp
+}
+
+Table evidence_source {
+  id uuid [pk]
+  source_key text [unique, not null] // EBAY_SOLD|SSW_SOLD|DEALER|FORUM
+  reliability_tier text // A|B|C
+}
+
+Table comp_sale {
+  id uuid [pk]
+  brand_id uuid [ref: > brand.id]
+  pattern_id uuid [ref: > pattern.id, null]
+  variant_id uuid [ref: > variant.id, null]
+  source text
+  price numeric
+  currency text
+  sold_date date
+  condition_note text
+  url text
+  match_strength text // WEAK|MEDIUM|STRONG
+}
+
+Table appraisal_evidence {
+  id uuid [pk]
+  appraisal_id uuid [ref: > appraisal.id]
+  source_id uuid [ref: > evidence_source.id]
+  comp_sale_id uuid [ref: > comp_sale.id]
+  rationale text
+  weight numeric
+}
+
+Table market_listing {
+  id uuid [pk]
+  brand_id uuid [ref: > brand.id]
+  pattern_id uuid [ref: > pattern.id, null]
+  variant_id uuid [ref: > variant.id, null]
+  marketplace text // EBAY|SSW|DEALER
+  ask_price numeric
+  currency text
+  url text
+  status text // ACTIVE|ENDED
+  seen_at timestamp
+}
+
+Table referral_out {
+  id uuid [pk]
+  listing_id uuid [ref: > market_listing.id]
+  partner text
+  outbound_url text
+  expected_cpa numeric
+}
+
+Table i18n_text {
+  id uuid [pk]
+  entity_type text // BRAND|FAMILY|PATTERN|VARIANT|ATTRIBUTE
+  entity_id uuid
+  locale text // en|ja
+  field text // display_name|description|label
+  value text
+}
