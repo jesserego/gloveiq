@@ -776,6 +776,10 @@ function SearchScreen({
 }
 
 type AppraisalResult = {
+  mode: "MODE_DISABLED" | "MODE_RANGE_ONLY" | "MODE_ESTIMATE_AND_RANGE" | "DEFER_TO_HUMAN";
+  reason: string;
+  confidenceLabel: "Low" | "Medium" | "High";
+  confidenceScore: number;
   brand: string;
   family: string;
   model: string;
@@ -785,55 +789,267 @@ type AppraisalResult = {
   web: string;
   leather: string;
   madeIn: string;
-  confidence: "Low" | "Medium" | "High";
-  estimate: { point: number; low: number; high: number };
+  valuation: { point: number | null; low: number | null; high: number | null };
+  compsUsed: number;
+  salesSource: "variant" | "brand_fallback" | "insufficient";
+  requiredPhotosPresent: boolean;
+  p1PhotoCount: number;
 };
 
-function scoreTextToInt(input: string) {
-  return Array.from(input).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+function tokenize(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((v) => v.trim())
+    .filter((v) => v.length >= 2);
 }
 
-function inferAppraisalFromPhotos(files: File[]): AppraisalResult {
-  const source = files.map((f) => f.name).join("|") || "seed";
-  const score = scoreTextToInt(source);
-  const families = ["Heart of the Hide", "A2000", "Pro Preferred", "Global Elite"];
-  const webs = ["I-Web", "H-Web", "Single Post", "Dual Post"];
-  const leathers = ["Steerhide", "Kip Leather", "Pro Stock", "Primo"];
-  const madeInOptions = ["USA", "Japan", "Unknown"];
-  const confidence: AppraisalResult["confidence"] = files.length >= 4 ? "High" : files.length >= 2 ? "Medium" : "Low";
-  const brand = FULL_BRAND_SEEDS[score % FULL_BRAND_SEEDS.length]?.display_name || "Rawlings";
-  const family = families[score % families.length];
-  const modelNum = 1000 + (score % 900);
-  const model = `PRO${modelNum}`;
-  const pattern = `${brand.slice(0, 2).toUpperCase()}-${String(score % 90).padStart(2, "0")}`;
-  const size = `${(11 + ((score % 17) / 10)).toFixed(1)}"`;
-  const throwSide = score % 2 === 0 ? "RHT" : "LHT";
-  const web = webs[score % webs.length];
-  const leather = leathers[score % leathers.length];
-  const madeIn = madeInOptions[score % madeInOptions.length];
-  const base = 220 + (score % 220) + files.length * 32;
-  const spread = confidence === "High" ? 45 : confidence === "Medium" ? 75 : 110;
+function confidenceLabelFromScore(score: number): "Low" | "Medium" | "High" {
+  if (score >= 0.78) return "High";
+  if (score >= 0.52) return "Medium";
+  return "Low";
+}
+
+type AppraisalMode =
+  | "MODE_DISABLED"
+  | "MODE_RANGE_ONLY"
+  | "MODE_ESTIMATE_AND_RANGE"
+  | "DEFER_TO_HUMAN";
+
+type AppraisalModeInput = {
+  idConfidence: number;
+  variantConfirmed: boolean;
+  conditionConfidence: number;
+  compsCount: number;
+  requiredPhotosPresent: boolean;
+  conflictingBrandSignals: boolean;
+};
+
+function determineAppraisalMode(input: AppraisalModeInput): { mode: AppraisalMode; reason: string } {
+  if (input.idConfidence < 0.5) {
+    return { mode: "DEFER_TO_HUMAN", reason: "Low ID confidence (<0.50)." };
+  }
+  if (input.conflictingBrandSignals) {
+    return { mode: "MODE_DISABLED", reason: "Conflicting brand signals detected in evidence." };
+  }
+  if (!input.requiredPhotosPresent || input.compsCount < 5) {
+    return { mode: "MODE_DISABLED", reason: "Insufficient evidence (P0 photos) or comps (<5)." };
+  }
+  if (
+    input.idConfidence >= 0.85 &&
+    input.variantConfirmed &&
+    input.compsCount >= 12 &&
+    input.conditionConfidence >= 0.75
+  ) {
+    return { mode: "MODE_ESTIMATE_AND_RANGE", reason: "High confidence with strong comps and condition confidence." };
+  }
+  return { mode: "MODE_RANGE_ONLY", reason: "Moderate confidence and/or limited comps." };
+}
+
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function percentile(values: number[], p: number) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  const t = idx - lo;
+  return sorted[lo] * (1 - t) + sorted[hi] * t;
+}
+
+function familyLabelFromId(familyId: string | null) {
+  if (!familyId) return "Unknown";
+  return familyId.replace(/^fam_/, "").replace(/_/g, " ");
+}
+
+function detectPhotoRoleCoverage(files: File[]) {
+  const text = files.map((f) => f.name.toLowerCase()).join(" ");
+  const hasBack = /\bback|backhand\b/.test(text);
+  const hasPalm = /\bpalm|pocket\b/.test(text);
+  const hasWristPatch = /\bwrist|patch\b/.test(text);
+  const hasStamp = /\bstamp|emboss|logo\b/.test(text);
+  const hasLiner = /\bliner|inside|interior\b/.test(text);
+  const p1Count = [hasWristPatch, hasStamp, hasLiner].filter(Boolean).length;
   return {
-    brand,
-    family,
-    model,
-    pattern,
-    size,
-    throwSide,
-    web,
-    leather,
-    madeIn,
-    confidence,
-    estimate: { point: base, low: Math.max(80, base - spread), high: base + spread },
+    hasBack,
+    hasPalm,
+    requiredPhotosPresent: hasBack && hasPalm,
+    p1Count,
+  };
+}
+
+function detectConflictingBrands(evidenceTokens: Set<string>) {
+  const matched = FULL_BRAND_SEEDS.filter((brand) => {
+    const key = brand.brand_key.toLowerCase();
+    const displayParts = brand.display_name.toLowerCase().split(/\s+/);
+    return evidenceTokens.has(key) || displayParts.some((part) => part.length > 2 && evidenceTokens.has(part));
+  });
+  return matched.length > 1;
+}
+
+function inferAppraisalFromEvidence({
+  files,
+  hint,
+  variants,
+  sales,
+}: {
+  files: File[];
+  hint: string;
+  variants: VariantRecord[];
+  sales: SaleRecord[];
+}): AppraisalResult {
+  const evidenceTokens = tokenize(`${hint} ${files.map((f) => f.name).join(" ")}`);
+  const evidenceSet = new Set(evidenceTokens);
+
+  const scoredVariants = variants.map((variant) => {
+    const variantTokens = new Set(
+      tokenize(
+        [
+          variant.variant_id,
+          variant.brand_key,
+          variant.display_name,
+          variant.model_code || "",
+          variant.pattern_id || "",
+          variant.family_id || "",
+          variant.web || "",
+          variant.leather || "",
+          variant.made_in || "",
+          String(variant.year || ""),
+        ].join(" "),
+      ),
+    );
+    let score = 0;
+    for (const token of evidenceSet) {
+      if (variantTokens.has(token)) score += token.length >= 4 ? 2 : 1;
+      if ((variant.model_code || "").toLowerCase() === token) score += 3;
+      if ((variant.brand_key || "").toLowerCase() === token) score += 2;
+    }
+    if (evidenceSet.size === 0) score = 0;
+    return { variant, score };
+  }).sort((a, b) => b.score - a.score);
+
+  const top = scoredVariants[0];
+  const second = scoredVariants[1];
+  const margin = Math.max(0, (top?.score || 0) - (second?.score || 0));
+  const photoFactor = Math.min(0.28, files.length * 0.06);
+  const scoreFactor = Math.min(0.5, (top?.score || 0) * 0.035);
+  const marginFactor = Math.min(0.2, margin * 0.035);
+  const confidenceScore = Math.max(0.08, Math.min(0.97, 0.16 + photoFactor + scoreFactor + marginFactor));
+  const confidenceLabel = confidenceLabelFromScore(confidenceScore);
+  const roleCoverage = detectPhotoRoleCoverage(files);
+  const conflictingBrandSignals = detectConflictingBrands(evidenceSet);
+
+  const matched = top?.variant;
+  const needsReview = !matched || files.length < 2 || (top?.score || 0) < 2 || confidenceLabel === "Low";
+  if (!matched) {
+    return {
+      mode: "DEFER_TO_HUMAN",
+      reason: "No viable variant candidate found from current photo evidence.",
+      confidenceLabel: "Low",
+      confidenceScore: 0.1,
+      brand: "Unknown",
+      family: "Unknown",
+      model: "Unknown",
+      pattern: "Unknown",
+      size: "Unknown",
+      throwSide: "Unknown",
+      web: "Unknown",
+      leather: "Unknown",
+      madeIn: "Unknown",
+      valuation: { point: null, low: null, high: null },
+      compsUsed: 0,
+      salesSource: "insufficient",
+      requiredPhotosPresent: roleCoverage.requiredPhotosPresent,
+      p1PhotoCount: roleCoverage.p1Count,
+    };
+  }
+
+  const directSales = sales.filter((s) => s.variant_id === matched.variant_id).map((s) => s.price_usd);
+  const brandSales = sales.filter((s) => s.brand_key === matched.brand_key).map((s) => s.price_usd);
+  const pricingSource = directSales.length >= 3 ? directSales : brandSales;
+  const salesSource: AppraisalResult["salesSource"] = directSales.length >= 3 ? "variant" : brandSales.length >= 4 ? "brand_fallback" : "insufficient";
+  const point = pricingSource.length ? Math.round(median(pricingSource)) : (matched.msrp_usd || 320);
+  const p20 = pricingSource.length ? Math.round(percentile(pricingSource, 0.2)) : Math.round(point * 0.78);
+  const p80 = pricingSource.length ? Math.round(percentile(pricingSource, 0.8)) : Math.round(point * 1.22);
+  const spreadAdj = confidenceLabel === "High" ? 0.9 : confidenceLabel === "Medium" ? 1.08 : 1.22;
+  const low = Math.max(60, Math.round(p20 / spreadAdj));
+  const high = Math.round(p80 * spreadAdj);
+  const variantConfirmed = (top?.score || 0) >= 5 && margin >= 2;
+  const conditionConfidence = Math.max(0.4, Math.min(0.95, 0.52 + files.length * 0.05 + roleCoverage.p1Count * 0.06));
+  const route = determineAppraisalMode({
+    idConfidence: confidenceScore,
+    variantConfirmed,
+    conditionConfidence,
+    compsCount: pricingSource.length,
+    requiredPhotosPresent: roleCoverage.requiredPhotosPresent,
+    conflictingBrandSignals,
+  });
+  const showPoint = route.mode === "MODE_ESTIMATE_AND_RANGE";
+  const showRange = route.mode === "MODE_RANGE_ONLY" || route.mode === "MODE_ESTIMATE_AND_RANGE";
+  const forceUnknownIdentity = route.mode === "DEFER_TO_HUMAN";
+
+  return {
+    mode: route.mode,
+    reason: needsReview && route.mode === "MODE_RANGE_ONLY"
+      ? "Evidence remains ambiguous; range only until clearer identity cues are provided."
+      : route.reason,
+    confidenceLabel,
+    confidenceScore,
+    brand: forceUnknownIdentity ? "Unknown" : matched.brand_key,
+    family: forceUnknownIdentity ? "Unknown" : familyLabelFromId(matched.family_id),
+    model: forceUnknownIdentity ? "Unknown" : (matched.model_code || matched.display_name),
+    pattern: forceUnknownIdentity ? "Unknown" : (matched.pattern_id || "Unknown"),
+    size: forceUnknownIdentity ? "Unknown" : (matched.display_name.match(/\b(1[01-3]\.\d)\b/)?.[1] ? `${matched.display_name.match(/\b(1[01-3]\.\d)\b/)?.[1]}"` : "Unknown"),
+    throwSide: forceUnknownIdentity ? "Unknown" : (/-lht\b/i.test(matched.variant_id) ? "LHT" : /-rht\b/i.test(matched.variant_id) ? "RHT" : "Unknown"),
+    web: forceUnknownIdentity ? "Unknown" : (matched.web || "Unknown"),
+    leather: forceUnknownIdentity ? "Unknown" : (matched.leather || "Unknown"),
+    madeIn: forceUnknownIdentity ? "Unknown" : (matched.made_in || "Unknown"),
+    valuation: {
+      point: showPoint ? point : null,
+      low: showRange ? low : null,
+      high: showRange ? high : null,
+    },
+    compsUsed: pricingSource.length,
+    salesSource,
+    requiredPhotosPresent: roleCoverage.requiredPhotosPresent,
+    p1PhotoCount: roleCoverage.p1Count,
   };
 }
 
 function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
   const [files, setFiles] = useState<File[]>([]);
+  const [analysisHint, setAnalysisHint] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisErr, setAnalysisErr] = useState<string | null>(null);
   const [uploadReceipts, setUploadReceipts] = useState<Array<{ name: string; photoId: string; deduped: boolean }>>([]);
   const [result, setResult] = useState<AppraisalResult | null>(null);
+  const [variantSeed, setVariantSeed] = useState<VariantRecord[]>([]);
+  const [salesSeed, setSalesSeed] = useState<SaleRecord[]>([]);
+  const [seedErr, setSeedErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [variants, sales] = await Promise.all([api.variants(), api.sales()]);
+        if (!cancelled) {
+          setVariantSeed(variants);
+          setSalesSeed(sales);
+        }
+      } catch (e: any) {
+        if (!cancelled) setSeedErr(String(e?.message || e));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function analyze() {
     if (!files.length) return;
@@ -848,7 +1064,7 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
         }),
       );
       setUploadReceipts(uploaded);
-      setResult(inferAppraisalFromPhotos(files));
+      setResult(inferAppraisalFromEvidence({ files, hint: analysisHint, variants: variantSeed, sales: salesSeed }));
     } catch (e: any) {
       setAnalysisErr(String(e?.message || e));
     } finally {
@@ -865,6 +1081,13 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
         </Typography>
         <Divider sx={{ my: 2 }} />
         <Stack spacing={1.2}>
+          <TextField
+            size="small"
+            label="Optional hint (brand/model/pattern)"
+            placeholder="e.g. Rawlings PRO204 H-Web"
+            value={analysisHint}
+            onChange={(e) => setAnalysisHint(e.target.value)}
+          />
           <input
             type="file"
             accept="image/*"
@@ -878,15 +1101,16 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
             {files.length > 5 ? <Chip size="small" label={`+${files.length - 5} more`} /> : null}
           </Stack>
           <Stack direction="row" spacing={1}>
-            <Button onClick={analyze} disabled={!files.length || analyzing}>
+            <Button onClick={analyze} disabled={!files.length || analyzing || variantSeed.length === 0}>
               {analyzing ? "Analyzing..." : "Analyze Glove"}
             </Button>
-            <Button color="inherit" onClick={() => { setFiles([]); setUploadReceipts([]); setResult(null); setAnalysisErr(null); }}>
+            <Button color="inherit" onClick={() => { setFiles([]); setUploadReceipts([]); setResult(null); setAnalysisErr(null); setAnalysisHint(""); }}>
               Reset
             </Button>
           </Stack>
           {analyzing ? <LinearProgress /> : null}
           {analysisErr ? <Typography color="error">{analysisErr}</Typography> : null}
+          {seedErr ? <Typography color="error">{seedErr}</Typography> : null}
         </Stack>
       </CardContent></Card>
 
@@ -909,8 +1133,19 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>GloveIQ Appraisal Result</Typography>
-            <Chip label={`Confidence: ${result.confidence}`} color={result.confidence === "High" ? "success" : result.confidence === "Medium" ? "warning" : "default"} />
+            <Chip
+              label={`Confidence: ${result.confidenceLabel} (${Math.round(result.confidenceScore * 100)}%)`}
+              color={result.confidenceLabel === "High" ? "success" : result.confidenceLabel === "Medium" ? "warning" : "default"}
+            />
           </Stack>
+          <Stack direction="row" spacing={1} sx={{ mt: 0.6, flexWrap: "wrap" }}>
+            <Chip size="small" label={result.mode} color={result.mode === "MODE_ESTIMATE_AND_RANGE" ? "success" : result.mode === "MODE_RANGE_ONLY" ? "warning" : "default"} />
+            <Chip size="small" label={`P0 photos: ${result.requiredPhotosPresent ? "OK" : "Missing"}`} color={result.requiredPhotosPresent ? "success" : "warning"} />
+            <Chip size="small" label={`P1 photos: ${result.p1PhotoCount}/3`} />
+          </Stack>
+          <Typography variant="body2" color={result.mode === "DEFER_TO_HUMAN" ? "warning.main" : "text.secondary"} sx={{ mt: 0.8 }}>
+            {result.reason}
+          </Typography>
           <Divider sx={{ my: 1.8 }} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.1 }}>
             <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Brand</Typography><Typography sx={{ fontWeight: 800 }}>{result.brand}</Typography></Box>
@@ -923,8 +1158,13 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
           </Box>
           <Divider sx={{ my: 1.8 }} />
           <Typography variant="caption" color="text.secondary">Appraised market value</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(result.estimate.low)} – {money(result.estimate.high)}</Typography>
-          <Typography variant="body2" color="text.secondary">Point estimate: {money(result.estimate.point)}</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900 }}>
+            {result.valuation.low != null && result.valuation.high != null ? `${money(result.valuation.low)} – ${money(result.valuation.high)}` : "Valuation unavailable"}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Point estimate: {result.valuation.point != null ? money(result.valuation.point) : "Not available in current mode"}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">Comps used: {result.compsUsed} • Source: {result.salesSource}</Typography>
         </CardContent></Card>
       ) : null}
     </Stack>
