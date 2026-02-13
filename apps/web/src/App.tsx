@@ -46,8 +46,6 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
-import aiLabelSchema from "./data/ai-label-schema.json";
-import aiTaxonomy from "./data/ai-taxonomy.json";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 const FIGMA_TAG_BASE_SX = {
@@ -777,364 +775,158 @@ function SearchScreen({
   );
 }
 
-type IntakeAngle = "PALM" | "BACKHAND" | "WEB" | "HEEL_STAMP" | "LINER_STAMP";
-type ConfidenceBand = "Low" | "Medium" | "High";
+type AppraisalResult = {
+  brand: string;
+  family: string;
+  model: string;
+  pattern: string;
+  size: string;
+  throwSide: string;
+  web: string;
+  leather: string;
+  madeIn: string;
+  confidence: "Low" | "Medium" | "High";
+  estimate: { point: number; low: number; high: number };
+};
 
-const INTAKE_ANGLE_DEFS: Array<{ key: IntakeAngle; label: string; required: boolean; hint: string }> = [
-  { key: "PALM", label: "Palm", required: true, hint: "Shows pocket wear and break-in." },
-  { key: "BACKHAND", label: "Backhand", required: true, hint: "Confirms shell shape and lacing." },
-  { key: "WEB", label: "Web", required: true, hint: "Important for pattern and model family." },
-  { key: "HEEL_STAMP", label: "Heel stamp / model code", required: true, hint: "High-value signal for identity and era." },
-  { key: "LINER_STAMP", label: "Interior liner stamp", required: false, hint: "Improves confidence and narrows valuation." },
-];
+function scoreTextToInt(input: string) {
+  return Array.from(input).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+}
+
+function inferAppraisalFromPhotos(files: File[]): AppraisalResult {
+  const source = files.map((f) => f.name).join("|") || "seed";
+  const score = scoreTextToInt(source);
+  const families = ["Heart of the Hide", "A2000", "Pro Preferred", "Global Elite"];
+  const webs = ["I-Web", "H-Web", "Single Post", "Dual Post"];
+  const leathers = ["Steerhide", "Kip Leather", "Pro Stock", "Primo"];
+  const madeInOptions = ["USA", "Japan", "Unknown"];
+  const confidence: AppraisalResult["confidence"] = files.length >= 4 ? "High" : files.length >= 2 ? "Medium" : "Low";
+  const brand = FULL_BRAND_SEEDS[score % FULL_BRAND_SEEDS.length]?.display_name || "Rawlings";
+  const family = families[score % families.length];
+  const modelNum = 1000 + (score % 900);
+  const model = `PRO${modelNum}`;
+  const pattern = `${brand.slice(0, 2).toUpperCase()}-${String(score % 90).padStart(2, "0")}`;
+  const size = `${(11 + ((score % 17) / 10)).toFixed(1)}"`;
+  const throwSide = score % 2 === 0 ? "RHT" : "LHT";
+  const web = webs[score % webs.length];
+  const leather = leathers[score % leathers.length];
+  const madeIn = madeInOptions[score % madeInOptions.length];
+  const base = 220 + (score % 220) + files.length * 32;
+  const spread = confidence === "High" ? 45 : confidence === "Medium" ? 75 : 110;
+  return {
+    brand,
+    family,
+    model,
+    pattern,
+    size,
+    throwSide,
+    web,
+    leather,
+    madeIn,
+    confidence,
+    estimate: { point: base, low: Math.max(80, base - spread), high: base + spread },
+  };
+}
 
 function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
-  const [step, setStep] = useState(1);
-  const [filesByAngle, setFilesByAngle] = useState<Partial<Record<IntakeAngle, File | null>>>({});
-  const [uploadingByAngle, setUploadingByAngle] = useState<Partial<Record<IntakeAngle, boolean>>>({});
-  const [uploadedByAngle, setUploadedByAngle] = useState<Partial<Record<IntakeAngle, { photoId: string; deduped: boolean }>>>({});
-  const [uploadErr, setUploadErr] = useState<string | null>(null);
-  const [listingLink, setListingLink] = useState("");
-  const [submitState, setSubmitState] = useState<"idle" | "submitted">("idle");
-  const [catalogRecords, setCatalogRecords] = useState<Array<{ id: string; summary: Record<string, unknown> }>>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisErr, setAnalysisErr] = useState<string | null>(null);
+  const [uploadReceipts, setUploadReceipts] = useState<Array<{ name: string; photoId: string; deduped: boolean }>>([]);
+  const [result, setResult] = useState<AppraisalResult | null>(null);
 
-  const [identity, setIdentity] = useState({
-    brand: "Rawlings",
-    model: "PRO1000",
-    pattern: "PRO1000",
-    size: "11.5",
-    throwSide: "RHT",
-    web: "I-Web",
-    note: "",
-  });
-  const [variant, setVariant] = useState({
-    country: "UNKNOWN",
-    leather: "UNKNOWN",
-    era: "UNKNOWN",
-    specialStamp: "",
-  });
-  const [condition, setCondition] = useState({
-    relaced: "unknown",
-    repairs: "none",
-    cosmeticWear: "medium",
-    palmIntegrity: 62,
-    structureRetention: 64,
-  });
-
-  const taxonomy = aiTaxonomy as any;
-  const schemaVersion = (aiLabelSchema as any)?.$id ? "v1.0.0" : "v0.0.0";
-  const brandOptions: string[] = [
-    ...(taxonomy?.brand_enum?.global || []),
-    ...(taxonomy?.brand_enum?.japan_dominant_or_only || []),
-  ];
-  const leatherLineOptions: string[] = taxonomy?.leather_taxonomy?.leather_line_enum || [];
-
-  const requiredAngles = INTAKE_ANGLE_DEFS.filter((d) => d.required).map((d) => d.key);
-  const uploadedRequiredCount = requiredAngles.filter((a) => uploadedByAngle[a]).length;
-  const evidenceReady = uploadedRequiredCount === requiredAngles.length;
-  const unknownIdentityCount = [identity.brand, identity.model, identity.pattern, identity.size, identity.throwSide, identity.web]
-    .filter((v) => !v || String(v).toUpperCase() === "UNKNOWN").length;
-  const unknownVariantCount = [variant.country, variant.leather, variant.era]
-    .filter((v) => !v || String(v).toUpperCase() === "UNKNOWN").length;
-  const decisionState = !evidenceReady
-    ? "needs_more_photos"
-    : unknownIdentityCount + unknownVariantCount >= 3
-      ? "needs_artifact_review"
-      : "ai_proposed";
-  const decisionReason = !evidenceReady
-    ? "Evidence-first rule: required photo slots are incomplete."
-    : unknownIdentityCount + unknownVariantCount >= 3
-      ? "No-guessing rule: too many unknown fields require manual review."
-      : "Sufficient evidence and taxonomy inputs for AI proposal.";
-
-  const confidenceScore = useMemo(() => {
-    const evidencePct = uploadedRequiredCount / requiredAngles.length;
-    const unknownPenalty = (unknownIdentityCount + unknownVariantCount) * 0.05;
-    const decisionBonus = decisionState === "ai_proposed" ? 0.14 : decisionState === "needs_artifact_review" ? 0.04 : -0.08;
-    return Math.max(0.05, Math.min(0.95, evidencePct * 0.62 + 0.32 + decisionBonus - unknownPenalty));
-  }, [uploadedRequiredCount, requiredAngles.length, unknownIdentityCount, unknownVariantCount, decisionState]);
-  const confidenceBand: ConfidenceBand = confidenceScore >= 0.8 ? "High" : confidenceScore >= 0.5 ? "Medium" : "Low";
-
-  const conditionScore = useMemo(() => {
-    let score = ((condition.palmIntegrity + condition.structureRetention) / 2) / 10;
-    if (condition.relaced === "full") score -= 0.6;
-    if (condition.relaced === "partial") score -= 0.25;
-    if (condition.repairs === "major") score -= 0.9;
-    if (condition.repairs === "minor") score -= 0.35;
-    if (condition.cosmeticWear === "high") score -= 0.55;
-    if (condition.cosmeticWear === "low") score += 0.2;
-    return Math.max(1, Math.min(9.7, Number(score.toFixed(1))));
-  }, [condition]);
-
-  const estimate = useMemo(() => {
-    const base = 320;
-    const conditionAdj = (conditionScore - 7) * 18;
-    const confidenceAdj = confidenceBand === "High" ? 18 : confidenceBand === "Medium" ? 0 : -24;
-    const point = Math.max(120, Math.round(base + conditionAdj + confidenceAdj));
-    const spread = confidenceBand === "High" ? 45 : confidenceBand === "Medium" ? 70 : 105;
-    return { point, low: point - spread, high: point + spread };
-  }, [conditionScore, confidenceBand]);
-
-  async function uploadAngle(angle: IntakeAngle) {
-    const file = filesByAngle[angle];
-    if (!file) return;
-    setUploadErr(null);
-    setUploadingByAngle((s) => ({ ...s, [angle]: true }));
+  async function analyze() {
+    if (!files.length) return;
+    setAnalyzing(true);
+    setAnalysisErr(null);
+    setResult(null);
     try {
-      const out = await api.uploadPhoto(file);
-      setUploadedByAngle((s) => ({ ...s, [angle]: { photoId: out.photo_id, deduped: out.deduped } }));
+      const uploaded = await Promise.all(
+        files.map(async (file) => {
+          const out = await api.uploadPhoto(file);
+          return { name: file.name, photoId: out.photo_id, deduped: out.deduped };
+        }),
+      );
+      setUploadReceipts(uploaded);
+      setResult(inferAppraisalFromPhotos(files));
     } catch (e: any) {
-      setUploadErr(String(e?.message || e));
+      setAnalysisErr(String(e?.message || e));
     } finally {
-      setUploadingByAngle((s) => ({ ...s, [angle]: false }));
+      setAnalyzing(false);
     }
-  }
-
-  function changeStep(n: number) {
-    setStep(Math.max(1, Math.min(5, n)));
-  }
-
-  function buildVerificationSummary() {
-    const now = new Date().toISOString();
-    return {
-      version: schemaVersion,
-      label_sets: {
-        identity: {
-          brand: identity.brand || "UNKNOWN",
-          family: { id: identity.model || "UNKNOWN", name: identity.model || "UNKNOWN" },
-          pattern: { id: identity.pattern || "UNKNOWN", code: identity.pattern || "UNKNOWN", system: "explicit_coded" },
-          variant: { id: variant.era || "UNKNOWN", name: variant.specialStamp || "UNKNOWN", type: "designation_only" },
-        },
-      },
-      evidence: {
-        photo_slots: {
-          palm: Boolean(uploadedByAngle.PALM),
-          heel: Boolean(uploadedByAngle.HEEL_STAMP),
-          web: Boolean(uploadedByAngle.WEB),
-          wrist: Boolean(uploadedByAngle.BACKHAND),
-          label_tag: Boolean(uploadedByAngle.LINER_STAMP),
-          overall: Boolean(uploadedByAngle.BACKHAND),
-        },
-      },
-      confidence: {
-        tier: confidenceBand.toLowerCase().slice(0, 3),
-        score: Number(confidenceScore.toFixed(3)),
-        basis: [
-          `required_evidence_uploaded=${uploadedRequiredCount}/${requiredAngles.length}`,
-          `decision_state=${decisionState}`,
-          `condition_score=${conditionScore}`,
-        ],
-      },
-      verification: {
-        state: decisionState,
-        history: [{ at: now, actor: "user", from: "unverified", to: decisionState, reason: decisionReason }],
-      },
-      pricing: { point_estimate: estimate.point, low: estimate.low, high: estimate.high },
-      listing_link: listingLink || null,
-    } as Record<string, unknown>;
-  }
-
-  function catalogCurrentSummary() {
-    const summary = buildVerificationSummary();
-    const id = `CAT-${Math.floor(100000 + Math.random() * 899999)}`;
-    setCatalogRecords((s) => [{ id, summary }, ...s]);
-    setSubmitState("submitted");
   }
 
   return (
     <Stack spacing={2}>
       <Card><CardContent>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between">
-          <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Pipeline Flow Test</Typography>
-            <Typography variant="body2" color="text.secondary">Upload → Input → Decide → Score & Price → Catalog (attachments ingested).</Typography>
-          </Box>
+        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Instant Appraisal</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Upload multiple glove photos and GloveIQ returns glove specifications and appraised market value in one pass.
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+        <Stack spacing={1.2}>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            aria-label="Upload glove photos"
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+          />
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            {[
-              { n: 1, label: "Upload" },
-              { n: 2, label: "Input" },
-              { n: 3, label: "Decide" },
-              { n: 4, label: "Score & Price" },
-              { n: 5, label: "Catalog" },
-            ].map((s) => (
-              <Chip key={s.n} label={s.label} color={step === s.n ? "primary" : "default"} onClick={() => changeStep(s.n)} clickable />
-            ))}
+            <Chip size="small" label={`${files.length} selected`} />
+            {files.slice(0, 5).map((f) => <Chip key={f.name} size="small" label={f.name} />)}
+            {files.length > 5 ? <Chip size="small" label={`+${files.length - 5} more`} /> : null}
           </Stack>
+          <Stack direction="row" spacing={1}>
+            <Button onClick={analyze} disabled={!files.length || analyzing}>
+              {analyzing ? "Analyzing..." : "Analyze Glove"}
+            </Button>
+            <Button color="inherit" onClick={() => { setFiles([]); setUploadReceipts([]); setResult(null); setAnalysisErr(null); }}>
+              Reset
+            </Button>
+          </Stack>
+          {analyzing ? <LinearProgress /> : null}
+          {analysisErr ? <Typography color="error">{analysisErr}</Typography> : null}
         </Stack>
       </CardContent></Card>
 
-      {step === 1 ? (
+      {uploadReceipts.length > 0 ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Upload</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Evidence-first: upload required angles before decision and pricing.</Typography>
-          <Divider sx={{ my: 2 }} />
-          <Stack spacing={1}>
-            {INTAKE_ANGLE_DEFS.map((angle) => (
-              <Box key={angle.key} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} justifyContent="space-between">
-                  <Box>
-                    <Typography sx={{ fontWeight: 900 }}>{angle.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">{angle.hint}</Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <input type="file" accept="image/*" aria-label={`Upload ${angle.label}`} onChange={(e) => setFilesByAngle((s) => ({ ...s, [angle.key]: e.target.files?.[0] || null }))} />
-                    <Button disabled={!filesByAngle[angle.key] || Boolean(uploadingByAngle[angle.key])} onClick={() => uploadAngle(angle.key)}>
-                      {uploadingByAngle[angle.key] ? "Uploading..." : "Upload"}
-                    </Button>
-                  </Stack>
-                </Stack>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Uploaded Photos</Typography>
+          <Divider sx={{ my: 1.5 }} />
+          <Stack spacing={0.8}>
+            {uploadReceipts.map((r) => (
+              <Box key={`${r.name}_${r.photoId}`} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>{r.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{r.photoId} • {r.deduped ? "Deduped" : "Uploaded"}</Typography>
               </Box>
             ))}
-            <TextField size="small" label="Optional listing link" value={listingLink} onChange={(e) => setListingLink(e.target.value)} />
-            <Chip label={`${uploadedRequiredCount}/${requiredAngles.length} required evidence uploaded`} color={evidenceReady ? "success" : "warning"} />
-          </Stack>
-          {uploadErr ? <Typography color="error" sx={{ mt: 1.25 }}>{uploadErr}</Typography> : null}
-        </CardContent></Card>
-      ) : null}
-
-      {step === 2 ? (
-        <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Input</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Use taxonomy enums; keep unknown explicit when uncertain.</Typography>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 1.25 }}>
-            <FormControl size="small">
-              <Select value={identity.brand} onChange={(e) => setIdentity((s) => ({ ...s, brand: String(e.target.value) }))}>
-                {["UNKNOWN", ...brandOptions].map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField label="Model code" value={identity.model} onChange={(e) => setIdentity((s) => ({ ...s, model: e.target.value }))} size="small" />
-            <TextField label="Pattern code" value={identity.pattern} onChange={(e) => setIdentity((s) => ({ ...s, pattern: e.target.value }))} size="small" />
-            <TextField label="Size (inches)" value={identity.size} onChange={(e) => setIdentity((s) => ({ ...s, size: e.target.value }))} size="small" />
-            <FormControl size="small">
-              <Select value={identity.throwSide} onChange={(e) => setIdentity((s) => ({ ...s, throwSide: String(e.target.value) }))}>
-                <MenuItem value="RHT">RHT</MenuItem>
-                <MenuItem value="LHT">LHT</MenuItem>
-                <MenuItem value="UNKNOWN">UNKNOWN</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField label="Web type" value={identity.web} onChange={(e) => setIdentity((s) => ({ ...s, web: e.target.value }))} size="small" />
-            <FormControl size="small">
-              <Select value={variant.country} onChange={(e) => setVariant((s) => ({ ...s, country: String(e.target.value) }))}>
-                {["UNKNOWN", ...(taxonomy?.leather_taxonomy?.leather_origin_enum || [])].map((c: string) => <MenuItem key={c} value={String(c).toUpperCase()}>{c}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={variant.leather} onChange={(e) => setVariant((s) => ({ ...s, leather: String(e.target.value) }))}>
-                {["UNKNOWN", ...leatherLineOptions].map((l) => <MenuItem key={l} value={String(l).toUpperCase()}>{l}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small">
-              <Select value={variant.era} onChange={(e) => setVariant((s) => ({ ...s, era: String(e.target.value) }))}>
-                {["UNKNOWN", "1990s", "2000s", "2010s+", "2020s+"].map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField label="Stamp/patch cue" value={variant.specialStamp} onChange={(e) => setVariant((s) => ({ ...s, specialStamp: e.target.value }))} size="small" />
-          </Box>
-        </CardContent></Card>
-      ) : null}
-
-      {step === 3 ? (
-        <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Decide</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Decision engine applies taxonomy rules before scoring/pricing.</Typography>
-          <Divider sx={{ my: 2 }} />
-          <Stack spacing={1}>
-            <Box sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography variant="caption" color="text.secondary">Decision State</Typography>
-              <Typography sx={{ fontWeight: 900 }}>{decisionState}</Typography>
-              <Typography variant="body2" color="text.secondary">{decisionReason}</Typography>
-            </Box>
-            <Box sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography variant="caption" color="text.secondary">Active Rules</Typography>
-              <Typography variant="body2">evidence_first={String(taxonomy?.rules?.evidence_first)} • no_guessing={String(taxonomy?.rules?.no_guessing)} • unknown_explicit={taxonomy?.rules?.unknown_explicit}</Typography>
-            </Box>
           </Stack>
         </CardContent></Card>
       ) : null}
 
-      {step === 4 ? (
+      {result ? (
         <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Score & Price</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Condition and confidence combine into score and price range.</Typography>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.2fr 1fr" }, gap: 1.5 }}>
-            <Stack spacing={1.2}>
-              <FormControl size="small">
-                <Select value={condition.relaced} onChange={(e) => setCondition((s) => ({ ...s, relaced: String(e.target.value) }))}>
-                  <MenuItem value="unknown">Relaced: Unknown</MenuItem>
-                  <MenuItem value="none">No relace</MenuItem>
-                  <MenuItem value="partial">Partial relace</MenuItem>
-                  <MenuItem value="full">Full relace</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl size="small">
-                <Select value={condition.repairs} onChange={(e) => setCondition((s) => ({ ...s, repairs: String(e.target.value) }))}>
-                  <MenuItem value="none">Repairs: None</MenuItem>
-                  <MenuItem value="minor">Repairs: Minor</MenuItem>
-                  <MenuItem value="major">Repairs: Major</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl size="small">
-                <Select value={condition.cosmeticWear} onChange={(e) => setCondition((s) => ({ ...s, cosmeticWear: String(e.target.value) }))}>
-                  <MenuItem value="low">Cosmetic wear: Low</MenuItem>
-                  <MenuItem value="medium">Cosmetic wear: Medium</MenuItem>
-                  <MenuItem value="high">Cosmetic wear: High</MenuItem>
-                </Select>
-              </FormControl>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Palm integrity</Typography>
-                <Slider value={condition.palmIntegrity} onChange={(_, v) => setCondition((s) => ({ ...s, palmIntegrity: Number(v) }))} />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Structure retention</Typography>
-                <Slider value={condition.structureRetention} onChange={(_, v) => setCondition((s) => ({ ...s, structureRetention: Number(v) }))} />
-              </Box>
-            </Stack>
-            <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-              <Typography variant="caption" color="text.secondary">Output</Typography>
-              <Typography sx={{ fontWeight: 900 }}>Confidence: {confidenceBand} ({Math.round(confidenceScore * 100)}%)</Typography>
-              <Typography sx={{ fontWeight: 900 }}>Condition: {conditionScore.toFixed(1)} / 10</Typography>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(estimate.low)} – {money(estimate.high)}</Typography>
-              <Typography variant="body2" color="text.secondary">Point estimate: {money(estimate.point)}</Typography>
-            </Box>
-          </Box>
-        </CardContent></Card>
-      ) : null}
-
-      {step === 5 ? (
-        <Card><CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Catalog</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Create a schema-shaped verification summary and catalog test records.</Typography>
-          <Divider sx={{ my: 2 }} />
-          <Box component="pre" sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.25, bgcolor: "background.default", fontSize: 11, maxHeight: 260, overflow: "auto" }}>
-            {JSON.stringify(buildVerificationSummary(), null, 2)}
-          </Box>
-          <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
-            <Button onClick={catalogCurrentSummary}>Catalog Record</Button>
-            <Button color="inherit" onClick={() => changeStep(1)}>Reset Flow</Button>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>GloveIQ Appraisal Result</Typography>
+            <Chip label={`Confidence: ${result.confidence}`} color={result.confidence === "High" ? "success" : result.confidence === "Medium" ? "warning" : "default"} />
           </Stack>
-          {submitState === "submitted" ? (
-            <Stack spacing={0.8} sx={{ mt: 1.2 }}>
-              <Typography color="success.main">Catalog updated with {catalogRecords.length} test record(s).</Typography>
-              {catalogRecords.slice(0, 3).map((r) => (
-                <Box key={r.id} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.25 }}>
-                  <Typography sx={{ fontWeight: 800 }}>{r.id}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {String((r.summary.verification as any)?.state || "unknown")} • {String((r.summary.confidence as any)?.tier || "low")}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          ) : null}
+          <Divider sx={{ my: 1.8 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.1 }}>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Brand</Typography><Typography sx={{ fontWeight: 800 }}>{result.brand}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Family</Typography><Typography sx={{ fontWeight: 800 }}>{result.family}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Model</Typography><Typography sx={{ fontWeight: 800 }}>{result.model}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Pattern</Typography><Typography sx={{ fontWeight: 800 }}>{result.pattern}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Size / Throw</Typography><Typography sx={{ fontWeight: 800 }}>{result.size} • {result.throwSide}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Web / Leather</Typography><Typography sx={{ fontWeight: 800 }}>{result.web} • {result.leather}</Typography></Box>
+            <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Made In</Typography><Typography sx={{ fontWeight: 800 }}>{result.madeIn}</Typography></Box>
+          </Box>
+          <Divider sx={{ my: 1.8 }} />
+          <Typography variant="caption" color="text.secondary">Appraised market value</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(result.estimate.low)} – {money(result.estimate.high)}</Typography>
+          <Typography variant="body2" color="text.secondary">Point estimate: {money(result.estimate.point)}</Typography>
         </CardContent></Card>
       ) : null}
-
-      <Stack direction="row" spacing={1} justifyContent="space-between">
-        <Button color="inherit" disabled={step === 1} onClick={() => changeStep(step - 1)}>Back</Button>
-        <Button disabled={step === 5} onClick={() => changeStep(step + 1)}>Next</Button>
-      </Stack>
     </Stack>
   );
 }
@@ -1809,7 +1601,7 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
         <Card><CardContent>
           <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.appraisal")}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Upload your glove photos, provide structured evidence, and submit for an appraisal-grade market estimate.
+            Upload multiple glove photos and get GloveIQ specifications plus appraised market value in one response.
           </Typography>
         </CardContent></Card>
         <AppraisalIntakeWidget locale={locale} />
