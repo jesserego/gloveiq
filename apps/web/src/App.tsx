@@ -1603,6 +1603,7 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
 
 function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArtifact: (id: string) => void; }) {
   const [rows, setRows] = useState<Artifact[]>([]);
+  const [brandRows, setBrandRows] = useState<BrandConfig[]>([]);
   const [variantRows, setVariantRows] = useState<VariantRecord[]>([]);
   const [familyRows, setFamilyRows] = useState<FamilyRecord[]>([]);
   const [patternRows, setPatternRows] = useState<PatternRecord[]>([]);
@@ -1644,6 +1645,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [salesPage, setSalesPage] = useState(1);
   const [thumbByArtifactId, setThumbByArtifactId] = useState<Record<string, string>>({});
+  const [variantBrandDetailOpen, setVariantBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
   const [variantPreviewImage, setVariantPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [verificationStep, setVerificationStep] = useState(0);
   const [submittedVerificationSummary, setSubmittedVerificationSummary] = useState<Record<string, unknown> | null>(null);
@@ -1690,6 +1692,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
   useEffect(() => { refresh(""); }, []);
   useEffect(() => {
+    api.brands().then(setBrandRows).catch(() => setBrandRows([]));
     api.variants().then(setVariantRows).catch(() => setVariantRows([]));
     api.families().then(setFamilyRows).catch(() => setFamilyRows([]));
     api.patterns().then(setPatternRows).catch(() => setPatternRows([]));
@@ -1769,6 +1772,20 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     () => Array.from(new Set(variantRows.map((v) => v.web || "Unknown"))).sort((a, b) => a.localeCompare(b)),
     [variantRows],
   );
+  const variantBrandHierarchy: BrandHierarchyNode[] = brandRows
+    .map((brand) => {
+      const relatedFamilies = familyRows.filter((family) => family.brand_key === brand.brand_key);
+      const withPatterns = relatedFamilies.map((family) => ({
+        family,
+        patterns: patternRows.filter((pattern) => pattern.family_id === family.family_id),
+      }));
+      return {
+        brand,
+        details: BRAND_COMPANY_INFO[brand.brand_key] || { company: brand.display_name, contact: "Contact unavailable" },
+        families: withPatterns,
+      };
+    })
+    .filter((entry) => entry.families.length > 0 || brandRows.some((b) => b.brand_key === entry.brand.brand_key));
   const brandListingRows = useMemo(
     () =>
       artifactBrandOptions
@@ -2223,47 +2240,110 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
           <>
             <Card><CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Listings</Typography>
-                <Chip label={`${brandListingRows.length} brands`} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Seeds</Typography>
+                <Chip label={`${variantBrandHierarchy.length} brands`} />
               </Stack>
               <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" }, gap: 1.25 }}>
-                {brandListingRows.map((row) => (
-                  <Box
-                    key={row.brand}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => row.firstArtifactId && onOpenArtifact(row.firstArtifactId)}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && row.firstArtifactId) {
-                        e.preventDefault();
-                        onOpenArtifact(row.firstArtifactId);
-                      }
-                    }}
-                    sx={{
-                      p: 1.35,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: 1.8,
-                      cursor: row.firstArtifactId ? "pointer" : "not-allowed",
-                      opacity: row.firstArtifactId ? 1 : 0.55,
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={glovePlaceholderImage}
-                      alt={`${row.brand} listing`}
-                      sx={{ width: "100%", height: 96, objectFit: "cover", borderRadius: 1.4, border: "1px solid", borderColor: "divider", mb: 1 }}
-                    />
-                    <Typography sx={{ fontWeight: 900 }} noWrap>{row.brand}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {row.lineCount} lines • {row.artifactCount} artifacts
-                    </Typography>
-                  </Box>
-                ))}
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.25 }}>
+                {variantBrandHierarchy.map((entry) => {
+                  const supportLabel = entry.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only";
+                  const logoSrc = brandLogoSrc(entry.details.contact);
+                  return (
+                    <Box key={entry.brand.brand_key} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                      <Stack direction="row" spacing={1.1} alignItems="center">
+                        <Avatar
+                          src={logoSrc || undefined}
+                          alt={`${entry.brand.display_name} logo`}
+                          sx={{ width: 34, height: 34, bgcolor: "background.paper", color: "text.primary", border: "1px solid", borderColor: "divider", fontWeight: 700, fontSize: 12 }}
+                          imgProps={{ referrerPolicy: "no-referrer" }}
+                        >
+                          {!logoSrc ? brandLogoMark(entry.brand.display_name) : null}
+                        </Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 900 }} noWrap>{entry.brand.display_name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {entry.details.company} • {entry.details.contact}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={0.8} sx={{ mt: 1.1, flexWrap: "wrap" }}>
+                        <Chip size="small" label={supportLabel} color={entry.brand.supports_variant_ai ? "success" : "default"} />
+                        <Chip size="small" label={entry.brand.country_hint || "Country unknown"} />
+                        <Chip size="small" label={`${entry.families.length} families`} />
+                      </Stack>
+                      <Button
+                        fullWidth
+                        endIcon={<KeyboardArrowRightIcon />}
+                        sx={{ mt: 1.1 }}
+                        disabled={entry.families.length === 0}
+                        onClick={() => setVariantBrandDetailOpen(entry)}
+                      >
+                        Open brand profile
+                      </Button>
+                    </Box>
+                  );
+                })}
               </Box>
-              {brandListingRows.length === 0 ? <Typography variant="body2" color="text.secondary">No brand listings match the current search.</Typography> : null}
+              {variantBrandHierarchy.length === 0 ? <Typography variant="body2" color="text.secondary">No brand listings match the current search.</Typography> : null}
             </CardContent></Card>
+
+            <Dialog
+              open={Boolean(variantBrandDetailOpen)}
+              onClose={() => setVariantBrandDetailOpen(null)}
+              fullScreen
+            >
+              {variantBrandDetailOpen ? (
+                <Box sx={{ p: { xs: 2, md: 3 }, minHeight: "100%", bgcolor: "background.default" }}>
+                  <Stack spacing={2}>
+                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.2}>
+                      <Box>
+                        <Typography variant="h5" sx={{ fontWeight: 900 }}>{variantBrandDetailOpen.brand.display_name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {variantBrandDetailOpen.details.company} • {variantBrandDetailOpen.details.contact}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1}>
+                        <Chip size="small" label={`${variantBrandDetailOpen.families.length} families`} />
+                        <Chip size="small" label={variantBrandDetailOpen.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only"} />
+                        <Button onClick={() => setVariantBrandDetailOpen(null)}>Close</Button>
+                      </Stack>
+                    </Stack>
+                    <Divider />
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
+                      {variantBrandDetailOpen.families.map((familyNode) => (
+                        <Card key={familyNode.family.family_id}>
+                          <CardContent>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{familyNode.family.display_name}</Typography>
+                              <Chip size="small" label={`${familyNode.patterns.length} patterns`} />
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary">
+                              {familyNode.family.family_key} • tier {familyNode.family.tier}
+                            </Typography>
+                            <Divider sx={{ my: 1.2 }} />
+                            <Stack spacing={0.8}>
+                              {familyNode.patterns.map((pattern) => (
+                                <Box key={pattern.pattern_id} sx={{ p: 1, borderRadius: 1.3, border: "1px solid", borderColor: "divider", bgcolor: "background.default" }}>
+                                  <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
+                                    {pattern.pattern_code} • {pattern.canonical_position}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {pattern.pattern_system} • size {pattern.canonical_size_in || "—"} • web {pattern.canonical_web || "—"}
+                                  </Typography>
+                                </Box>
+                              ))}
+                              {familyNode.patterns.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary">No patterns linked to this family yet.</Typography>
+                              ) : null}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Box>
+                  </Stack>
+                </Box>
+              ) : null}
+            </Dialog>
 
             <Card><CardContent>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }}>
