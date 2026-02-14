@@ -1322,6 +1322,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [salesMaxPrice, setSalesMaxPrice] = useState("");
   const [salesDateFrom, setSalesDateFrom] = useState("");
   const [salesDateTo, setSalesDateTo] = useState("");
+  const [yearMin, setYearMin] = useState("");
+  const [yearMax, setYearMax] = useState("");
+  const [madeInFilter, setMadeInFilter] = useState<string>("all");
+  const [leatherFilter, setLeatherFilter] = useState<string>("all");
+  const [webFilter, setWebFilter] = useState<string>("all");
   const [view, setView] = useState<"overview" | "catalog" | "verification">("catalog");
   const [artifactExpanded, setArtifactExpanded] = useState(false);
   const [artifactPage, setArtifactPage] = useState(1);
@@ -1424,13 +1429,29 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     () => Array.from(new Set(saleRows.map((s) => s.source || "Unknown"))).sort((a, b) => a.localeCompare(b)),
     [saleRows],
   );
+  const madeInOptions = useMemo(
+    () => Array.from(new Set(variantRows.map((v) => v.made_in || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [variantRows],
+  );
+  const leatherOptions = useMemo(
+    () => Array.from(new Set(variantRows.map((v) => v.leather || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [variantRows],
+  );
+  const webOptions = useMemo(
+    () => Array.from(new Set(variantRows.map((v) => v.web || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [variantRows],
+  );
 
-  const filtered = rows.filter((row) => {
+  const normalizeModelToken = (value: string | null | undefined) =>
+    String(value || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+
+  const filteredArtifacts = rows.filter((row) => {
     const query = q.trim().toLowerCase();
     const hay = `${row.id} ${row.brand_key ?? ""} ${row.family ?? ""} ${row.model_code ?? ""} ${row.verification_status ?? ""}`.toLowerCase();
     const queryOk = query.length === 0 || hay.includes(query);
     if (!queryOk) return false;
-    if (status === "all") return true;
     const isVerified = String(row.verification_status ?? "").toLowerCase().includes("verified");
     if (status === "verified" && !isVerified) return false;
     if (status === "unverified" && isVerified) return false;
@@ -1458,13 +1479,59 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
     return true;
   });
+  const artifactsByVariant = useMemo(() => {
+    const index = new Map<string, Artifact[]>();
+    for (const row of filteredArtifacts) {
+      const key = `${row.brand_key || "Unknown"}|${normalizeModelToken(row.model_code)}`;
+      if (!index.has(key)) index.set(key, []);
+      index.get(key)?.push(row);
+    }
+    const out = new Map<string, Artifact[]>();
+    for (const variant of variantRows) {
+      const key = `${variant.brand_key || "Unknown"}|${normalizeModelToken(variant.model_code)}`;
+      out.set(variant.variant_id, index.get(key) || []);
+    }
+    return out;
+  }, [filteredArtifacts, variantRows]);
+
+  const yearMinValue = toNumber(yearMin);
+  const yearMaxValue = toNumber(yearMax);
   const filteredVariants = variantRows
     .filter((v) => {
       const query = q.trim().toLowerCase();
-      if (!query) return true;
-      return `${v.display_name} ${v.variant_id} ${v.model_code || ""} ${v.brand_key} ${v.year}`.toLowerCase().includes(query);
+      const queryOk = !query || `${v.display_name} ${v.variant_id} ${v.model_code || ""} ${v.brand_key} ${v.year}`.toLowerCase().includes(query);
+      if (!queryOk) return false;
+      if (brandFilter !== "all" && v.brand_key !== brandFilter) return false;
+      if (yearMinValue != null && v.year < yearMinValue) return false;
+      if (yearMaxValue != null && v.year > yearMaxValue) return false;
+      if (madeInFilter !== "all" && (v.made_in || "Unknown") !== madeInFilter) return false;
+      if (leatherFilter !== "all" && (v.leather || "Unknown") !== leatherFilter) return false;
+      if (webFilter !== "all" && (v.web || "Unknown") !== webFilter) return false;
+
+      const related = artifactsByVariant.get(v.variant_id) || [];
+      if (status !== "all") {
+        const hasVerified = related.some((r) => String(r.verification_status ?? "").toLowerCase().includes("verified"));
+        if (status === "verified" && !hasVerified) return false;
+        if (status === "unverified" && hasVerified && related.length > 0) return false;
+      }
+      if (objectTypeFilter !== "all" && !related.some((r) => r.object_type === objectTypeFilter)) return false;
+      if (positionFilter !== "all" && !related.some((r) => (r.position || "Unknown") === positionFilter)) return false;
+      if (sourceFilter !== "all" && !related.some((r) => (String(r.id || "").split(":")[0] || "UNKNOWN") === sourceFilter)) return false;
+
+      const hasValuation = related.some((r) => r.valuation_estimate != null);
+      if (hasValuationFilter === "yes" && !hasValuation) return false;
+      if (hasValuationFilter === "no" && hasValuation) return false;
+      const hasPhotos = related.some((r) => Boolean(r.photos?.length));
+      if (hasPhotosFilter === "yes" && !hasPhotos) return false;
+      if (hasPhotosFilter === "no" && hasPhotos) return false;
+      if (sizeMinValue != null && !related.some((r) => r.size_in != null && r.size_in >= sizeMinValue)) return false;
+      if (sizeMaxValue != null && !related.some((r) => r.size_in != null && r.size_in <= sizeMaxValue)) return false;
+      if (valuationMinValue != null && !related.some((r) => r.valuation_estimate != null && r.valuation_estimate >= valuationMinValue)) return false;
+      if (valuationMaxValue != null && !related.some((r) => r.valuation_estimate != null && r.valuation_estimate <= valuationMaxValue)) return false;
+      if (conditionMinValue != null && !related.some((r) => r.condition_score != null && r.condition_score >= conditionMinValue)) return false;
+      return true;
     })
-    .slice(0, 50);
+    .sort((a, b) => b.year - a.year);
   const filteredComps = compRows
     .filter((c) => {
       const query = q.trim().toLowerCase();
@@ -1494,12 +1561,12 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
   const collapsedSize = 5;
   const pageSize = 20;
-  const artifactPageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const artifactPageCount = Math.max(1, Math.ceil(filteredVariants.length / pageSize));
   const compsPageCount = Math.max(1, Math.ceil(filteredComps.length / pageSize));
   const salesPageCount = Math.max(1, Math.ceil(filteredSales.length / pageSize));
   const visibleArtifacts = artifactExpanded
-    ? filtered.slice((artifactPage - 1) * pageSize, artifactPage * pageSize)
-    : filtered.slice(0, collapsedSize);
+    ? filteredVariants.slice((artifactPage - 1) * pageSize, artifactPage * pageSize)
+    : filteredVariants.slice(0, collapsedSize);
   const visibleComps = compsExpanded
     ? filteredComps.slice((compsPage - 1) * pageSize, compsPage * pageSize)
     : filteredComps.slice(0, collapsedSize);
@@ -1509,7 +1576,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
   useEffect(() => {
     setArtifactPage(1);
-  }, [q, status, objectTypeFilter, brandFilter, positionFilter, sourceFilter, hasValuationFilter, hasPhotosFilter, sizeMin, sizeMax, valuationMin, valuationMax, conditionMin, artifactExpanded]);
+  }, [q, status, objectTypeFilter, brandFilter, positionFilter, sourceFilter, hasValuationFilter, hasPhotosFilter, sizeMin, sizeMax, valuationMin, valuationMax, conditionMin, yearMin, yearMax, madeInFilter, leatherFilter, webFilter, artifactExpanded]);
   useEffect(() => {
     setCompsPage(1);
   }, [q, compMethodFilter, compMinSales, compsExpanded]);
@@ -1539,6 +1606,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     setSalesMaxPrice("");
     setSalesDateFrom("");
     setSalesDateTo("");
+    setYearMin("");
+    setYearMax("");
+    setMadeInFilter("all");
+    setLeatherFilter("all");
+    setWebFilter("all");
   };
 
   const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
@@ -1792,6 +1864,26 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 <TextField size="small" label="Min valuation (USD)" value={valuationMin} onChange={(e) => setValuationMin(e.target.value)} />
                 <TextField size="small" label="Max valuation (USD)" value={valuationMax} onChange={(e) => setValuationMax(e.target.value)} />
                 <TextField size="small" label="Min condition score" value={conditionMin} onChange={(e) => setConditionMin(e.target.value)} />
+                <TextField size="small" label="Year min" value={yearMin} onChange={(e) => setYearMin(e.target.value)} />
+                <TextField size="small" label="Year max" value={yearMax} onChange={(e) => setYearMax(e.target.value)} />
+                <FormControl size="small">
+                  <Select value={madeInFilter} onChange={(e) => setMadeInFilter(String(e.target.value))}>
+                    <MenuItem value="all">Made in: all</MenuItem>
+                    {madeInOptions.map((origin) => <MenuItem key={origin} value={origin}>{origin}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={leatherFilter} onChange={(e) => setLeatherFilter(String(e.target.value))}>
+                    <MenuItem value="all">Leather: all</MenuItem>
+                    {leatherOptions.map((leather) => <MenuItem key={leather} value={leather}>{leather}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={webFilter} onChange={(e) => setWebFilter(String(e.target.value))}>
+                    <MenuItem value="all">Web: all</MenuItem>
+                    {webOptions.map((web) => <MenuItem key={web} value={web}>{web}</MenuItem>)}
+                  </Select>
+                </FormControl>
                 <FormControl size="small">
                   <Select value={compMethodFilter} onChange={(e) => setCompMethodFilter(String(e.target.value))}>
                     <MenuItem value="all">Comp method: all</MenuItem>
@@ -1827,18 +1919,22 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
             <Card><CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Records</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Records</Typography>
                 <Chip label={artifactExpanded ? `${visibleArtifacts.length} shown (page ${artifactPage}/${artifactPageCount})` : `${visibleArtifacts.length} shown`} />
               </Stack>
               <Divider sx={{ my: 2 }} />
               <Stack spacing={1.25}>
-                {visibleArtifacts.map((a) => {
-                  const verified = isVerified(a);
-                  const showEstimate = a.valuation_estimate != null;
-                  const thumb = a.photos?.[0]?.url || glovePlaceholderImage;
+                {visibleArtifacts.map((variant) => {
+                  const relatedArtifacts = artifactsByVariant.get(variant.variant_id) || [];
+                  const firstArtifact = relatedArtifacts[0];
+                  const verifiedCountForVariant = relatedArtifacts.filter((a) => isVerified(a)).length;
+                  const avgEstimate = relatedArtifacts
+                    .filter((a) => a.valuation_estimate != null)
+                    .reduce((sum, a, _, arr) => sum + Number(a.valuation_estimate || 0) / arr.length, 0);
+                  const thumb = firstArtifact?.photos?.[0]?.url || glovePlaceholderImage;
                   return (
                     <Box
-                      key={a.id}
+                      key={variant.variant_id}
                       sx={{ p: 1.75, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
                     >
                       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
@@ -1847,11 +1943,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                             <Box
                               role="button"
                               tabIndex={0}
-                              onClick={() => setVariantPreviewImage({ src: thumb, title: a.id })}
+                              onClick={() => setVariantPreviewImage({ src: thumb, title: variant.display_name })}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();
-                                  setVariantPreviewImage({ src: thumb, title: a.id });
+                                  setVariantPreviewImage({ src: thumb, title: variant.display_name });
                                 }
                               }}
                               sx={{
@@ -1867,7 +1963,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                                 "&:hover .variant-thumb-overlay": { opacity: 1 },
                               }}
                             >
-                              <Box component="img" src={thumb} alt={`${a.id} thumbnail`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                              <Box component="img" src={thumb} alt={`${variant.variant_id} thumbnail`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                               <Box
                                 className="variant-thumb-overlay"
                                 sx={{
@@ -1885,41 +1981,41 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                               </Box>
                             </Box>
                             <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 900 }} noWrap>{a.id}</Typography>
+                              <Typography sx={{ fontWeight: 900 }} noWrap>{variant.display_name}</Typography>
                               <Typography variant="body2" color="text.secondary" noWrap>
-                                {(a.brand_key || "Unknown")} • {(a.family || "—")} {(a.model_code || "")} • {(a.made_in || "Unknown")}
+                                {variant.variant_id} • {variant.brand_key} • {variant.model_code || "model n/a"} • {variant.year}
                               </Typography>
                             </Box>
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                            <Chip size="small" label={a.object_type === "ARTIFACT" ? "Artifact" : "Cataloged"} />
-                            <Chip size="small" label={verified ? "Verified" : "Needs Review"} color={verified ? "success" : "warning"} />
-                            <Chip size="small" label={`Condition ${a.condition_score ?? "—"}`} />
+                            <Chip size="small" label={`${relatedArtifacts.length} artifacts`} />
+                            <Chip size="small" label={`${verifiedCountForVariant} verified`} color={verifiedCountForVariant ? "success" : "warning"} />
+                            <Chip size="small" label={`Made in ${variant.made_in || "Unknown"}`} />
                           </Stack>
                         </Box>
                         <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
                           <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                            <Typography sx={{ fontWeight: 900 }}>{showEstimate ? money(a.valuation_estimate) : "—"}</Typography>
+                            <Typography sx={{ fontWeight: 900 }}>{relatedArtifacts.some((a) => a.valuation_estimate != null) ? money(avgEstimate) : "—"}</Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {a.valuation_low != null && a.valuation_high != null ? `${money(a.valuation_low)}–${money(a.valuation_high)}` : "Range unavailable"}
+                              {firstArtifact ? `${firstArtifact.id} product page` : "Product page unavailable"}
                             </Typography>
                           </Box>
-                          <Button onClick={() => onOpenArtifact(a.id)}>Open</Button>
+                          <Button disabled={!firstArtifact} onClick={() => firstArtifact && onOpenArtifact(firstArtifact.id)}>Open</Button>
                         </Stack>
                       </Stack>
                     </Box>
                   );
                 })}
-                {filtered.length === 0 && !loading ? (
-                  <Typography variant="body2" color="text.secondary">No variants match the current filters.</Typography>
+                {filteredVariants.length === 0 && !loading ? (
+                  <Typography variant="body2" color="text.secondary">No variant products match the current filters.</Typography>
                 ) : null}
               </Stack>
-              {filtered.length > collapsedSize ? (
+              {filteredVariants.length > collapsedSize ? (
                 <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1.25} sx={{ mt: 1.5 }}>
                   <Button onClick={() => { setArtifactExpanded((prev) => !prev); if (artifactExpanded) setArtifactPage(1); }}>
-                    {artifactExpanded ? "Collapse records" : `Expand records (${filtered.length})`}
+                    {artifactExpanded ? "Collapse records" : `Expand records (${filteredVariants.length})`}
                   </Button>
-                  {artifactExpanded && filtered.length > pageSize ? (
+                  {artifactExpanded && filteredVariants.length > pageSize ? (
                     <Pagination
                       page={artifactPage}
                       count={artifactPageCount}
@@ -1930,26 +2026,6 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   ) : null}
                 </Stack>
               ) : null}
-            </CardContent></Card>
-
-            <Card><CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Variant Catalog</Typography>
-                <Chip label={`${filteredVariants.length} shown`} />
-              </Stack>
-              <Divider sx={{ my: 2 }} />
-              <Stack spacing={1}>
-                {filteredVariants.map((variant) => (
-                  <Box key={variant.variant_id} sx={{ p: 1.2, border: "1px solid", borderColor: "divider", borderRadius: 1.6 }}>
-                    <Typography sx={{ fontWeight: 800 }}>{variant.display_name}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {variant.variant_id} • {variant.brand_key} • {variant.model_code || "model n/a"} • {variant.year}
-                      {variant.made_in ? ` • ${variant.made_in}` : ""}
-                    </Typography>
-                  </Box>
-                ))}
-                {filteredVariants.length === 0 ? <Typography variant="body2" color="text.secondary">No variants match the current query.</Typography> : null}
-              </Stack>
             </CardContent></Card>
 
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
@@ -2791,8 +2867,23 @@ function UploadPanel({ locale }: { locale: Locale }) {
 }
 
 function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifact }) {
+  const [relatedArtifacts, setRelatedArtifacts] = useState<Artifact[]>([]);
   const showEstimate = artifact.valuation_estimate != null;
   const showRange = artifact.valuation_low != null && artifact.valuation_high != null;
+  useEffect(() => {
+    const query = [artifact.brand_key || "", artifact.model_code || ""].join(" ").trim();
+    if (!query) {
+      setRelatedArtifacts([]);
+      return;
+    }
+    api
+      .artifacts(query)
+      .then((rows) => {
+        const linked = rows.filter((row) => row.id !== artifact.id).slice(0, 12);
+        setRelatedArtifacts(linked);
+      })
+      .catch(() => setRelatedArtifacts([]));
+  }, [artifact.brand_key, artifact.model_code, artifact.id]);
 
   const title =
     artifact.object_type === "ARTIFACT"
@@ -2870,6 +2961,22 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
           <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: "block" }}>
             Referral relationships never influence valuation or rankings.
           </Typography>
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Related Artifacts In Product Page</Typography>
+          <Divider sx={{ my: 2 }} />
+          <Stack spacing={1}>
+            {relatedArtifacts.map((row) => (
+              <Box key={row.id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+                <Typography sx={{ fontWeight: 800 }}>{row.id}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {row.brand_key || "Unknown"} • {row.model_code || "Unknown"} • {row.position || "Unknown"} • {row.size_in ? `${row.size_in}"` : "—"}
+                </Typography>
+              </Box>
+            ))}
+            {relatedArtifacts.length === 0 ? <Typography variant="body2" color="text.secondary">No related artifacts linked to this product yet.</Typography> : null}
+          </Stack>
         </CardContent></Card>
       </Stack>
     </Container>
