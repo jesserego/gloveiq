@@ -1483,6 +1483,7 @@ function AppraisalIntakeWidget({ locale }: { locale: Locale }) {
 function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArtifact: (id: string) => void; }) {
   const [rows, setRows] = useState<Artifact[]>([]);
   const [variantRows, setVariantRows] = useState<VariantRecord[]>([]);
+  const [familyRows, setFamilyRows] = useState<FamilyRecord[]>([]);
   const [patternRows, setPatternRows] = useState<PatternRecord[]>([]);
   const [compRows, setCompRows] = useState<CompRecord[]>([]);
   const [saleRows, setSaleRows] = useState<SaleRecord[]>([]);
@@ -1569,10 +1570,24 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   useEffect(() => { refresh(""); }, []);
   useEffect(() => {
     api.variants().then(setVariantRows).catch(() => setVariantRows([]));
+    api.families().then(setFamilyRows).catch(() => setFamilyRows([]));
     api.patterns().then(setPatternRows).catch(() => setPatternRows([]));
     api.comps().then(setCompRows).catch(() => setCompRows([]));
     api.sales().then(setSaleRows).catch(() => setSaleRows([]));
   }, []);
+
+  const topSearchOptions = useMemo(() => {
+    const pool = new Set<string>();
+    for (const row of rows) {
+      if (row.brand_key) pool.add(`Brand • ${row.brand_key}`);
+      if (row.family) pool.add(`Line • ${row.family}`);
+      if (row.model_code) pool.add(`Artifact • ${row.model_code}`);
+      pool.add(`Artifact • ${row.id}`);
+    }
+    for (const pattern of patternRows) pool.add(`Pattern • ${pattern.pattern_code}`);
+    for (const variant of variantRows) pool.add(`Variant • ${variant.display_name}`);
+    return Array.from(pool).sort((a, b) => a.localeCompare(b)).slice(0, 200);
+  }, [rows, patternRows, variantRows]);
 
   const toNumber = (value: string) => {
     const raw = value.trim();
@@ -1632,6 +1647,27 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const webOptions = useMemo(
     () => Array.from(new Set(variantRows.map((v) => v.web || "Unknown"))).sort((a, b) => a.localeCompare(b)),
     [variantRows],
+  );
+  const brandListingRows = useMemo(
+    () =>
+      artifactBrandOptions
+        .map((brand) => {
+          const artifactsForBrand = rows.filter((row) => (row.brand_key || "Unknown") === brand);
+          const linesForBrand = familyRows.filter((line) => line.brand_key === brand);
+          const firstArtifact = artifactsForBrand[0];
+          return {
+            brand,
+            artifactCount: artifactsForBrand.length,
+            lineCount: linesForBrand.length,
+            firstArtifactId: firstArtifact?.id || null,
+          };
+        })
+        .filter((entry) => {
+          if (!q.trim()) return true;
+          const query = q.trim().toLowerCase();
+          return `${entry.brand} ${entry.artifactCount} ${entry.lineCount}`.toLowerCase().includes(query);
+        }),
+    [artifactBrandOptions, rows, familyRows, q],
   );
   const filteredPatterns = patternRows
     .filter((p) => {
@@ -1953,7 +1989,21 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
               <Typography variant="body2" color="text.secondary">Variant catalog and user-submitted gloves with verification and valuation readiness.</Typography>
             </Box>
             <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t(locale, "search.placeholder")} aria-label={t(locale, "tab.artifact")} />
+              <Autocomplete
+                freeSolo
+                options={topSearchOptions}
+                value={q}
+                onInputChange={(_, value) => setQ(value)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder={t(locale, "search.placeholder")}
+                    aria-label={t(locale, "tab.artifact")}
+                  />
+                )}
+                sx={{ minWidth: 260, flex: 1 }}
+              />
               <Button onClick={() => refresh(q)} startIcon={<SearchIcon />}>Refresh</Button>
             </Stack>
           </Stack>
@@ -2050,6 +2100,50 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
         {view === "catalog" ? (
           <>
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Listings</Typography>
+                <Chip label={`${brandListingRows.length} brands`} />
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" }, gap: 1.25 }}>
+                {brandListingRows.map((row) => (
+                  <Box
+                    key={row.brand}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => row.firstArtifactId && onOpenArtifact(row.firstArtifactId)}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === " ") && row.firstArtifactId) {
+                        e.preventDefault();
+                        onOpenArtifact(row.firstArtifactId);
+                      }
+                    }}
+                    sx={{
+                      p: 1.35,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 1.8,
+                      cursor: row.firstArtifactId ? "pointer" : "not-allowed",
+                      opacity: row.firstArtifactId ? 1 : 0.55,
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={glovePlaceholderImage}
+                      alt={`${row.brand} listing`}
+                      sx={{ width: "100%", height: 96, objectFit: "cover", borderRadius: 1.4, border: "1px solid", borderColor: "divider", mb: 1 }}
+                    />
+                    <Typography sx={{ fontWeight: 900 }} noWrap>{row.brand}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {row.lineCount} lines • {row.artifactCount} artifacts
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+              {brandListingRows.length === 0 ? <Typography variant="body2" color="text.secondary">No brand listings match the current search.</Typography> : null}
+            </CardContent></Card>
+
             <Card><CardContent>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Filters</Typography>
@@ -3148,6 +3242,9 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
   const [relatedArtifacts, setRelatedArtifacts] = useState<Artifact[]>([]);
   const [detailVariants, setDetailVariants] = useState<VariantRecord[]>([]);
   const [detailSales, setDetailSales] = useState<SaleRecord[]>([]);
+  const [detailFamilies, setDetailFamilies] = useState<FamilyRecord[]>([]);
+  const [detailPatterns, setDetailPatterns] = useState<PatternRecord[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const showEstimate = artifact.valuation_estimate != null;
   const showRange = artifact.valuation_low != null && artifact.valuation_high != null;
   const modelToken = String(artifact.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -3168,6 +3265,8 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
   }, [artifact.brand_key, artifact.model_code, artifact.id]);
   useEffect(() => {
     api.variants().then(setDetailVariants).catch(() => setDetailVariants([]));
+    api.families().then(setDetailFamilies).catch(() => setDetailFamilies([]));
+    api.patterns().then(setDetailPatterns).catch(() => setDetailPatterns([]));
     api.sales().then(setDetailSales).catch(() => setDetailSales([]));
   }, []);
 
@@ -3177,6 +3276,18 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
     const variantToken = String(variant.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     return variantToken === modelToken;
   });
+  const linesForBrand = detailFamilies.filter((line) => !artifact.brand_key || line.brand_key === artifact.brand_key);
+  const patternsForBrand = detailPatterns.filter((pattern) => !artifact.brand_key || pattern.brand_key === artifact.brand_key);
+  const variantsForSelectedPattern = selectedVariantId
+    ? matchingVariants.filter((variant) => variant.variant_id === selectedVariantId)
+    : matchingVariants;
+  const artifactsForSelectedVariant = (() => {
+    if (!selectedVariantId) return [artifact, ...relatedArtifacts];
+    const selected = matchingVariants.find((variant) => variant.variant_id === selectedVariantId);
+    if (!selected) return [artifact, ...relatedArtifacts];
+    const token = String(selected.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return [artifact, ...relatedArtifacts].filter((row) => String(row.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === token);
+  })();
   const variantIds = new Set(matchingVariants.map((v) => v.variant_id));
   const pastTenSales = detailSales
     .filter((sale) => variantIds.has(sale.variant_id))
@@ -3244,16 +3355,67 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
         </CardContent></Card>
 
         <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Line Level (Under Brand)</Typography>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" }, gap: 1.1 }}>
+            {linesForBrand.map((line) => (
+              <Box key={line.family_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+                <Box
+                  component="img"
+                  src={glovePlaceholderImage}
+                  alt={`${line.display_name} manufacturer`}
+                  sx={{ width: "100%", height: 72, objectFit: "cover", borderRadius: 1.1, border: "1px solid", borderColor: "divider", mb: 0.8 }}
+                />
+                <Typography sx={{ fontWeight: 800 }}>{line.display_name}</Typography>
+                <Typography variant="caption" color="text.secondary">{line.family_key} • tier {line.tier}</Typography>
+              </Box>
+            ))}
+          </Box>
+          {linesForBrand.length === 0 ? <Typography variant="body2" color="text.secondary">No line records for this brand yet.</Typography> : null}
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Pattern Level</Typography>
+          <Divider sx={{ my: 2 }} />
+          <Stack spacing={1}>
+            {patternsForBrand.map((pattern) => (
+              <Box key={pattern.pattern_id} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+                <Typography sx={{ fontWeight: 800 }}>{pattern.pattern_code} • {pattern.canonical_position}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {pattern.pattern_id} • {pattern.pattern_system} • size {pattern.canonical_size_in || "—"} • web {pattern.canonical_web || "—"}
+                </Typography>
+                <Stack direction="row" spacing={0.6} sx={{ mt: 0.7, flexWrap: "wrap" }}>
+                  {matchingVariants.filter((variant) => variant.pattern_id === pattern.pattern_id).map((variant) => (
+                    <Chip
+                      key={variant.variant_id}
+                      size="small"
+                      label={variant.variant_id}
+                      color={selectedVariantId === variant.variant_id ? "primary" : "default"}
+                      onClick={() => setSelectedVariantId(selectedVariantId === variant.variant_id ? null : variant.variant_id)}
+                      clickable
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            ))}
+            {patternsForBrand.length === 0 ? <Typography variant="body2" color="text.secondary">No pattern records for this brand yet.</Typography> : null}
+          </Stack>
+        </CardContent></Card>
+
+        <Card><CardContent>
           <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Individual Variant Records</Typography>
           <Divider sx={{ my: 2 }} />
           <Stack spacing={1}>
-            {matchingVariants.map((variant) => (
-              <Box key={variant.variant_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+            {variantsForSelectedPattern.map((variant) => (
+              <Box key={variant.variant_id} sx={{ p: 1.1, border: "1px solid", borderColor: selectedVariantId === variant.variant_id ? "primary.main" : "divider", borderRadius: 1.4 }}>
                 <Typography sx={{ fontWeight: 800 }}>{variant.display_name}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   {variant.variant_id} • {variant.brand_key} • {variant.model_code || "model n/a"} • {variant.year}
                   {variant.made_in ? ` • ${variant.made_in}` : ""}{variant.web ? ` • ${variant.web}` : ""}{variant.leather ? ` • ${variant.leather}` : ""}
                 </Typography>
+                <Button sx={{ mt: 0.7 }} onClick={() => setSelectedVariantId(selectedVariantId === variant.variant_id ? null : variant.variant_id)}>
+                  {selectedVariantId === variant.variant_id ? "Hide artifacts" : "View artifact"}
+                </Button>
               </Box>
             ))}
             {matchingVariants.length === 0 ? <Typography variant="body2" color="text.secondary">No variant records linked to this product yet.</Typography> : null}
@@ -3306,7 +3468,7 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
           <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Related Artifacts In Product Page</Typography>
           <Divider sx={{ my: 2 }} />
           <Stack spacing={1}>
-            {relatedArtifacts.map((row) => (
+            {artifactsForSelectedVariant.map((row) => (
               <Box key={row.id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
                 <Typography sx={{ fontWeight: 800 }}>{row.id}</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -3314,7 +3476,7 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
                 </Typography>
               </Box>
             ))}
-            {relatedArtifacts.length === 0 ? <Typography variant="body2" color="text.secondary">No related artifacts linked to this product yet.</Typography> : null}
+            {artifactsForSelectedVariant.length === 0 ? <Typography variant="body2" color="text.secondary">No artifacts linked for the selected variant.</Typography> : null}
           </Stack>
         </CardContent></Card>
       </Stack>
