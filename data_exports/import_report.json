@@ -1,0 +1,29 @@
+{
+  "defaults_applied": {
+    "brand_unknown": 174,
+    "model_unknown": 1396
+  },
+  "errors": [],
+  "errors_count": 0,
+  "generated_at": "2026-02-14T00:58:42Z",
+  "input_xlsx": "/Users/jesserego/Documents/GitHub/gloveiq/scrapers/jbg/GloveIQ_Library_Master_Template_GOOGLE_NATIVE_FULLCAT_READY.xlsx",
+  "listings_by_source": {
+    "JBG": 1019,
+    "SS": 165
+  },
+  "listings_total": 1184,
+  "media_manifest_images_total": 97974,
+  "media_manifest_rows": 1184,
+  "output_files": {
+    "manifest": "data_exports/media_manifest.jsonl",
+    "normalized": "data_exports/listings.normalized.jsonl",
+    "raw": "data_exports/listings.raw.jsonl"
+  },
+  "rows_scanned": {
+    "Catalog": 387,
+    "JBG_Detail_Enrichment": 1019,
+    "JBG_Full_Catalog": 1019
+  },
+  "warnings": [],
+  "warnings_count": 0
+}
