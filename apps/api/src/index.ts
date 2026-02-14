@@ -38,8 +38,12 @@ const publicDir = path.join(projectRoot, "public");
 const uploadsDir = path.join(publicDir, "uploads");
 const runtimeDir = path.join(projectRoot, "data", "runtime");
 const runtimeDbPath = path.join(runtimeDir, "appraisal-db.json");
+const libraryExportDir = process.env.LIBRARY_EXPORT_DIR || path.resolve(projectRoot, "..", "..", "data_exports");
+const libraryListingsPath = path.join(libraryExportDir, "listings.normalized.jsonl");
+const libraryManifestPath = path.join(libraryExportDir, "media_manifest.jsonl");
 const resolvedPort = Number(process.env.PORT || 8787);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${resolvedPort}`;
+const b2PublicBaseUrl = (process.env.B2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
 
 app.use("/seed-images", express.static(path.join(publicDir, "seed")));
 app.use("/uploads", express.static(uploadsDir));
@@ -216,6 +220,47 @@ type SeedSale = {
   is_referral: boolean;
 };
 
+type ExportListing = {
+  listing_pk: string;
+  source: string;
+  source_listing_id: string;
+  url: string;
+  title: string | null;
+  brand: string | null;
+  model: string | null;
+  model_code: string | null;
+  size_in: number | null;
+  hand: string | null;
+  throw_hand: string | null;
+  player_position: string | null;
+  position: string | null;
+  web_type: string | null;
+  sport: string | null;
+  condition: string | null;
+  price: number | null;
+  currency: string | null;
+  created_at: string | null;
+  seen_at: string | null;
+  raw_specs: Record<string, unknown> | null;
+  images: string[] | null;
+};
+
+type ExportMediaMapping = {
+  image_index: number;
+  source_url: string;
+  target_storage_key: string;
+  content_type: string;
+  mapping_key: string;
+};
+
+type ExportMediaManifest = {
+  listing_pk: string;
+  source: string;
+  source_listing_id: string;
+  ordered_image_urls: string[];
+  image_mappings: ExportMediaMapping[];
+};
+
 type RuntimeDb = {
   images: Array<{ image_id: string; sha256: string; name: string; mime: string; bytes: number; url: string; created_at: string }>;
   artifact_images: Array<{ artifact_id: string; image_id: string; role: string; usable: boolean; bundle_hash: string; created_at: string }>;
@@ -390,6 +435,24 @@ function loadSeedFile<T>(name: string): T[] {
   return JSON.parse(raw) as T[];
 }
 
+function loadJsonlFile<T>(filePath: string): T[] {
+  if (!fs.existsSync(filePath)) return [];
+  const lines = fs
+    .readFileSync(filePath, "utf-8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const out: T[] = [];
+  for (const line of lines) {
+    try {
+      out.push(JSON.parse(line) as T);
+    } catch {
+      // Skip malformed row; import_report.json carries integrity counts.
+    }
+  }
+  return out;
+}
+
 const brands = loadSeedFile<{
   brand_key: string;
   display_name: string;
@@ -431,8 +494,50 @@ const variantEmbeddingById = new Map(
   ]),
 );
 const toSeedImageUrl = (p: string) => `${publicBaseUrl}/${p.replace(/^images\//, "seed-images/")}`;
+const brandKeyByNormalized = new Map<string, BrandConfig["brand_key"]>();
+for (const b of brands) {
+  brandKeyByNormalized.set(b.brand_key.toLowerCase(), b.brand_key);
+  brandKeyByNormalized.set(b.display_name.toLowerCase(), b.brand_key);
+}
+brandKeyByNormalized.set("44 pro", "FORTY_FOUR");
+brandKeyByNormalized.set("louisville slugger", "LOUISVILLE_SLUGGER");
+brandKeyByNormalized.set("nokona", "NAKONA");
+brandKeyByNormalized.set("ip select", "IP_SELECT");
+brandKeyByNormalized.set("kubota slugger", "KUBOTA_SLUGGER");
 
-const artifacts: Artifact[] = artifactsRaw.map((row) => {
+function normalizeBrandKey(input: string | null | undefined): Artifact["brand_key"] {
+  const raw = String(input || "").trim().toLowerCase();
+  if (!raw) return null;
+  return brandKeyByNormalized.get(raw) || null;
+}
+
+function inferConditionScore(condition: string | null | undefined): number | null {
+  const c = String(condition || "").toLowerCase();
+  if (!c) return null;
+  if (c.includes("new")) return 0.95;
+  if (c.includes("excellent")) return 0.88;
+  if (c.includes("very good")) return 0.8;
+  if (c.includes("good")) return 0.72;
+  if (c.includes("fair")) return 0.58;
+  if (c.includes("used")) return 0.68;
+  return null;
+}
+
+function mapPhotoKind(index: number): "HERO" | "PALM" | "BACK" | "HEEL" | "LINER" {
+  if (index === 0) return "HERO";
+  if (index === 1) return "PALM";
+  if (index === 2) return "BACK";
+  if (index === 3) return "HEEL";
+  return "LINER";
+}
+
+function mediaUrlForMapping(mapping: ExportMediaMapping): string {
+  if (b2PublicBaseUrl) return `${b2PublicBaseUrl}/${mapping.target_storage_key}`;
+  // Media resolver endpoint keeps the URL contract stable while B2 access is configured.
+  return `${publicBaseUrl}/media/key/${mapping.target_storage_key}?source_url=${encodeURIComponent(mapping.source_url)}`;
+}
+
+const seedArtifacts: Artifact[] = artifactsRaw.map((row) => {
   const variant = row.variant_id ? variantById.get(row.variant_id) : undefined;
   const familyName = row.family_id ? familyNameById.get(row.family_id) : undefined;
   const photoList = [row.photos.hero, ...(row.photos.thumbs || [])].filter(Boolean) as string[];
@@ -459,7 +564,64 @@ const artifacts: Artifact[] = artifactsRaw.map((row) => {
   };
 });
 
+const manifestRows = loadJsonlFile<ExportMediaManifest>(libraryManifestPath);
+const mediaByListingPk = new Map<string, ExportMediaManifest>();
+for (const row of manifestRows) {
+  if (row?.listing_pk) mediaByListingPk.set(row.listing_pk, row);
+}
+
+const exportListings = loadJsonlFile<ExportListing>(libraryListingsPath);
+const exportArtifacts: Artifact[] = exportListings
+  .map((row) => {
+    if (!row?.listing_pk || !row?.source_listing_id) return null;
+    const media = mediaByListingPk.get(row.listing_pk);
+    const mappings = [...(media?.image_mappings || [])].sort((a, b) => a.image_index - b.image_index);
+    const photos = mappings.length
+      ? mappings.map((m, idx) => ({
+          id: `${row.listing_pk}_p${idx + 1}`,
+          url: mediaUrlForMapping(m),
+          kind: mapPhotoKind(idx),
+        }))
+      : (row.images || []).map((url, idx) => ({
+          id: `${row.listing_pk}_p${idx + 1}`,
+          url,
+          kind: mapPhotoKind(idx),
+        }));
+
+    const estimate = typeof row.price === "number" ? row.price : null;
+    const low = estimate != null ? Math.round(estimate * 0.85) : null;
+    const high = estimate != null ? Math.round(estimate * 1.15) : null;
+
+    return {
+      id: row.listing_pk,
+      object_type: "ARTIFACT",
+      brand_key: normalizeBrandKey(row.brand),
+      family: null,
+      model_code: row.model_code || row.model || null,
+      made_in: null,
+      position: row.position || row.player_position || null,
+      size_in: typeof row.size_in === "number" ? row.size_in : null,
+      verification_status: "Unverified",
+      condition_score: inferConditionScore(row.condition),
+      valuation_estimate: estimate,
+      valuation_low: low,
+      valuation_high: high,
+      photos,
+    } as Artifact;
+  })
+  .filter((row): row is Artifact => Boolean(row));
+
+const artifacts: Artifact[] = exportArtifacts.length ? exportArtifacts : seedArtifacts;
+
 app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/media/key/:encoded(*)", (req, res) => {
+  const key = String(req.params.encoded || "").replace(/^\/+/, "");
+  const sourceUrl = String(req.query.source_url || "");
+  if (!key) return res.status(400).json({ error: "Missing media key" });
+  if (b2PublicBaseUrl) return res.redirect(302, `${b2PublicBaseUrl}/${key}`);
+  if (/^https?:\/\//i.test(sourceUrl)) return res.redirect(302, sourceUrl);
+  return res.status(404).json({ error: "Media not resolvable. Set B2_PUBLIC_BASE_URL or provide source fallback." });
+});
 app.get("/brands", (_req, res) => res.json(brands));
 app.get("/families", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
