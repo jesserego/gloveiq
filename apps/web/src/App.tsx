@@ -21,6 +21,7 @@ import {
   FormControlLabel,
   LinearProgress,
   MenuItem,
+  Pagination,
   Select,
   Slider,
   Stack,
@@ -1301,7 +1302,33 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [saleRows, setSaleRows] = useState<SaleRecord[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "verified" | "unverified">("all");
+  const [objectTypeFilter, setObjectTypeFilter] = useState<"all" | "ARTIFACT" | "CATALOGED_MODEL">("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [positionFilter, setPositionFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [hasValuationFilter, setHasValuationFilter] = useState<"all" | "yes" | "no">("all");
+  const [hasPhotosFilter, setHasPhotosFilter] = useState<"all" | "yes" | "no">("all");
+  const [sizeMin, setSizeMin] = useState("");
+  const [sizeMax, setSizeMax] = useState("");
+  const [valuationMin, setValuationMin] = useState("");
+  const [valuationMax, setValuationMax] = useState("");
+  const [conditionMin, setConditionMin] = useState("");
+  const [compMethodFilter, setCompMethodFilter] = useState<string>("all");
+  const [compMinSales, setCompMinSales] = useState("");
+  const [salesBrandFilter, setSalesBrandFilter] = useState<string>("all");
+  const [salesSourceFilter, setSalesSourceFilter] = useState<string>("all");
+  const [salesReferralFilter, setSalesReferralFilter] = useState<"all" | "referral" | "direct">("all");
+  const [salesMinPrice, setSalesMinPrice] = useState("");
+  const [salesMaxPrice, setSalesMaxPrice] = useState("");
+  const [salesDateFrom, setSalesDateFrom] = useState("");
+  const [salesDateTo, setSalesDateTo] = useState("");
   const [view, setView] = useState<"overview" | "catalog" | "verification">("catalog");
+  const [artifactExpanded, setArtifactExpanded] = useState(false);
+  const [artifactPage, setArtifactPage] = useState(1);
+  const [compsExpanded, setCompsExpanded] = useState(false);
+  const [compsPage, setCompsPage] = useState(1);
+  const [salesExpanded, setSalesExpanded] = useState(false);
+  const [salesPage, setSalesPage] = useState(1);
   const [variantPreviewImage, setVariantPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [verificationStep, setVerificationStep] = useState(0);
   const [submittedVerificationSummary, setSubmittedVerificationSummary] = useState<Record<string, unknown> | null>(null);
@@ -1350,6 +1377,54 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     api.sales().then(setSaleRows).catch(() => setSaleRows([]));
   }, []);
 
+  const toNumber = (value: string) => {
+    const raw = value.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const sizeMinValue = toNumber(sizeMin);
+  const sizeMaxValue = toNumber(sizeMax);
+  const valuationMinValue = toNumber(valuationMin);
+  const valuationMaxValue = toNumber(valuationMax);
+  const conditionMinValue = toNumber(conditionMin);
+  const compMinSalesValue = toNumber(compMinSales);
+  const salesMinPriceValue = toNumber(salesMinPrice);
+  const salesMaxPriceValue = toNumber(salesMaxPrice);
+
+  const artifactBrandOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.brand_key || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+  const artifactPositionOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.position || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+  const artifactSourceOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          rows.map((r) => {
+            const source = String(r.id || "").split(":")[0];
+            return source || "UNKNOWN";
+          }),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+  const compMethodOptions = useMemo(
+    () => Array.from(new Set(compRows.map((c) => c.method || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [compRows],
+  );
+  const salesBrandOptions = useMemo(
+    () => Array.from(new Set(saleRows.map((s) => s.brand_key || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [saleRows],
+  );
+  const salesSourceOptions = useMemo(
+    () => Array.from(new Set(saleRows.map((s) => s.source || "Unknown"))).sort((a, b) => a.localeCompare(b)),
+    [saleRows],
+  );
+
   const filtered = rows.filter((row) => {
     const query = q.trim().toLowerCase();
     const hay = `${row.id} ${row.brand_key ?? ""} ${row.family ?? ""} ${row.model_code ?? ""} ${row.verification_status ?? ""}`.toLowerCase();
@@ -1357,7 +1432,31 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
     if (!queryOk) return false;
     if (status === "all") return true;
     const isVerified = String(row.verification_status ?? "").toLowerCase().includes("verified");
-    return status === "verified" ? isVerified : !isVerified;
+    if (status === "verified" && !isVerified) return false;
+    if (status === "unverified" && isVerified) return false;
+
+    if (objectTypeFilter !== "all" && row.object_type !== objectTypeFilter) return false;
+    if (brandFilter !== "all" && (row.brand_key || "Unknown") !== brandFilter) return false;
+    if (positionFilter !== "all" && (row.position || "Unknown") !== positionFilter) return false;
+
+    const rowSource = String(row.id || "").split(":")[0] || "UNKNOWN";
+    if (sourceFilter !== "all" && rowSource !== sourceFilter) return false;
+
+    const hasValuation = row.valuation_estimate != null;
+    if (hasValuationFilter === "yes" && !hasValuation) return false;
+    if (hasValuationFilter === "no" && hasValuation) return false;
+
+    const hasPhotos = Boolean(row.photos?.length);
+    if (hasPhotosFilter === "yes" && !hasPhotos) return false;
+    if (hasPhotosFilter === "no" && hasPhotos) return false;
+
+    if (sizeMinValue != null && (row.size_in == null || row.size_in < sizeMinValue)) return false;
+    if (sizeMaxValue != null && (row.size_in == null || row.size_in > sizeMaxValue)) return false;
+    if (valuationMinValue != null && (row.valuation_estimate == null || row.valuation_estimate < valuationMinValue)) return false;
+    if (valuationMaxValue != null && (row.valuation_estimate == null || row.valuation_estimate > valuationMaxValue)) return false;
+    if (conditionMinValue != null && (row.condition_score == null || row.condition_score < conditionMinValue)) return false;
+
+    return true;
   });
   const filteredVariants = variantRows
     .filter((v) => {
@@ -1369,17 +1468,78 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const filteredComps = compRows
     .filter((c) => {
       const query = q.trim().toLowerCase();
-      if (!query) return true;
-      return `${c.comp_set_id} ${c.artifact_id} ${c.method}`.toLowerCase().includes(query);
+      const queryOk = !query || `${c.comp_set_id} ${c.artifact_id} ${c.method}`.toLowerCase().includes(query);
+      if (!queryOk) return false;
+      if (compMethodFilter !== "all" && c.method !== compMethodFilter) return false;
+      if (compMinSalesValue != null && c.sales_ids.length < compMinSalesValue) return false;
+      return true;
     })
-    .slice(0, 40);
+    .sort((a, b) => b.sales_ids.length - a.sales_ids.length);
   const filteredSales = saleRows
     .filter((s) => {
       const query = q.trim().toLowerCase();
-      if (!query) return true;
-      return `${s.sale_id} ${s.variant_id} ${s.brand_key} ${s.source}`.toLowerCase().includes(query);
+      const queryOk = !query || `${s.sale_id} ${s.variant_id} ${s.brand_key} ${s.source}`.toLowerCase().includes(query);
+      if (!queryOk) return false;
+      if (salesBrandFilter !== "all" && s.brand_key !== salesBrandFilter) return false;
+      if (salesSourceFilter !== "all" && s.source !== salesSourceFilter) return false;
+      if (salesReferralFilter === "referral" && !s.is_referral) return false;
+      if (salesReferralFilter === "direct" && s.is_referral) return false;
+      if (salesMinPriceValue != null && s.price_usd < salesMinPriceValue) return false;
+      if (salesMaxPriceValue != null && s.price_usd > salesMaxPriceValue) return false;
+      if (salesDateFrom && s.sale_date < salesDateFrom) return false;
+      if (salesDateTo && s.sale_date > salesDateTo) return false;
+      return true;
     })
-    .slice(0, 60);
+    .sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+
+  const collapsedSize = 5;
+  const pageSize = 20;
+  const artifactPageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const compsPageCount = Math.max(1, Math.ceil(filteredComps.length / pageSize));
+  const salesPageCount = Math.max(1, Math.ceil(filteredSales.length / pageSize));
+  const visibleArtifacts = artifactExpanded
+    ? filtered.slice((artifactPage - 1) * pageSize, artifactPage * pageSize)
+    : filtered.slice(0, collapsedSize);
+  const visibleComps = compsExpanded
+    ? filteredComps.slice((compsPage - 1) * pageSize, compsPage * pageSize)
+    : filteredComps.slice(0, collapsedSize);
+  const visibleSales = salesExpanded
+    ? filteredSales.slice((salesPage - 1) * pageSize, salesPage * pageSize)
+    : filteredSales.slice(0, collapsedSize);
+
+  useEffect(() => {
+    setArtifactPage(1);
+  }, [q, status, objectTypeFilter, brandFilter, positionFilter, sourceFilter, hasValuationFilter, hasPhotosFilter, sizeMin, sizeMax, valuationMin, valuationMax, conditionMin, artifactExpanded]);
+  useEffect(() => {
+    setCompsPage(1);
+  }, [q, compMethodFilter, compMinSales, compsExpanded]);
+  useEffect(() => {
+    setSalesPage(1);
+  }, [q, salesBrandFilter, salesSourceFilter, salesReferralFilter, salesMinPrice, salesMaxPrice, salesDateFrom, salesDateTo, salesExpanded]);
+
+  const clearCatalogFilters = () => {
+    setStatus("all");
+    setObjectTypeFilter("all");
+    setBrandFilter("all");
+    setPositionFilter("all");
+    setSourceFilter("all");
+    setHasValuationFilter("all");
+    setHasPhotosFilter("all");
+    setSizeMin("");
+    setSizeMax("");
+    setValuationMin("");
+    setValuationMax("");
+    setConditionMin("");
+    setCompMethodFilter("all");
+    setCompMinSales("");
+    setSalesBrandFilter("all");
+    setSalesSourceFilter("all");
+    setSalesReferralFilter("all");
+    setSalesMinPrice("");
+    setSalesMaxPrice("");
+    setSalesDateFrom("");
+    setSalesDateTo("");
+  };
 
   const requiredP0: Array<"BACK" | "PALM"> = ["BACK", "PALM"];
   const recommendedP1: Array<"LINER" | "WRIST_PATCH" | "STAMPS"> = ["LINER", "WRIST_PATCH", "STAMPS"];
@@ -1582,13 +1742,97 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
         {view === "catalog" ? (
           <>
             <Card><CardContent>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ md: "center" }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Filters</Typography>
+                <Button onClick={clearCatalogFilters}>Clear all filters</Button>
+              </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" }, gap: 1.2 }}>
+                <FormControl size="small">
+                  <Select value={objectTypeFilter} onChange={(e) => setObjectTypeFilter(e.target.value as typeof objectTypeFilter)}>
+                    <MenuItem value="all">Type: all</MenuItem>
+                    <MenuItem value="ARTIFACT">Type: artifact</MenuItem>
+                    <MenuItem value="CATALOGED_MODEL">Type: cataloged</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={brandFilter} onChange={(e) => setBrandFilter(String(e.target.value))}>
+                    <MenuItem value="all">Brand: all</MenuItem>
+                    {artifactBrandOptions.map((brand) => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={positionFilter} onChange={(e) => setPositionFilter(String(e.target.value))}>
+                    <MenuItem value="all">Position: all</MenuItem>
+                    {artifactPositionOptions.map((position) => <MenuItem key={position} value={position}>{position}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={sourceFilter} onChange={(e) => setSourceFilter(String(e.target.value))}>
+                    <MenuItem value="all">Source: all</MenuItem>
+                    {artifactSourceOptions.map((source) => <MenuItem key={source} value={source}>{source}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={hasValuationFilter} onChange={(e) => setHasValuationFilter(e.target.value as typeof hasValuationFilter)}>
+                    <MenuItem value="all">Valuation: all</MenuItem>
+                    <MenuItem value="yes">Valuation: yes</MenuItem>
+                    <MenuItem value="no">Valuation: no</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={hasPhotosFilter} onChange={(e) => setHasPhotosFilter(e.target.value as typeof hasPhotosFilter)}>
+                    <MenuItem value="all">Photos: all</MenuItem>
+                    <MenuItem value="yes">Photos: yes</MenuItem>
+                    <MenuItem value="no">Photos: no</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField size="small" label="Min size (in)" value={sizeMin} onChange={(e) => setSizeMin(e.target.value)} />
+                <TextField size="small" label="Max size (in)" value={sizeMax} onChange={(e) => setSizeMax(e.target.value)} />
+                <TextField size="small" label="Min valuation (USD)" value={valuationMin} onChange={(e) => setValuationMin(e.target.value)} />
+                <TextField size="small" label="Max valuation (USD)" value={valuationMax} onChange={(e) => setValuationMax(e.target.value)} />
+                <TextField size="small" label="Min condition score" value={conditionMin} onChange={(e) => setConditionMin(e.target.value)} />
+                <FormControl size="small">
+                  <Select value={compMethodFilter} onChange={(e) => setCompMethodFilter(String(e.target.value))}>
+                    <MenuItem value="all">Comp method: all</MenuItem>
+                    {compMethodOptions.map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField size="small" label="Comp minimum linked sales" value={compMinSales} onChange={(e) => setCompMinSales(e.target.value)} />
+                <FormControl size="small">
+                  <Select value={salesBrandFilter} onChange={(e) => setSalesBrandFilter(String(e.target.value))}>
+                    <MenuItem value="all">Sales brand: all</MenuItem>
+                    {salesBrandOptions.map((brand) => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={salesSourceFilter} onChange={(e) => setSalesSourceFilter(String(e.target.value))}>
+                    <MenuItem value="all">Sales source: all</MenuItem>
+                    {salesSourceOptions.map((source) => <MenuItem key={source} value={source}>{source}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select value={salesReferralFilter} onChange={(e) => setSalesReferralFilter(e.target.value as typeof salesReferralFilter)}>
+                    <MenuItem value="all">Sales type: all</MenuItem>
+                    <MenuItem value="referral">Sales type: referral</MenuItem>
+                    <MenuItem value="direct">Sales type: direct</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField size="small" label="Sales min price" value={salesMinPrice} onChange={(e) => setSalesMinPrice(e.target.value)} />
+                <TextField size="small" label="Sales max price" value={salesMaxPrice} onChange={(e) => setSalesMaxPrice(e.target.value)} />
+                <TextField size="small" type="date" label="Sales from" value={salesDateFrom} onChange={(e) => setSalesDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
+                <TextField size="small" type="date" label="Sales to" value={salesDateTo} onChange={(e) => setSalesDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
+              </Box>
+            </CardContent></Card>
+
+            <Card><CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Artifact Records</Typography>
-                <Chip label={`${filtered.length} shown`} />
+                <Chip label={artifactExpanded ? `${visibleArtifacts.length} shown (page ${artifactPage}/${artifactPageCount})` : `${visibleArtifacts.length} shown`} />
               </Stack>
               <Divider sx={{ my: 2 }} />
               <Stack spacing={1.25}>
-                {filtered.map((a) => {
+                {visibleArtifacts.map((a) => {
                   const verified = isVerified(a);
                   const showEstimate = a.valuation_estimate != null;
                   const thumb = a.photos?.[0]?.url || glovePlaceholderImage;
@@ -1670,6 +1914,22 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   <Typography variant="body2" color="text.secondary">No variants match the current filters.</Typography>
                 ) : null}
               </Stack>
+              {filtered.length > collapsedSize ? (
+                <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1.25} sx={{ mt: 1.5 }}>
+                  <Button onClick={() => { setArtifactExpanded((prev) => !prev); if (artifactExpanded) setArtifactPage(1); }}>
+                    {artifactExpanded ? "Collapse records" : `Expand records (${filtered.length})`}
+                  </Button>
+                  {artifactExpanded && filtered.length > pageSize ? (
+                    <Pagination
+                      page={artifactPage}
+                      count={artifactPageCount}
+                      onChange={(_, page) => setArtifactPage(page)}
+                      size="small"
+                      shape="rounded"
+                    />
+                  ) : null}
+                </Stack>
+              ) : null}
             </CardContent></Card>
 
             <Card><CardContent>
@@ -1696,11 +1956,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
               <Card><CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Comp Sets</Typography>
-                  <Chip label={`${filteredComps.length} shown`} />
+                  <Chip label={compsExpanded ? `${visibleComps.length} shown (page ${compsPage}/${compsPageCount})` : `${visibleComps.length} shown`} />
                 </Stack>
                 <Divider sx={{ my: 2 }} />
                 <Stack spacing={1}>
-                  {filteredComps.map((comp) => (
+                  {visibleComps.map((comp) => (
                     <Box key={comp.comp_set_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
                       <Typography sx={{ fontWeight: 800 }}>{comp.comp_set_id}</Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -1710,16 +1970,32 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   ))}
                   {filteredComps.length === 0 ? <Typography variant="body2" color="text.secondary">No comp sets match current query.</Typography> : null}
                 </Stack>
+                {filteredComps.length > collapsedSize ? (
+                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1.25} sx={{ mt: 1.5 }}>
+                    <Button onClick={() => { setCompsExpanded((prev) => !prev); if (compsExpanded) setCompsPage(1); }}>
+                      {compsExpanded ? "Collapse comp sets" : `Expand comp sets (${filteredComps.length})`}
+                    </Button>
+                    {compsExpanded && filteredComps.length > pageSize ? (
+                      <Pagination
+                        page={compsPage}
+                        count={compsPageCount}
+                        onChange={(_, page) => setCompsPage(page)}
+                        size="small"
+                        shape="rounded"
+                      />
+                    ) : null}
+                  </Stack>
+                ) : null}
               </CardContent></Card>
 
               <Card><CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales Feed</Typography>
-                  <Chip label={`${filteredSales.length} shown`} />
+                  <Chip label={salesExpanded ? `${visibleSales.length} shown (page ${salesPage}/${salesPageCount})` : `${visibleSales.length} shown`} />
                 </Stack>
                 <Divider sx={{ my: 2 }} />
                 <Stack spacing={1}>
-                  {filteredSales.map((sale) => (
+                  {visibleSales.map((sale) => (
                     <Box key={sale.sale_id} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
                       <Typography sx={{ fontWeight: 800 }}>{sale.sale_id}</Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -1729,6 +2005,22 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   ))}
                   {filteredSales.length === 0 ? <Typography variant="body2" color="text.secondary">No sales match current query.</Typography> : null}
                 </Stack>
+                {filteredSales.length > collapsedSize ? (
+                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1.25} sx={{ mt: 1.5 }}>
+                    <Button onClick={() => { setSalesExpanded((prev) => !prev); if (salesExpanded) setSalesPage(1); }}>
+                      {salesExpanded ? "Collapse sales" : `Expand sales (${filteredSales.length})`}
+                    </Button>
+                    {salesExpanded && filteredSales.length > pageSize ? (
+                      <Pagination
+                        page={salesPage}
+                        count={salesPageCount}
+                        onChange={(_, page) => setSalesPage(page)}
+                        size="small"
+                        shape="rounded"
+                      />
+                    ) : null}
+                  </Stack>
+                ) : null}
               </CardContent></Card>
             </Box>
             <Dialog
