@@ -556,6 +556,8 @@ const seedArtifacts: Artifact[] = artifactsRaw.map((row) => {
     valuation_estimate: row.valuation.estimate_usd ?? null,
     valuation_low: row.valuation.range_low_usd ?? null,
     valuation_high: row.valuation.range_high_usd ?? null,
+    listing_url: null,
+    source: null,
     photos: uniquePhotos.map((url, idx) => ({
       id: `${row.artifact_id}_p${idx + 1}`,
       url: toSeedImageUrl(url),
@@ -606,6 +608,8 @@ const exportArtifacts: Artifact[] = exportListings
       valuation_estimate: estimate,
       valuation_low: low,
       valuation_high: high,
+      listing_url: row.url || null,
+      source: row.source || null,
       photos,
     } as Artifact;
   })

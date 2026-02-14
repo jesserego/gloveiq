@@ -28,6 +28,8 @@ export type Artifact = {
   valuation_estimate?: number | null;
   valuation_low?: number | null;
   valuation_high?: number | null;
+  listing_url?: string | null;
+  source?: string | null;
 
   photos?: Array<{ id: string; url: string; kind: PhotoKind }>;
 };

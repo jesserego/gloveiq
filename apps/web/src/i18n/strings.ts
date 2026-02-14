@@ -2,7 +2,7 @@ export type Locale = "en" | "ja";
 export const STRINGS: Record<Locale, Record<string, string>> = {
   en: {
     "app.title": "GloveIQ",
-    "tab.search": "Search",
+    "tab.search": "Home",
     "tab.artifact": "Variants",
     "tab.appraisal": "Appraisal",
     "tab.account": "Account",
@@ -21,7 +21,7 @@ export const STRINGS: Record<Locale, Record<string, string>> = {
   },
   ja: {
     "app.title": "GloveIQ",
-    "tab.search": "検索",
+    "tab.search": "ホーム",
     "tab.artifact": "バリアント",
     "tab.appraisal": "査定",
     "tab.account": "アカウント",
