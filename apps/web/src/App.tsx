@@ -1334,6 +1334,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [compsPage, setCompsPage] = useState(1);
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [salesPage, setSalesPage] = useState(1);
+  const [thumbByArtifactId, setThumbByArtifactId] = useState<Record<string, string>>({});
   const [variantPreviewImage, setVariantPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [verificationStep, setVerificationStep] = useState(0);
   const [submittedVerificationSummary, setSubmittedVerificationSummary] = useState<Record<string, unknown> | null>(null);
@@ -1370,7 +1371,10 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
   async function refresh(query?: string) {
     setLoading(true); setErr(null);
-    try { setRows(await api.artifacts(query)); }
+    try {
+      setRows(await api.artifacts(query, { photoMode: "none" }));
+      setThumbByArtifactId({});
+    }
     catch (e: any) { setErr(String(e?.message || e)); }
     finally { setLoading(false); }
   }
@@ -1573,6 +1577,40 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const visibleSales = salesExpanded
     ? filteredSales.slice((salesPage - 1) * pageSize, salesPage * pageSize)
     : filteredSales.slice(0, collapsedSize);
+
+  useEffect(() => {
+    const neededIds = visibleArtifacts
+      .map((variant) => (artifactsByVariant.get(variant.variant_id) || [])[0]?.id)
+      .filter((id): id is string => Boolean(id))
+      .filter((id) => !thumbByArtifactId[id]);
+    if (!neededIds.length) return;
+
+    let cancelled = false;
+    Promise.all(
+      neededIds.map(async (id) => {
+        try {
+          const detail = await api.artifact(id);
+          const thumb = detail.photos?.[0]?.url;
+          return thumb ? { id, thumb } : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const updates = results.filter((entry): entry is { id: string; thumb: string } => Boolean(entry));
+      if (!updates.length) return;
+      setThumbByArtifactId((prev) => {
+        const next = { ...prev };
+        for (const item of updates) next[item.id] = item.thumb;
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleArtifacts, artifactsByVariant, thumbByArtifactId]);
 
   useEffect(() => {
     setArtifactPage(1);
@@ -1931,7 +1969,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   const avgEstimate = relatedArtifacts
                     .filter((a) => a.valuation_estimate != null)
                     .reduce((sum, a, _, arr) => sum + Number(a.valuation_estimate || 0) / arr.length, 0);
-                  const thumb = firstArtifact?.photos?.[0]?.url || glovePlaceholderImage;
+                  const thumb = (firstArtifact ? thumbByArtifactId[firstArtifact.id] : "") || glovePlaceholderImage;
                   return (
                     <Box
                       key={variant.variant_id}
@@ -2877,7 +2915,7 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
       return;
     }
     api
-      .artifacts(query)
+      .artifacts(query, { photoMode: "none", limit: 40 })
       .then((rows) => {
         const linked = rows.filter((row) => row.id !== artifact.id).slice(0, 12);
         setRelatedArtifacts(linked);

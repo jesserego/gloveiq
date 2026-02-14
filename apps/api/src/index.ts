@@ -635,24 +635,47 @@ app.get("/patterns", (req, res) => {
 });
 app.get("/variants", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
+  const limit = Number(req.query.limit || 0);
+  const offset = Math.max(0, Number(req.query.offset || 0));
   const rows = !q ? variants : variants.filter((v) => JSON.stringify(v).toLowerCase().includes(q));
-  res.json(rows);
+  const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
+  res.setHeader("x-total-count", String(rows.length));
+  res.json(paged);
 });
 app.get("/comps", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
+  const limit = Number(req.query.limit || 0);
+  const offset = Math.max(0, Number(req.query.offset || 0));
   const rows = !q ? comps : comps.filter((c) => JSON.stringify(c).toLowerCase().includes(q));
-  res.json(rows);
+  const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
+  res.setHeader("x-total-count", String(rows.length));
+  res.json(paged);
 });
 app.get("/sales", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
+  const limit = Number(req.query.limit || 0);
+  const offset = Math.max(0, Number(req.query.offset || 0));
   const rows = !q ? sales : sales.filter((s) => JSON.stringify(s).toLowerCase().includes(q));
-  res.json(rows);
+  const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
+  res.setHeader("x-total-count", String(rows.length));
+  res.json(paged);
 });
 
 app.get("/artifacts", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
+  const photoMode = String(req.query.photo_mode || "full").toLowerCase();
+  const limit = Number(req.query.limit || 0);
+  const offset = Math.max(0, Number(req.query.offset || 0));
   const rows = !q ? artifacts : artifacts.filter((a) => JSON.stringify(a).toLowerCase().includes(q));
-  res.json(rows);
+
+  const rowsWithPhotoMode = rows.map((a) => {
+    if (photoMode === "none") return { ...a, photos: [] };
+    if (photoMode === "hero") return { ...a, photos: (a.photos || []).slice(0, 1) };
+    return a;
+  });
+  const paged = limit > 0 ? rowsWithPhotoMode.slice(offset, offset + limit) : rowsWithPhotoMode;
+  res.setHeader("x-total-count", String(rows.length));
+  res.json(paged);
 });
 
 app.get("/artifact/:id", (req, res) => {

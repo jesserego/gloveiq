@@ -81,7 +81,18 @@ export const api = {
   variants: (q?: string) => json<VariantRecord[]>(`${API_BASE}/variants${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   comps: (q?: string) => json<CompRecord[]>(`${API_BASE}/comps${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   sales: (q?: string) => json<SaleRecord[]>(`${API_BASE}/sales${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  artifacts: (q?: string) => json<Artifact[]>(`${API_BASE}/artifacts${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  artifacts: (
+    q?: string,
+    opts?: { photoMode?: "none" | "hero" | "full"; limit?: number; offset?: number },
+  ) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (opts?.photoMode) params.set("photo_mode", opts.photoMode);
+    if (typeof opts?.limit === "number") params.set("limit", String(opts.limit));
+    if (typeof opts?.offset === "number") params.set("offset", String(opts.offset));
+    const suffix = params.toString();
+    return json<Artifact[]>(`${API_BASE}/artifacts${suffix ? `?${suffix}` : ""}`);
+  },
   artifact: (id: string) => json<Artifact>(`${API_BASE}/artifact/${encodeURIComponent(id)}`),
   uploadPhoto: async (file: File) => {
     const fd = new FormData(); fd.append("file", file);
