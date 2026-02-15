@@ -8,7 +8,7 @@ import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
 import { buildAppTheme, type AppThemeMode } from "./ui/theme";
 import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
-import GloveSearchBar, { type GloveShortcut } from "./components/GloveSearchBar";
+import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 
 import {
@@ -641,27 +641,6 @@ function SearchResultsPage({
     };
   }, [selectedId, variants]);
 
-  const shortcuts = useMemo<GloveShortcut[]>(
-    () => [
-      { id: "global-stats", label: "Global Stats", initials: "GS", onClick: () => setGlobalStatsOpen(true) },
-      {
-        id: "rawlings",
-        label: "Rawlings",
-        imageUrl: "https://logo.clearbit.com/rawlings.com",
-        initials: "R",
-        onClick: () => setQuery("Rawlings"),
-      },
-      {
-        id: "wilson",
-        label: "Wilson",
-        imageUrl: "https://logo.clearbit.com/wilson.com",
-        initials: "W",
-        onClick: () => setQuery("Wilson"),
-      },
-    ],
-    [],
-  );
-
   function handleSearch(nextQuery: string) {
     const normalized = nextQuery.trim();
     setQuery(nextQuery);
@@ -685,7 +664,6 @@ function SearchResultsPage({
           manufacturers={manufacturers}
           selectedManufacturer={selectedManufacturer}
           onSelectManufacturer={setSelectedManufacturer}
-          shortcuts={shortcuts}
         />
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
