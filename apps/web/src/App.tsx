@@ -16,6 +16,7 @@ import {
   Autocomplete,
   Avatar,
   Box,
+  Checkbox,
   Chip,
   Container,
   CssBaseline,
@@ -23,7 +24,9 @@ import {
   Dialog,
   FormControl,
   FormControlLabel,
+  IconButton,
   LinearProgress,
+  Menu,
   MenuItem,
   Pagination,
   Select,
@@ -51,6 +54,7 @@ import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import TuneIcon from "@mui/icons-material/Tune";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -218,6 +222,18 @@ function inferSearchIntent(query: string): "listing" | "catalog" {
   if (q.startsWith("http://") || q.startsWith("https://")) return "listing";
   if (q.includes("sideline") || q.includes("ebay") || q.includes("justballgloves") || q.includes("jbg")) return "listing";
   return "catalog";
+}
+
+function regionFromOrigin(origin: string | null | undefined): string {
+  const normalized = String(origin || "").trim().toLowerCase();
+  if (!normalized) return "Unknown";
+  if (normalized.includes("japan") || normalized === "jp") return "Asia";
+  if (normalized.includes("korea") || normalized.includes("china") || normalized.includes("taiwan")) return "Asia";
+  if (normalized.includes("usa") || normalized.includes("united states") || normalized.includes("canada") || normalized.includes("mexico")) return "North America";
+  if (normalized.includes("italy") || normalized.includes("germany") || normalized.includes("france") || normalized.includes("spain")) return "Europe";
+  if (normalized.includes("australia") || normalized.includes("new zealand")) return "Oceania";
+  if (normalized.includes("brazil") || normalized.includes("argentina") || normalized.includes("colombia")) return "South America";
+  return "Global";
 }
 
 function ResultsGrid({
@@ -582,46 +598,137 @@ function SearchResultsPage({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [iqOpen, setIqOpen] = useState(false);
   const [iqSeedQuery, setIqSeedQuery] = useState("");
-  const [globalStatsOpen, setGlobalStatsOpen] = useState(false);
   const [searchIntent, setSearchIntent] = useState<"listing" | "catalog">("catalog");
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [resultsPage, setResultsPage] = useState(1);
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedHands, setSelectedHands] = useState<string[]>([]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedWebs, setSelectedWebs] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
 
   const manufacturers = useMemo(
     () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
     [],
   );
 
-  const rows = useMemo<SearchResult[]>(() => {
-    const variantRows: SearchResult[] = variants.slice(0, 80).map((v) => ({
+  type SearchResultRow = SearchResult & {
+    meta: {
+      brand: string;
+      region: string;
+      hand: string;
+      size: string;
+      web: string;
+      source: string;
+      year: string;
+      recordType: "variant" | "artifact";
+    };
+  };
+
+  const rows = useMemo<SearchResultRow[]>(() => {
+    const variantRows: SearchResultRow[] = variants.slice(0, 80).map((v) => ({
       id: v.variant_id,
       record_type: "variant",
       title: v.display_name,
       subtitle: `${v.brand_key} • ${v.model_code || "model n/a"}`,
       chips: [v.brand_key, v.model_code || "—", v.web || "web ?", v.made_in || "origin ?", String(v.year || "")].filter(Boolean),
+      meta: {
+        brand: v.brand_key,
+        region: regionFromOrigin(v.made_in),
+        hand: String(v.variant_label || "Unknown"),
+        size: "Unknown",
+        web: String(v.web || "Unknown"),
+        source: "catalog",
+        year: String(v.year || "Unknown"),
+        recordType: "variant",
+      },
     }));
-    const gloveRows: SearchResult[] = gloves.slice(0, 120).map((g) => ({
+    const gloveRows: SearchResultRow[] = gloves.slice(0, 120).map((g) => ({
       id: g.id,
       record_type: "artifact",
       title: g.model_code || g.id,
       subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
       chips: [g.brand_key || "Unknown", g.model_code || "—", g.position || "position ?", g.size_in ? String(g.size_in) : "size ?", g.source || ""].filter(Boolean),
       thumbnail: g.photos?.[0]?.url,
+      meta: {
+        brand: String(g.brand_key || "Unknown"),
+        region: regionFromOrigin(g.made_in),
+        hand: "Unknown",
+        size: g.size_in ? `${g.size_in}` : "Unknown",
+        web: "Unknown",
+        source: String(g.source || "Unknown"),
+        year: "Unknown",
+        recordType: "artifact",
+      },
     }));
     const merged = [...variantRows, ...gloveRows];
-    if (!merged.length) return MOCK_SEARCH_RESULTS;
+    if (!merged.length) {
+      return MOCK_SEARCH_RESULTS.map((row) => ({
+        ...row,
+        meta: {
+          brand: row.chips[0] || "Unknown",
+          region: "Global",
+          hand: row.chips.find((chip) => chip.includes("HT")) || "Unknown",
+          size: row.chips.find((chip) => /\d/.test(chip)) || "Unknown",
+          web: row.chips.find((chip) => chip.toLowerCase().includes("web")) || "Unknown",
+          source: "mock",
+          year: row.chips.find((chip) => /^\d{4}$/.test(chip)) || "Unknown",
+          recordType: row.record_type === "variant" ? "variant" : "artifact",
+        },
+      }));
+    }
     return merged;
   }, [variants, gloves]);
+
+  const regions = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.meta.region))).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+
+  const typeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.recordType))), [rows]);
+  const handOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.hand))).filter((v) => v !== "Unknown"), [rows]);
+  const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.size))).filter((v) => v !== "Unknown"), [rows]);
+  const webOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.web))).filter((v) => v !== "Unknown"), [rows]);
+  const sourceOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.source))).filter((v) => v !== "Unknown"), [rows]);
+  const yearOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.year))).filter((v) => v !== "Unknown"), [rows]);
+
+  function toggleFilterValue(current: string[], value: string, setValue: (next: string[]) => void) {
+    if (current.includes(value)) {
+      setValue(current.filter((item) => item !== value));
+      return;
+    }
+    setValue([...current, value]);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       const whole = `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase();
-      const manufacturerMatches = !selectedManufacturer || whole.includes(selectedManufacturer.toLowerCase());
+      const manufacturerMatches = !selectedManufacturer || r.meta.brand.toLowerCase() === selectedManufacturer.toLowerCase() || whole.includes(selectedManufacturer.toLowerCase());
+      const regionMatches = !selectedRegion || r.meta.region === selectedRegion;
+      const typeMatches = selectedTypes.length === 0 || selectedTypes.includes(r.meta.recordType);
+      const handMatches = selectedHands.length === 0 || selectedHands.includes(r.meta.hand);
+      const sizeMatches = selectedSizes.length === 0 || selectedSizes.includes(r.meta.size);
+      const webMatches = selectedWebs.length === 0 || selectedWebs.includes(r.meta.web);
+      const sourceMatches = selectedSources.length === 0 || selectedSources.includes(r.meta.source);
+      const yearMatches = selectedYears.length === 0 || selectedYears.includes(r.meta.year);
       if (!manufacturerMatches) return false;
+      if (!regionMatches || !typeMatches || !handMatches || !sizeMatches || !webMatches || !sourceMatches || !yearMatches) return false;
       if (!q) return true;
       return whole.includes(q);
     });
-  }, [query, rows, selectedManufacturer]);
+  }, [query, rows, selectedManufacturer, selectedRegion, selectedTypes, selectedHands, selectedSizes, selectedWebs, selectedSources, selectedYears]);
+
+  useEffect(() => {
+    setResultsPage(1);
+  }, [query, selectedManufacturer, selectedRegion, selectedTypes, selectedHands, selectedSizes, selectedWebs, selectedSources, selectedYears]);
+
+  const resultsPageSize = 15;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
+  const pagedRows = filtered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize);
 
   const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
     const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
@@ -650,22 +757,81 @@ function SearchResultsPage({
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
-        <GloveSearchBar
-          value={query}
-          onChange={setQuery}
-          onSearch={handleSearch}
-          onIQMode={(seed) => {
-            setIqSeedQuery(seed);
-            setIqOpen(true);
-          }}
-          onVoice={() => setIqSeedQuery(query)}
-          onImage={() => setIqOpen(true)}
-          onGlobalStats={() => setGlobalStatsOpen(true)}
-          manufacturers={manufacturers}
-          selectedManufacturer={selectedManufacturer}
-          onSelectManufacturer={setSelectedManufacturer}
-        />
         <Card><CardContent>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <GloveSearchBar
+                value={query}
+                onChange={setQuery}
+                onSearch={handleSearch}
+                onIQMode={(seed) => {
+                  setIqSeedQuery(seed);
+                  setIqOpen(true);
+                }}
+                manufacturers={manufacturers}
+                selectedManufacturer={selectedManufacturer}
+                onSelectManufacturer={setSelectedManufacturer}
+                regions={regions}
+                selectedRegion={selectedRegion}
+                onSelectRegion={setSelectedRegion}
+              />
+            </Box>
+            <Tooltip title="Filter result attributes">
+              <IconButton aria-label="Filter results" onClick={(evt) => setFilterAnchor(evt.currentTarget)}>
+                <TuneIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+          <Menu anchorEl={filterAnchor} open={Boolean(filterAnchor)} onClose={() => setFilterAnchor(null)}>
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Record Type</MenuItem>
+            {typeOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedTypes, value, setSelectedTypes)}>
+                <Checkbox size="small" checked={selectedTypes.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Hand</MenuItem>
+            {handOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedHands, value, setSelectedHands)}>
+                <Checkbox size="small" checked={selectedHands.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Size</MenuItem>
+            {sizeOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedSizes, value, setSelectedSizes)}>
+                <Checkbox size="small" checked={selectedSizes.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Web</MenuItem>
+            {webOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedWebs, value, setSelectedWebs)}>
+                <Checkbox size="small" checked={selectedWebs.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Source</MenuItem>
+            {sourceOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedSources, value, setSelectedSources)}>
+                <Checkbox size="small" checked={selectedSources.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled sx={{ opacity: 0.8 }}>Year</MenuItem>
+            {yearOptions.map((value) => (
+              <MenuItem key={value} onClick={() => toggleFilterValue(selectedYears, value, setSelectedYears)}>
+                <Checkbox size="small" checked={selectedYears.includes(value)} />
+                {value}
+              </MenuItem>
+            ))}
+          </Menu>
+          <Divider sx={{ my: 1.2 }} />
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
             <Stack direction="row" spacing={0.8}>
@@ -675,13 +841,24 @@ function SearchResultsPage({
           </Stack>
           <Divider sx={{ my: 1.2 }} />
           <ResultsGrid
-            rows={filtered}
+            rows={pagedRows}
             selectedId={selectedId}
             onSelect={(row) => {
               setSelectedId(row.id);
               onNavigate(routeForSearchResult(row));
             }}
           />
+          {filtered.length > resultsPageSize ? (
+            <Stack direction="row" justifyContent="center" sx={{ mt: 1.4 }}>
+              <Pagination
+                count={pageCount}
+                page={resultsPage}
+                onChange={(_e, page) => setResultsPage(page)}
+                shape="rounded"
+                color="primary"
+              />
+            </Stack>
+          ) : null}
         </CardContent></Card>
       </Stack>
       <IQModeDrawer
@@ -690,12 +867,6 @@ function SearchResultsPage({
         seedQuery={iqSeedQuery}
         topMatch={selectedVariant?.title}
         alternates={selectedVariant ? [selectedVariant.subtitle, selectedVariant.model, selectedVariant.pattern] : undefined}
-      />
-      <GlobalStatisticsDialog
-        open={globalStatsOpen}
-        onClose={() => setGlobalStatsOpen(false)}
-        gloves={gloves}
-        sales={sales}
       />
     </Container>
   );
