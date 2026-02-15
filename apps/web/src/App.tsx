@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
+import type { SearchResult, VariantProfileRecord, GloveProfileRecord } from "./data/search-mocks";
+import { MOCK_SEARCH_RESULTS } from "./data/search-mocks";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
 import { buildAppTheme, type AppThemeMode } from "./ui/theme";
@@ -41,6 +43,7 @@ import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import CloseIcon from "@mui/icons-material/Close";
 import SecurityIcon from "@mui/icons-material/Security";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -71,6 +74,8 @@ type Route =
   | { name: "appraisal" }
   | { name: "account" }
   | { name: "artifactDetail"; artifactId: string }
+  | { name: "variantProfile"; variantId: string }
+  | { name: "gloveProfile"; gloveId: string }
   | { name: "pricing" };
 
 function money(n: number | null | undefined) {
@@ -86,10 +91,35 @@ function confidenceBandFromScore(score: number): "Low" | "Medium" | "High" {
 }
 
 function routeToTab(route: Route): MainTab {
-  if (route.name === "artifacts" || route.name === "artifactDetail") return "artifact";
+  if (route.name === "artifacts" || route.name === "artifactDetail" || route.name === "variantProfile" || route.name === "gloveProfile") return "artifact";
   if (route.name === "appraisal") return "appraisal";
   if (route.name === "account") return "account";
   return route.name;
+}
+
+function routeFromPath(pathname: string): Route {
+  if (pathname.startsWith("/variants/")) return { name: "variantProfile", variantId: decodeURIComponent(pathname.replace("/variants/", "")) };
+  if (pathname.startsWith("/gloves/")) return { name: "gloveProfile", gloveId: decodeURIComponent(pathname.replace("/gloves/", "")) };
+  if (pathname === "/artifacts") return { name: "artifacts" };
+  if (pathname === "/appraisal") return { name: "appraisal" };
+  if (pathname === "/account") return { name: "account" };
+  if (pathname === "/pricing") return { name: "pricing" };
+  return { name: "search" };
+}
+
+function pathFromRoute(route: Route): string {
+  if (route.name === "variantProfile") return `/variants/${encodeURIComponent(route.variantId)}`;
+  if (route.name === "gloveProfile") return `/gloves/${encodeURIComponent(route.gloveId)}`;
+  if (route.name === "artifacts") return "/artifacts";
+  if (route.name === "appraisal") return "/appraisal";
+  if (route.name === "account") return "/account";
+  if (route.name === "pricing") return "/pricing";
+  return "/search";
+}
+
+function routeForSearchResult(record: SearchResult): Route {
+  if (record.record_type === "variant") return { name: "variantProfile", variantId: record.id };
+  return { name: "gloveProfile", gloveId: record.id };
 }
 
 const PAGE_CONTAINER_SX = {
@@ -178,6 +208,388 @@ type BrandHierarchyNode = {
   details: { company: string; contact: string };
   families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
 };
+
+function SearchHeader({
+  value,
+  onChange,
+  onSearch,
+  onOpenIq,
+  suggestions,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSearch: () => void;
+  onOpenIq: () => void;
+  suggestions: string[];
+}) {
+  return (
+    <Stack spacing={1.25} sx={{ alignItems: "center", maxWidth: 920, mx: "auto", width: "100%" }}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.1} sx={{ width: "100%" }}>
+        <Autocomplete
+          freeSolo
+          options={suggestions}
+          value={value}
+          onInputChange={(_, v) => onChange(v)}
+          sx={{ flex: 1 }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="Search gloves, variants, patterns..."
+              onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 999,
+                  height: 56,
+                  backgroundColor: "background.paper",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+                },
+              }}
+            />
+          )}
+        />
+        <Button onClick={onSearch} startIcon={<SearchIcon />} sx={{ borderRadius: 999, px: 2.1 }}>Search</Button>
+        <Button onClick={onOpenIq} sx={{ borderRadius: 999, px: 2.1 }}>IQ Mode</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+function IdentifierModal({
+  open,
+  onClose,
+  record,
+}: {
+  open: boolean;
+  onClose: () => void;
+  record: VariantProfileRecord | null;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <Box sx={{ p: 1.4 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Identifier</Typography>
+          <Button onClick={onClose} startIcon={<CloseIcon />}>Close</Button>
+        </Stack>
+        <Divider sx={{ my: 1.2 }} />
+        {record ? (
+          <Stack spacing={0.9}>
+            <Typography sx={{ fontWeight: 800 }}>{record.title}</Typography>
+            <Typography variant="body2" color="text.secondary">{record.subtitle}</Typography>
+            <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
+              {[record.brand, record.model, record.pattern, record.hand, record.throwSide, record.size, record.web, record.year ? String(record.year) : ""]
+                .filter(Boolean)
+                .map((v) => <Chip key={v} size="small" label={v} />)}
+            </Stack>
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">No variant selected yet.</Typography>
+        )}
+      </Box>
+    </Dialog>
+  );
+}
+
+function ResultsGrid({
+  rows,
+  selectedId,
+  onSelect,
+}: {
+  rows: SearchResult[];
+  selectedId: string | null;
+  onSelect: (row: SearchResult) => void;
+}) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(3,minmax(0,1fr))" }, gap: 1.2 }}>
+      {rows.map((row) => (
+        <Box
+          key={row.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(row)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row); } }}
+          sx={{
+            p: 1.2,
+            border: "1px solid",
+            borderColor: selectedId === row.id ? "primary.main" : "divider",
+            borderRadius: 2,
+            backgroundColor: selectedId === row.id ? alpha("#0A84FF", 0.14) : "transparent",
+            cursor: "pointer",
+          }}
+        >
+          <Box component="img" src={row.thumbnail || glovePlaceholderImage} alt={row.title} sx={{ width: "100%", height: 126, borderRadius: 1.3, objectFit: "cover", border: "1px solid", borderColor: "divider", mb: 0.9 }} />
+          <Typography sx={{ fontWeight: 800 }} noWrap>{row.title}</Typography>
+          <Typography variant="body2" color="text.secondary" noWrap>{row.subtitle}</Typography>
+          <Stack direction="row" spacing={0.65} sx={{ mt: 0.8, flexWrap: "wrap" }}>
+            {row.chips.map((chip) => <Chip key={`${row.id}-${chip}`} size="small" label={chip} sx={FIGMA_TAG_BASE_SX} />)}
+          </Stack>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function DashboardLayout({
+  left,
+  currentListings,
+  conditionImpact,
+  originMap,
+  salesHistory,
+}: {
+  left: React.ReactNode;
+  currentListings: React.ReactNode;
+  conditionImpact: React.ReactNode;
+  originMap: React.ReactNode;
+  salesHistory: React.ReactNode;
+}) {
+  return (
+    <Stack spacing={1.5}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.45fr 1fr" }, gap: 1.5 }}>
+        {left}
+        <Stack spacing={1.5}>
+          {currentListings}
+          {conditionImpact}
+        </Stack>
+      </Box>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
+        {originMap}
+        {salesHistory}
+      </Box>
+    </Stack>
+  );
+}
+
+function CurrentListings({ rows }: { rows: Array<{ label: string; price: number; href?: string | null }> }) {
+  return (
+    <Card><CardContent>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Current for Sale</Typography>
+      <Divider sx={{ my: 1.2 }} />
+      <Stack spacing={0.9}>
+        {rows.map((row, idx) => (
+          <Box key={`${row.label}-${idx}`} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.4 }}>
+            <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
+              <Typography variant="body2">{row.label}</Typography>
+              <Stack direction="row" spacing={0.8} alignItems="center">
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>{money(row.price)}</Typography>
+                {row.href ? <Button onClick={() => window.open(row.href!, "_blank", "noopener,noreferrer")} sx={FIGMA_OPEN_BUTTON_SX}>Open</Button> : null}
+              </Stack>
+            </Stack>
+          </Box>
+        ))}
+        {rows.length === 0 ? <Typography variant="body2" color="text.secondary">No active listings.</Typography> : null}
+      </Stack>
+    </CardContent></Card>
+  );
+}
+
+function ConditionPriceImpact({ conditionScore }: { conditionScore: number | null | undefined }) {
+  const score = typeof conditionScore === "number" ? Math.max(0, Math.min(1, conditionScore)) : 0.65;
+  const delta = Math.round((score - 0.7) * 120);
+  return (
+    <Card><CardContent>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Condition Scale / Price Effect</Typography>
+      <Divider sx={{ my: 1.2 }} />
+      <Typography variant="body2" color="text.secondary">Condition score: {score.toFixed(2)}</Typography>
+      <Slider value={Math.round(score * 100)} min={0} max={100} marks />
+      <Typography variant="caption" color="text.secondary">
+        Estimated effect: {delta >= 0 ? "+" : ""}{delta}% vs median comp.
+      </Typography>
+    </CardContent></Card>
+  );
+}
+
+function OriginMap({ madeIn }: { madeIn?: string | null }) {
+  return (
+    <Card><CardContent>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Manufacture Origin Map</Typography>
+      <Divider sx={{ my: 1.2 }} />
+      <Box sx={{ p: 1.2, border: "1px dashed", borderColor: "divider", borderRadius: 1.4, minHeight: 170, display: "grid", placeItems: "center" }}>
+        <Typography variant="body2" color="text.secondary">[Map Placeholder] Origin: {madeIn || "Unknown"}</Typography>
+      </Box>
+    </CardContent></Card>
+  );
+}
+
+function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; timeToSellDays?: number }> }) {
+  return (
+    <Card><CardContent>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales History</Typography>
+      <Divider sx={{ my: 1.2 }} />
+      <Stack spacing={0.8}>
+        {rows.slice(0, 10).map((row, idx) => (
+          <Box key={`${row.date}-${idx}`} sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
+            <Typography variant="body2">{row.date} • {money(row.price)}</Typography>
+            {typeof row.timeToSellDays === "number" ? <Typography variant="caption" color="text.secondary">Time to sell: {row.timeToSellDays} days</Typography> : null}
+          </Box>
+        ))}
+        {rows.length === 0 ? <Typography variant="body2" color="text.secondary">No sales yet.</Typography> : null}
+      </Stack>
+    </CardContent></Card>
+  );
+}
+
+function SearchResultsPage({
+  variants,
+  gloves,
+  sales,
+  onNavigate,
+}: {
+  variants: VariantRecord[];
+  gloves: Artifact[];
+  sales: SaleRecord[];
+  onNavigate: (route: Route) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [iqOpen, setIqOpen] = useState(false);
+
+  const rows = useMemo<SearchResult[]>(() => {
+    const variantRows: SearchResult[] = variants.slice(0, 80).map((v) => ({
+      id: v.variant_id,
+      record_type: "variant",
+      title: v.display_name,
+      subtitle: `${v.brand_key} • ${v.model_code || "model n/a"}`,
+      chips: [v.brand_key, v.model_code || "—", v.web || "web ?", v.made_in || "origin ?", String(v.year || "")].filter(Boolean),
+    }));
+    const gloveRows: SearchResult[] = gloves.slice(0, 120).map((g) => ({
+      id: g.id,
+      record_type: "glove",
+      title: g.model_code || g.id,
+      subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
+      chips: [g.brand_key || "Unknown", g.model_code || "—", g.position || "position ?", g.size_in ? String(g.size_in) : "size ?", g.source || ""].filter(Boolean),
+      thumbnail: g.photos?.[0]?.url,
+    }));
+    const merged = [...variantRows, ...gloveRows];
+    if (!merged.length) return MOCK_SEARCH_RESULTS;
+    return merged;
+  }, [variants, gloves]);
+
+  const suggestions = useMemo(() => rows.map((r) => r.title).slice(0, 80), [rows]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q));
+  }, [query, rows]);
+
+  const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
+    const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
+    if (!selected) return null;
+    return {
+      id: selected.variant_id,
+      title: selected.display_name,
+      subtitle: `${selected.brand_key} • ${selected.variant_id}`,
+      brand: selected.brand_key,
+      model: selected.model_code || "Unknown",
+      pattern: selected.pattern_id || "Unknown",
+      hand: selected.variant_label || "Unknown",
+      size: "Unknown",
+      web: selected.web || "Unknown",
+      throwSide: "UNK",
+      year: selected.year,
+    };
+  }, [selectedId, variants]);
+
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <Stack spacing={2}>
+        <SearchHeader
+          value={query}
+          onChange={setQuery}
+          onSearch={() => {}}
+          onOpenIq={() => setIqOpen(true)}
+          suggestions={suggestions}
+        />
+        <Card><CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
+            <Chip label={`${filtered.length} records`} />
+          </Stack>
+          <Divider sx={{ my: 1.2 }} />
+          <ResultsGrid
+            rows={filtered}
+            selectedId={selectedId}
+            onSelect={(row) => {
+              setSelectedId(row.id);
+              onNavigate(routeForSearchResult(row));
+            }}
+          />
+        </CardContent></Card>
+      </Stack>
+      <IdentifierModal open={iqOpen} onClose={() => setIqOpen(false)} record={selectedVariant} />
+    </Container>
+  );
+}
+
+function VariantProfilePage({
+  variant,
+  relatedGloves,
+  sales,
+}: {
+  variant: VariantRecord;
+  relatedGloves: Artifact[];
+  sales: SaleRecord[];
+}) {
+  const listingRows = relatedGloves.filter((g) => g.listing_url).slice(0, 10).map((g) => ({ label: g.id, price: Number(g.valuation_estimate || 0), href: g.listing_url }));
+  const salesRows = sales.filter((s) => s.variant_id === variant.variant_id).slice(0, 10).map((s) => ({ date: s.sale_date, price: s.price_usd, timeToSellDays: 6 + (parseInt((s.sale_id || "0").replace(/\D/g, "").slice(-4) || "17", 10) % 70) }));
+
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <DashboardLayout
+        left={
+          <Card><CardContent>
+            <Typography variant="overline" color="text.secondary">Variant Profile</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>{variant.display_name}</Typography>
+            <Typography variant="body2" color="text.secondary">{variant.brand_key} • {variant.variant_id} • {variant.model_code || "model n/a"}</Typography>
+            <Stack direction="row" spacing={0.7} sx={{ mt: 1.1, flexWrap: "wrap" }}>
+              {[variant.brand_key, variant.model_code || "—", variant.pattern_id || "—", variant.web || "—", variant.leather || "—", variant.made_in || "—", String(variant.year || "")]
+                .filter(Boolean)
+                .map((chip) => <Chip key={chip} size="small" label={chip} />)}
+            </Stack>
+          </CardContent></Card>
+        }
+        currentListings={<CurrentListings rows={listingRows} />}
+        conditionImpact={<ConditionPriceImpact conditionScore={relatedGloves[0]?.condition_score} />}
+        originMap={<OriginMap madeIn={variant.made_in} />}
+        salesHistory={<SalesHistory rows={salesRows} />}
+      />
+    </Container>
+  );
+}
+
+function GloveProfilePage({
+  glove,
+  relatedVariants,
+  sales,
+}: {
+  glove: Artifact;
+  relatedVariants: VariantRecord[];
+  sales: SaleRecord[];
+}) {
+  const listingRows = [glove].filter((g) => g.listing_url).map((g) => ({ label: g.id, price: Number(g.valuation_estimate || 0), href: g.listing_url }));
+  const variantIds = new Set(relatedVariants.map((v) => v.variant_id));
+  const salesRows = sales.filter((s) => variantIds.has(s.variant_id)).slice(0, 10).map((s) => ({ date: s.sale_date, price: s.price_usd, timeToSellDays: 6 + (parseInt((s.sale_id || "0").replace(/\D/g, "").slice(-4) || "17", 10) % 70) }));
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <DashboardLayout
+        left={
+          <Card><CardContent>
+            <Typography variant="overline" color="text.secondary">Glove Profile</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>{glove.model_code || glove.id}</Typography>
+            <Typography variant="body2" color="text.secondary">{glove.brand_key || "Unknown"} • {glove.id}</Typography>
+            <Stack direction="row" spacing={0.7} sx={{ mt: 1.1, flexWrap: "wrap" }}>
+              {[glove.brand_key || "Unknown", glove.model_code || "—", glove.position || "—", glove.size_in ? String(glove.size_in) : "—", glove.source || "—"]
+                .filter(Boolean)
+                .map((chip) => <Chip key={chip} size="small" label={chip} />)}
+            </Stack>
+          </CardContent></Card>
+        }
+        currentListings={<CurrentListings rows={listingRows} />}
+        conditionImpact={<ConditionPriceImpact conditionScore={glove.condition_score} />}
+        originMap={<OriginMap madeIn={glove.made_in} />}
+        salesHistory={<SalesHistory rows={salesRows} />}
+      />
+    </Container>
+  );
+}
 
 function SearchScreen({
   locale,
@@ -3739,16 +4151,22 @@ export default function App() {
   });
   const appTheme = useMemo(() => buildAppTheme(colorMode), [colorMode]);
   const [locale, setLocale] = useState<Locale>("en");
-  const [route, setRoute] = useState<Route>({ name: "search" });
+  const [route, setRoute] = useState<Route>(() => routeFromPath(window.location.pathname || "/search"));
   const [brands, setBrands] = useState<BrandConfig[]>([]);
   const [families, setFamilies] = useState<FamilyRecord[]>([]);
   const [patterns, setPatterns] = useState<PatternRecord[]>([]);
+  const [variants, setVariants] = useState<VariantRecord[]>([]);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [gloves, setGloves] = useState<Artifact[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
   useEffect(() => { api.families().then(setFamilies).catch(() => setFamilies([])); }, []);
   useEffect(() => { api.patterns().then(setPatterns).catch(() => setPatterns([])); }, []);
+  useEffect(() => { api.variants().then(setVariants).catch(() => setVariants([])); }, []);
+  useEffect(() => { api.sales().then(setSales).catch(() => setSales([])); }, []);
+  useEffect(() => { api.artifacts(undefined, { photoMode: "hero" }).then(setGloves).catch(() => setGloves([])); }, []);
   useEffect(() => {
     window.localStorage.setItem("gloveiq-theme-mode", colorMode);
   }, [colorMode]);
@@ -3760,6 +4178,15 @@ export default function App() {
       setArtifact(null);
     }
   }, [route]);
+  useEffect(() => {
+    const target = pathFromRoute(route);
+    if (window.location.pathname !== target) window.history.pushState({}, "", target);
+  }, [route]);
+  useEffect(() => {
+    const onPop = () => setRoute(routeFromPath(window.location.pathname || "/search"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const activeTab = routeToTab(route);
 
@@ -3832,12 +4259,11 @@ export default function App() {
                         }}
                       />
                     ) : route.name === "artifacts" ? (
-                      <ArtifactsScreen
-                        locale={locale}
-                        onOpenArtifact={(id) => {
-                          setLastArtifactId(id);
-                          setRoute({ name: "artifactDetail", artifactId: id });
-                        }}
+                      <SearchResultsPage
+                        variants={variants}
+                        gloves={gloves}
+                        sales={sales}
+                        onNavigate={(next) => setRoute(next)}
                       />
                     ) : route.name === "appraisal" ? (
                       <AppraisalScreen locale={locale} />
@@ -3855,6 +4281,38 @@ export default function App() {
                           </CardContent></Card>
                         </Container>
                       )
+                    ) : route.name === "variantProfile" ? (
+                      (() => {
+                        const found = variants.find((v) => v.variant_id === route.variantId);
+                        if (!found) {
+                          return (
+                            <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                              <Card><CardContent>
+                                <Typography sx={{ fontWeight: 900 }}>Variant not found</Typography>
+                                <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                              </CardContent></Card>
+                            </Container>
+                          );
+                        }
+                        const related = gloves.filter((g) => String(g.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                        return <VariantProfilePage variant={found} relatedGloves={related} sales={sales} />;
+                      })()
+                    ) : route.name === "gloveProfile" ? (
+                      (() => {
+                        const found = gloves.find((g) => g.id === route.gloveId);
+                        if (!found) {
+                          return (
+                            <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                              <Card><CardContent>
+                                <Typography sx={{ fontWeight: 900 }}>Glove not found</Typography>
+                                <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                              </CardContent></Card>
+                            </Container>
+                          );
+                        }
+                        const related = variants.filter((v) => String(v.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                        return <GloveProfilePage glove={found} relatedVariants={related} sales={sales} />;
+                      })()
                     ) : (
                       <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
                     )}
