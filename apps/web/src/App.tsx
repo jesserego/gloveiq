@@ -8,6 +8,8 @@ import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
 import { buildAppTheme, type AppThemeMode } from "./ui/theme";
 import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
+import GloveSearchBar, { type GloveShortcut } from "./components/GloveSearchBar";
+import IQModeDrawer from "./components/IQModeDrawer";
 
 import {
   Alert,
@@ -21,10 +23,7 @@ import {
   Dialog,
   FormControl,
   FormControlLabel,
-  IconButton,
-  InputAdornment,
   LinearProgress,
-  Menu,
   MenuItem,
   Pagination,
   Select,
@@ -52,8 +51,6 @@ import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
-import PublicIcon from "@mui/icons-material/Public";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -124,6 +121,7 @@ function pathFromRoute(route: Route): string {
 
 function routeForSearchResult(record: SearchResult): Route {
   if (record.record_type === "variant") return { name: "variantProfile", variantId: record.id };
+  if (record.record_type === "artifact") return { name: "gloveProfile", gloveId: record.id };
   return { name: "gloveProfile", gloveId: record.id };
 }
 
@@ -214,177 +212,12 @@ type BrandHierarchyNode = {
   families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
 };
 
-function SearchHeader({
-  value,
-  onChange,
-  onSearch,
-  onOpenIq,
-  onOpenGlobalStats,
-  manufacturers,
-  selectedManufacturer,
-  onSelectManufacturer,
-  suggestions,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onSearch: () => void;
-  onOpenIq: () => void;
-  onOpenGlobalStats: () => void;
-  manufacturers: string[];
-  selectedManufacturer: string;
-  onSelectManufacturer: (manufacturer: string) => void;
-  suggestions: string[];
-}) {
-  const [manufacturerAnchor, setManufacturerAnchor] = useState<HTMLElement | null>(null);
-
-  return (
-    <Stack spacing={1.3} sx={{ alignItems: "center", maxWidth: 760, mx: "auto", width: "100%" }}>
-      <Autocomplete
-        freeSolo
-        options={suggestions}
-        value={value}
-        onInputChange={(_, v) => onChange(v)}
-        sx={{ width: "100%" }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            placeholder="Paste listing link, model, or artifact"
-            onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "999px",
-                minHeight: 52,
-                backgroundColor: alpha("#ffffff", 0.02),
-                border: "1px solid",
-                borderColor: alpha("#ffffff", 0.22),
-                boxShadow: `0 1px 6px ${alpha("#000", 0.35)}`,
-                transition: "box-shadow .16s ease, border-color .16s ease",
-                "&:hover": {
-                  boxShadow: `0 2px 10px ${alpha("#000", 0.45)}`,
-                  borderColor: alpha("#ffffff", 0.35),
-                },
-                "&.Mui-focused": {
-                  boxShadow: `0 2px 10px ${alpha("#000", 0.45)}`,
-                  borderColor: alpha("#ffffff", 0.35),
-                },
-              },
-              "& .MuiOutlinedInput-input": { py: 1.35, fontSize: 16 },
-            }}
-            InputProps={{
-              ...params.InputProps,
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: alpha("#fff", 0.72) }} />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <Stack direction="row" spacing={0.15} sx={{ pr: 0.5, alignItems: "center" }}>
-                  <Tooltip title={selectedManufacturer ? `Manufacturer: ${selectedManufacturer}` : "Select manufacturer"}>
-                    <IconButton
-                      size="small"
-                      onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
-                      aria-label="Select manufacturer"
-                    >
-                      <SportsBaseballIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Open global baseball statistics">
-                    <IconButton size="small" onClick={onOpenGlobalStats} aria-label="Open global baseball statistics">
-                      <PublicIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  {params.InputProps.endAdornment}
-                </Stack>
-              ),
-            }}
-          />
-        )}
-      />
-      <Stack direction="row" spacing={1} sx={{ justifyContent: "center", width: "100%" }}>
-        <Button
-          onClick={onSearch}
-          sx={{
-            borderRadius: 2,
-            minWidth: 128,
-            px: 2,
-            height: 36,
-            bgcolor: alpha("#fff", 0.06),
-            border: "1px solid",
-            borderColor: alpha("#fff", 0.08),
-            "&:hover": { bgcolor: alpha("#fff", 0.1), borderColor: alpha("#fff", 0.18) },
-          }}
-        >
-          Search
-        </Button>
-        <Button
-          onClick={onOpenIq}
-          sx={{
-            borderRadius: 2,
-            minWidth: 128,
-            px: 2,
-            height: 36,
-            bgcolor: alpha("#fff", 0.06),
-            border: "1px solid",
-            borderColor: alpha("#fff", 0.08),
-            "&:hover": { bgcolor: alpha("#fff", 0.1), borderColor: alpha("#fff", 0.18) },
-          }}
-        >
-          IQ Mode
-        </Button>
-      </Stack>
-      <Menu
-        anchorEl={manufacturerAnchor}
-        open={Boolean(manufacturerAnchor)}
-        onClose={() => setManufacturerAnchor(null)}
-      >
-        <MenuItem onClick={() => { onSelectManufacturer(""); setManufacturerAnchor(null); }}>All manufacturers</MenuItem>
-        {manufacturers.map((name) => (
-          <MenuItem
-            key={name}
-            selected={selectedManufacturer === name}
-            onClick={() => { onSelectManufacturer(name); setManufacturerAnchor(null); }}
-          >
-            {name}
-          </MenuItem>
-        ))}
-      </Menu>
-    </Stack>
-  );
-}
-
-function IdentifierModal({
-  open,
-  onClose,
-  record,
-}: {
-  open: boolean;
-  onClose: () => void;
-  record: VariantProfileRecord | null;
-}) {
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <Box sx={{ p: 1.4 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Identifier</Typography>
-          <Button onClick={onClose} startIcon={<CloseIcon />}>Close</Button>
-        </Stack>
-        <Divider sx={{ my: 1.2 }} />
-        {record ? (
-          <Stack spacing={0.9}>
-            <Typography sx={{ fontWeight: 800 }}>{record.title}</Typography>
-            <Typography variant="body2" color="text.secondary">{record.subtitle}</Typography>
-            <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
-              {[record.brand, record.model, record.pattern, record.hand, record.throwSide, record.size, record.web, record.year ? String(record.year) : ""]
-                .filter(Boolean)
-                .map((v) => <Chip key={v} size="small" label={v} />)}
-            </Stack>
-          </Stack>
-        ) : (
-          <Typography variant="body2" color="text.secondary">No variant selected yet.</Typography>
-        )}
-      </Box>
-    </Dialog>
-  );
+function inferSearchIntent(query: string): "listing" | "catalog" {
+  const q = query.trim().toLowerCase();
+  if (!q) return "catalog";
+  if (q.startsWith("http://") || q.startsWith("https://")) return "listing";
+  if (q.includes("sideline") || q.includes("ebay") || q.includes("justballgloves") || q.includes("jbg")) return "listing";
+  return "catalog";
 }
 
 function ResultsGrid({
@@ -748,13 +581,9 @@ function SearchResultsPage({
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [iqOpen, setIqOpen] = useState(false);
+  const [iqSeedQuery, setIqSeedQuery] = useState("");
   const [globalStatsOpen, setGlobalStatsOpen] = useState(false);
-  const [selectedManufacturer, setSelectedManufacturer] = useState("");
-
-  const manufacturers = useMemo(
-    () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
-    [],
-  );
+  const [searchIntent, setSearchIntent] = useState<"listing" | "catalog">("catalog");
 
   const rows = useMemo<SearchResult[]>(() => {
     const variantRows: SearchResult[] = variants.slice(0, 80).map((v) => ({
@@ -766,7 +595,7 @@ function SearchResultsPage({
     }));
     const gloveRows: SearchResult[] = gloves.slice(0, 120).map((g) => ({
       id: g.id,
-      record_type: "glove",
+      record_type: "artifact",
       title: g.model_code || g.id,
       subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
       chips: [g.brand_key || "Unknown", g.model_code || "—", g.position || "position ?", g.size_in ? String(g.size_in) : "size ?", g.source || ""].filter(Boolean),
@@ -777,16 +606,11 @@ function SearchResultsPage({
     return merged;
   }, [variants, gloves]);
 
-  const suggestions = useMemo(() => rows.map((r) => r.title).slice(0, 80), [rows]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      const manufacturerMatches = !selectedManufacturer || `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(selectedManufacturer.toLowerCase());
-      if (!manufacturerMatches) return false;
-      if (!q) return true;
-      return `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q);
-    });
-  }, [query, rows, selectedManufacturer]);
+    if (!q) return rows;
+    return rows.filter((r) => `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q));
+  }, [query, rows]);
 
   const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
     const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
@@ -806,24 +630,55 @@ function SearchResultsPage({
     };
   }, [selectedId, variants]);
 
+  const shortcuts = useMemo<GloveShortcut[]>(
+    () => [
+      { id: "global-stats", label: "Global Stats", initials: "GS", onClick: () => setGlobalStatsOpen(true) },
+      {
+        id: "rawlings",
+        label: "Rawlings",
+        imageUrl: "https://logo.clearbit.com/rawlings.com",
+        initials: "R",
+        onClick: () => setQuery("Rawlings"),
+      },
+      {
+        id: "wilson",
+        label: "Wilson",
+        imageUrl: "https://logo.clearbit.com/wilson.com",
+        initials: "W",
+        onClick: () => setQuery("Wilson"),
+      },
+    ],
+    [],
+  );
+
+  function handleSearch(nextQuery: string) {
+    const normalized = nextQuery.trim();
+    setQuery(nextQuery);
+    setSearchIntent(inferSearchIntent(normalized));
+  }
+
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
-        <SearchHeader
+        <GloveSearchBar
           value={query}
           onChange={setQuery}
-          onSearch={() => {}}
-          onOpenIq={() => setIqOpen(true)}
-          onOpenGlobalStats={() => setGlobalStatsOpen(true)}
-          manufacturers={manufacturers}
-          selectedManufacturer={selectedManufacturer}
-          onSelectManufacturer={setSelectedManufacturer}
-          suggestions={suggestions}
+          onSearch={handleSearch}
+          onIQMode={(seed) => {
+            setIqSeedQuery(seed);
+            setIqOpen(true);
+          }}
+          onVoice={() => setIqSeedQuery(query)}
+          onImage={() => setIqOpen(true)}
+          shortcuts={shortcuts}
         />
         <Card><CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
-            <Chip label={`${filtered.length} records`} />
+            <Stack direction="row" spacing={0.8}>
+              <Chip label={`${filtered.length} records`} />
+              <Chip size="small" label={searchIntent === "listing" ? "Listing lookup" : "Catalog search"} />
+            </Stack>
           </Stack>
           <Divider sx={{ my: 1.2 }} />
           <ResultsGrid
@@ -836,7 +691,13 @@ function SearchResultsPage({
           />
         </CardContent></Card>
       </Stack>
-      <IdentifierModal open={iqOpen} onClose={() => setIqOpen(false)} record={selectedVariant} />
+      <IQModeDrawer
+        open={iqOpen}
+        onClose={() => setIqOpen(false)}
+        seedQuery={iqSeedQuery}
+        topMatch={selectedVariant?.title}
+        alternates={selectedVariant ? [selectedVariant.subtitle, selectedVariant.model, selectedVariant.pattern] : undefined}
+      />
       <GlobalStatisticsDialog
         open={globalStatsOpen}
         onClose={() => setGlobalStatsOpen(false)}
