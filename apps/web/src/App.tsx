@@ -21,7 +21,10 @@ import {
   Dialog,
   FormControl,
   FormControlLabel,
+  IconButton,
+  InputAdornment,
   LinearProgress,
+  Menu,
   MenuItem,
   Pagination,
   Select,
@@ -49,6 +52,8 @@ import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
+import PublicIcon from "@mui/icons-material/Public";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -214,16 +219,26 @@ function SearchHeader({
   onChange,
   onSearch,
   onOpenIq,
+  onOpenGlobalStats,
+  manufacturers,
+  selectedManufacturer,
+  onSelectManufacturer,
   suggestions,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSearch: () => void;
   onOpenIq: () => void;
+  onOpenGlobalStats: () => void;
+  manufacturers: string[];
+  selectedManufacturer: string;
+  onSelectManufacturer: (manufacturer: string) => void;
   suggestions: string[];
 }) {
+  const [manufacturerAnchor, setManufacturerAnchor] = useState<HTMLElement | null>(null);
+
   return (
-    <Stack spacing={1.25} sx={{ alignItems: "center", maxWidth: 920, mx: "auto", width: "100%" }}>
+    <Stack spacing={1.1} sx={{ alignItems: "center", maxWidth: 960, mx: "auto", width: "100%" }}>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.1} sx={{ width: "100%" }}>
         <Autocomplete
           freeSolo
@@ -234,22 +249,76 @@ function SearchHeader({
           renderInput={(params) => (
             <TextField
               {...params}
-              placeholder="Search gloves, variants, patterns..."
+              placeholder="Paste listing link, model, or artifact"
               onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
               sx={{
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 999,
-                  height: 56,
+                  minHeight: 58,
                   backgroundColor: "background.paper",
-                  boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+                  border: "1px solid",
+                  borderColor: alpha("#ffffff", 0.18),
+                  boxShadow: `0 2px 8px ${alpha("#000", 0.38)}`,
+                  transition: "box-shadow .16s ease, border-color .16s ease",
+                  "&:hover": {
+                    boxShadow: `0 3px 12px ${alpha("#000", 0.48)}`,
+                    borderColor: alpha("#ffffff", 0.3),
+                  },
+                  "&.Mui-focused": {
+                    boxShadow: `0 3px 14px ${alpha("#000", 0.54)}`,
+                    borderColor: alpha("#0A84FF", 0.7),
+                  },
                 },
+                "& .MuiOutlinedInput-input": { py: 1.65, fontSize: 16 },
+              }}
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "text.secondary" }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <Stack direction="row" spacing={0.2} sx={{ pr: 0.6 }}>
+                    <Tooltip title={selectedManufacturer ? `Manufacturer: ${selectedManufacturer}` : "Select manufacturer"}>
+                      <IconButton
+                        size="small"
+                        onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
+                        aria-label="Select manufacturer"
+                      >
+                        <SportsBaseballIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Open global baseball statistics">
+                      <IconButton size="small" onClick={onOpenGlobalStats} aria-label="Open global baseball statistics">
+                        <PublicIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                ),
               }}
             />
           )}
         />
-        <Button onClick={onSearch} startIcon={<SearchIcon />} sx={{ borderRadius: 999, px: 2.1 }}>Search</Button>
         <Button onClick={onOpenIq} sx={{ borderRadius: 999, px: 2.1 }}>IQ Mode</Button>
+        <Button onClick={onSearch} startIcon={<SearchIcon />} sx={{ borderRadius: 999, px: 2.1 }}>Search</Button>
       </Stack>
+      <Menu
+        anchorEl={manufacturerAnchor}
+        open={Boolean(manufacturerAnchor)}
+        onClose={() => setManufacturerAnchor(null)}
+      >
+        <MenuItem onClick={() => { onSelectManufacturer(""); setManufacturerAnchor(null); }}>All manufacturers</MenuItem>
+        {manufacturers.map((name) => (
+          <MenuItem
+            key={name}
+            selected={selectedManufacturer === name}
+            onClick={() => { onSelectManufacturer(name); setManufacturerAnchor(null); }}
+          >
+            {name}
+          </MenuItem>
+        ))}
+      </Menu>
     </Stack>
   );
 }
@@ -427,6 +496,135 @@ function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; tim
   );
 }
 
+function SalesHeatmapWorldwide({
+  rows,
+}: {
+  rows: Array<{ country: string; salesCount: number; fill: string }>;
+}) {
+  return (
+    <Card><CardContent>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales Heatmap Worldwide</Typography>
+      <Divider sx={{ my: 1.2 }} />
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 0.8 }}>
+        {rows.map((row) => (
+          <Box
+            key={row.country}
+            sx={{
+              borderRadius: 1.1,
+              p: 0.9,
+              backgroundColor: row.fill,
+              minHeight: 66,
+              border: "1px solid",
+              borderColor: alpha("#ffffff", 0.12),
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>{row.country}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 800 }}>{row.salesCount}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </CardContent></Card>
+  );
+}
+
+function GlobalStatisticsDialog({
+  open,
+  onClose,
+  gloves,
+  sales,
+}: {
+  open: boolean;
+  onClose: () => void;
+  gloves: Artifact[];
+  sales: SaleRecord[];
+}) {
+  const byCountry = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const glove of gloves) {
+      const key = (glove.made_in || "Unknown").trim() || "Unknown";
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const total = Math.max(1, gloves.length);
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([country, count]) => ({ country, count, share: Math.round((count / total) * 100) }));
+  }, [gloves]);
+
+  const heatmap = useMemo(() => {
+    const rows = byCountry.slice(0, 8).map((row, idx) => ({
+      country: row.country,
+      salesCount: row.count,
+      fill: alpha("#0A84FF", 0.18 + idx * 0.06),
+    }));
+    if (rows.length >= 8) return rows;
+    return [...rows, ...["US-East", "US-West", "EU", "APAC"].slice(0, 8 - rows.length).map((country, idx) => ({
+      country,
+      salesCount: 20 + idx * 9,
+      fill: alpha("#0A84FF", 0.28 + idx * 0.06),
+    }))];
+  }, [byCountry]);
+
+  const salesRows = useMemo(
+    () => sales.slice(0, 10).map((s) => ({ date: s.sale_date, price: s.price_usd, timeToSellDays: 4 + (Number(s.price_usd) % 28) })),
+    [sales],
+  );
+
+  const currentForSaleRows = useMemo(
+    () => gloves.filter((g) => g.listing_url).slice(0, 8).map((g) => ({ label: `${g.brand_key || "Unknown"} ${g.model_code || g.id}`, price: Number(g.valuation_estimate || g.valuation_high || g.valuation_low || 0), href: g.listing_url })),
+    [gloves],
+  );
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+      <Box sx={{ p: 1.5 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Global Baseball Statistics</Typography>
+            <Typography variant="caption" color="text.secondary">Market intelligence overview by country of origin and sales behavior.</Typography>
+          </Stack>
+          <Button onClick={onClose} startIcon={<CloseIcon />}>Close</Button>
+        </Stack>
+        <Divider sx={{ my: 1.25 }} />
+        <DashboardLayout
+          left={(
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Global Market Share by Country of Origin</Typography>
+              <Divider sx={{ my: 1.2 }} />
+              <Stack spacing={0.9}>
+                {byCountry.map((row) => (
+                  <Box key={row.country}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2">{row.country}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.share}%</Typography>
+                    </Stack>
+                    <Box sx={{ mt: 0.4, height: 7, borderRadius: 999, backgroundColor: alpha("#ffffff", 0.1), overflow: "hidden" }}>
+                      <Box sx={{ width: `${row.share}%`, height: "100%", backgroundColor: "primary.main" }} />
+                    </Box>
+                  </Box>
+                ))}
+                {!byCountry.length ? <Typography variant="body2" color="text.secondary">No country-of-origin data available.</Typography> : null}
+              </Stack>
+            </CardContent></Card>
+          )}
+          currentListings={<CurrentListings rows={currentForSaleRows} />}
+          conditionImpact={<SalesHeatmapWorldwide rows={heatmap} />}
+          originMap={(
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Worldwide Listings Snapshot</Typography>
+              <Divider sx={{ my: 1.2 }} />
+              <Box sx={{ p: 1.2, borderRadius: 1.4, border: "1px dashed", borderColor: "divider", minHeight: 170, display: "grid", placeItems: "center" }}>
+                <Typography variant="body2" color="text.secondary">[Global map placeholder] Country and region listing density.</Typography>
+              </Box>
+            </CardContent></Card>
+          )}
+          salesHistory={<SalesHistory rows={salesRows} />}
+        />
+      </Box>
+    </Dialog>
+  );
+}
+
 function SearchResultsPage({
   variants,
   gloves,
@@ -441,6 +639,13 @@ function SearchResultsPage({
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [iqOpen, setIqOpen] = useState(false);
+  const [globalStatsOpen, setGlobalStatsOpen] = useState(false);
+  const [selectedManufacturer, setSelectedManufacturer] = useState("");
+
+  const manufacturers = useMemo(
+    () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
+    [],
+  );
 
   const rows = useMemo<SearchResult[]>(() => {
     const variantRows: SearchResult[] = variants.slice(0, 80).map((v) => ({
@@ -466,9 +671,13 @@ function SearchResultsPage({
   const suggestions = useMemo(() => rows.map((r) => r.title).slice(0, 80), [rows]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q));
-  }, [query, rows]);
+    return rows.filter((r) => {
+      const manufacturerMatches = !selectedManufacturer || `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(selectedManufacturer.toLowerCase());
+      if (!manufacturerMatches) return false;
+      if (!q) return true;
+      return `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q);
+    });
+  }, [query, rows, selectedManufacturer]);
 
   const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
     const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
@@ -496,6 +705,10 @@ function SearchResultsPage({
           onChange={setQuery}
           onSearch={() => {}}
           onOpenIq={() => setIqOpen(true)}
+          onOpenGlobalStats={() => setGlobalStatsOpen(true)}
+          manufacturers={manufacturers}
+          selectedManufacturer={selectedManufacturer}
+          onSelectManufacturer={setSelectedManufacturer}
           suggestions={suggestions}
         />
         <Card><CardContent>
@@ -515,6 +728,12 @@ function SearchResultsPage({
         </CardContent></Card>
       </Stack>
       <IdentifierModal open={iqOpen} onClose={() => setIqOpen(false)} record={selectedVariant} />
+      <GlobalStatisticsDialog
+        open={globalStatsOpen}
+        onClose={() => setGlobalStatsOpen(false)}
+        gloves={gloves}
+        sales={sales}
+      />
     </Container>
   );
 }
