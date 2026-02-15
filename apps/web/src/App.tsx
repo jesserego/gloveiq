@@ -584,6 +584,12 @@ function SearchResultsPage({
   const [iqSeedQuery, setIqSeedQuery] = useState("");
   const [globalStatsOpen, setGlobalStatsOpen] = useState(false);
   const [searchIntent, setSearchIntent] = useState<"listing" | "catalog">("catalog");
+  const [selectedManufacturer, setSelectedManufacturer] = useState("");
+
+  const manufacturers = useMemo(
+    () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
+    [],
+  );
 
   const rows = useMemo<SearchResult[]>(() => {
     const variantRows: SearchResult[] = variants.slice(0, 80).map((v) => ({
@@ -608,9 +614,14 @@ function SearchResultsPage({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase().includes(q));
-  }, [query, rows]);
+    return rows.filter((r) => {
+      const whole = `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase();
+      const manufacturerMatches = !selectedManufacturer || whole.includes(selectedManufacturer.toLowerCase());
+      if (!manufacturerMatches) return false;
+      if (!q) return true;
+      return whole.includes(q);
+    });
+  }, [query, rows, selectedManufacturer]);
 
   const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
     const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
@@ -670,6 +681,10 @@ function SearchResultsPage({
           }}
           onVoice={() => setIqSeedQuery(query)}
           onImage={() => setIqOpen(true)}
+          onGlobalStats={() => setGlobalStatsOpen(true)}
+          manufacturers={manufacturers}
+          selectedManufacturer={selectedManufacturer}
+          onSelectManufacturer={setSelectedManufacturer}
           shortcuts={shortcuts}
         />
         <Card><CardContent>

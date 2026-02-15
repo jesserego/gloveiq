@@ -17,6 +17,8 @@ import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import AddIcon from "@mui/icons-material/Add";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
+import PublicIcon from "@mui/icons-material/Public";
 
 export type GloveShortcut = {
   id: string;
@@ -34,6 +36,10 @@ type Props = {
   shortcuts: GloveShortcut[];
   onVoice?: () => void;
   onImage?: () => void;
+  manufacturers?: string[];
+  selectedManufacturer?: string;
+  onSelectManufacturer?: (manufacturer: string) => void;
+  onGlobalStats?: () => void;
 };
 
 function ShortcutItem({ shortcut }: { shortcut: GloveShortcut }) {
@@ -109,8 +115,13 @@ export default function GloveSearchBar({
   shortcuts,
   onVoice,
   onImage,
+  manufacturers = [],
+  selectedManufacturer = "",
+  onSelectManufacturer,
+  onGlobalStats,
 }: Props) {
   const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
+  const [manufacturerAnchor, setManufacturerAnchor] = useState<HTMLElement | null>(null);
 
   return (
     <Stack spacing={2.2} sx={{ width: "100%", maxWidth: 760, mx: "auto", alignItems: "center" }}>
@@ -171,6 +182,20 @@ export default function GloveSearchBar({
         </Box>
 
         <Stack direction="row" spacing={0.2} sx={{ alignItems: "center" }}>
+          <Tooltip title={selectedManufacturer ? `Manufacturer: ${selectedManufacturer}` : "Select manufacturer"}>
+            <IconButton
+              aria-label="Manufacturer"
+              onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
+              sx={{ display: { xs: "none", sm: "inline-flex" } }}
+            >
+              <SportsBaseballIcon sx={{ color: alpha("#fff", 0.78) }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Global baseball statistics">
+            <IconButton aria-label="Global stats" onClick={onGlobalStats} sx={{ display: { xs: "none", sm: "inline-flex" } }}>
+              <PublicIcon sx={{ color: alpha("#fff", 0.78) }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Voice search">
             <IconButton aria-label="Voice" onClick={onVoice} sx={{ display: { xs: "none", sm: "inline-flex" } }}>
               <MicNoneOutlinedIcon sx={{ color: alpha("#fff", 0.78) }} />
@@ -234,8 +259,27 @@ export default function GloveSearchBar({
       </Stack>
 
       <Menu anchorEl={moreAnchor} open={Boolean(moreAnchor)} onClose={() => setMoreAnchor(null)}>
+        <MenuItem onClick={() => { setManufacturerAnchor(moreAnchor); setMoreAnchor(null); }}>Manufacturers</MenuItem>
+        <MenuItem onClick={() => { onGlobalStats?.(); setMoreAnchor(null); }}>Global stats</MenuItem>
         <MenuItem onClick={() => { onVoice?.(); setMoreAnchor(null); }}>Voice</MenuItem>
         <MenuItem onClick={() => { onImage?.(); setMoreAnchor(null); }}>Image</MenuItem>
+      </Menu>
+      <Menu anchorEl={manufacturerAnchor} open={Boolean(manufacturerAnchor)} onClose={() => setManufacturerAnchor(null)}>
+        <MenuItem onClick={() => { onSelectManufacturer?.(""); setManufacturerAnchor(null); }}>
+          All manufacturers
+        </MenuItem>
+        {manufacturers.map((name) => (
+          <MenuItem
+            key={name}
+            selected={selectedManufacturer === name}
+            onClick={() => {
+              onSelectManufacturer?.(name);
+              setManufacturerAnchor(null);
+            }}
+          >
+            {name}
+          </MenuItem>
+        ))}
       </Menu>
     </Stack>
   );
