@@ -238,70 +238,99 @@ function SearchHeader({
   const [manufacturerAnchor, setManufacturerAnchor] = useState<HTMLElement | null>(null);
 
   return (
-    <Stack spacing={1.1} sx={{ alignItems: "center", maxWidth: 960, mx: "auto", width: "100%" }}>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.1} sx={{ width: "100%" }}>
-        <Autocomplete
-          freeSolo
-          options={suggestions}
-          value={value}
-          onInputChange={(_, v) => onChange(v)}
-          sx={{ flex: 1 }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              placeholder="Paste listing link, model, or artifact"
-              onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: 999,
-                  minHeight: 58,
-                  backgroundColor: "background.paper",
-                  border: "1px solid",
-                  borderColor: alpha("#ffffff", 0.18),
-                  boxShadow: `0 2px 8px ${alpha("#000", 0.38)}`,
-                  transition: "box-shadow .16s ease, border-color .16s ease",
-                  "&:hover": {
-                    boxShadow: `0 3px 12px ${alpha("#000", 0.48)}`,
-                    borderColor: alpha("#ffffff", 0.3),
-                  },
-                  "&.Mui-focused": {
-                    boxShadow: `0 3px 14px ${alpha("#000", 0.54)}`,
-                    borderColor: alpha("#0A84FF", 0.7),
-                  },
+    <Stack spacing={1.3} sx={{ alignItems: "center", maxWidth: 760, mx: "auto", width: "100%" }}>
+      <Autocomplete
+        freeSolo
+        options={suggestions}
+        value={value}
+        onInputChange={(_, v) => onChange(v)}
+        sx={{ width: "100%" }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder="Paste listing link, model, or artifact"
+            onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "999px",
+                minHeight: 52,
+                backgroundColor: alpha("#ffffff", 0.02),
+                border: "1px solid",
+                borderColor: alpha("#ffffff", 0.22),
+                boxShadow: `0 1px 6px ${alpha("#000", 0.35)}`,
+                transition: "box-shadow .16s ease, border-color .16s ease",
+                "&:hover": {
+                  boxShadow: `0 2px 10px ${alpha("#000", 0.45)}`,
+                  borderColor: alpha("#ffffff", 0.35),
                 },
-                "& .MuiOutlinedInput-input": { py: 1.65, fontSize: 16 },
-              }}
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: "text.secondary" }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <Stack direction="row" spacing={0.2} sx={{ pr: 0.6 }}>
-                    <Tooltip title={selectedManufacturer ? `Manufacturer: ${selectedManufacturer}` : "Select manufacturer"}>
-                      <IconButton
-                        size="small"
-                        onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
-                        aria-label="Select manufacturer"
-                      >
-                        <SportsBaseballIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Open global baseball statistics">
-                      <IconButton size="small" onClick={onOpenGlobalStats} aria-label="Open global baseball statistics">
-                        <PublicIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Stack>
-                ),
-              }}
-            />
-          )}
-        />
-        <Button onClick={onOpenIq} sx={{ borderRadius: 999, px: 2.1 }}>IQ Mode</Button>
-        <Button onClick={onSearch} startIcon={<SearchIcon />} sx={{ borderRadius: 999, px: 2.1 }}>Search</Button>
+                "&.Mui-focused": {
+                  boxShadow: `0 2px 10px ${alpha("#000", 0.45)}`,
+                  borderColor: alpha("#ffffff", 0.35),
+                },
+              },
+              "& .MuiOutlinedInput-input": { py: 1.35, fontSize: 16 },
+            }}
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: alpha("#fff", 0.72) }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <Stack direction="row" spacing={0.15} sx={{ pr: 0.5, alignItems: "center" }}>
+                  <Tooltip title={selectedManufacturer ? `Manufacturer: ${selectedManufacturer}` : "Select manufacturer"}>
+                    <IconButton
+                      size="small"
+                      onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
+                      aria-label="Select manufacturer"
+                    >
+                      <SportsBaseballIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Open global baseball statistics">
+                    <IconButton size="small" onClick={onOpenGlobalStats} aria-label="Open global baseball statistics">
+                      <PublicIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  {params.InputProps.endAdornment}
+                </Stack>
+              ),
+            }}
+          />
+        )}
+      />
+      <Stack direction="row" spacing={1} sx={{ justifyContent: "center", width: "100%" }}>
+        <Button
+          onClick={onSearch}
+          sx={{
+            borderRadius: 2,
+            minWidth: 128,
+            px: 2,
+            height: 36,
+            bgcolor: alpha("#fff", 0.06),
+            border: "1px solid",
+            borderColor: alpha("#fff", 0.08),
+            "&:hover": { bgcolor: alpha("#fff", 0.1), borderColor: alpha("#fff", 0.18) },
+          }}
+        >
+          Search
+        </Button>
+        <Button
+          onClick={onOpenIq}
+          sx={{
+            borderRadius: 2,
+            minWidth: 128,
+            px: 2,
+            height: 36,
+            bgcolor: alpha("#fff", 0.06),
+            border: "1px solid",
+            borderColor: alpha("#fff", 0.08),
+            "&:hover": { bgcolor: alpha("#fff", 0.1), borderColor: alpha("#fff", 0.18) },
+          }}
+        >
+          IQ Mode
+        </Button>
       </Stack>
       <Menu
         anchorEl={manufacturerAnchor}
@@ -479,18 +508,98 @@ function OriginMap({ madeIn }: { madeIn?: string | null }) {
 }
 
 function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; timeToSellDays?: number }> }) {
+  const [windowDays, setWindowDays] = useState<5 | 30 | 60 | 90 | 120>(30);
+  const dayOptions: Array<5 | 30 | 60 | 90 | 120> = [5, 30, 60, 90, 120];
+
+  const filteredRows = useMemo(() => {
+    if (!rows.length) return rows;
+    const parsed = rows
+      .map((row) => ({ ...row, parsedDate: new Date(row.date) }))
+      .filter((row) => Number.isFinite(row.parsedDate.getTime()));
+    if (!parsed.length) return rows;
+    const anchorMs = parsed.reduce((max, row) => Math.max(max, row.parsedDate.getTime()), 0);
+    const cutoff = anchorMs - windowDays * 24 * 60 * 60 * 1000;
+    const inWindow = parsed.filter((row) => row.parsedDate.getTime() >= cutoff);
+    return (inWindow.length ? inWindow : parsed)
+      .sort((a, b) => b.parsedDate.getTime() - a.parsedDate.getTime())
+      .map(({ parsedDate, ...rest }) => rest);
+  }, [rows, windowDays]);
+
+  const averagePrice = useMemo(() => {
+    if (!filteredRows.length) return 0;
+    const total = filteredRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
+    return total / filteredRows.length;
+  }, [filteredRows]);
+
+  const averageSellDays = useMemo(() => {
+    const withDays = filteredRows.filter((row) => typeof row.timeToSellDays === "number") as Array<{ timeToSellDays: number }>;
+    if (!withDays.length) return null;
+    return withDays.reduce((sum, row) => sum + row.timeToSellDays, 0) / withDays.length;
+  }, [filteredRows]);
+
+  const miniBars = useMemo(() => {
+    const sample = filteredRows.slice(0, 12).reverse();
+    const max = Math.max(1, ...sample.map((row) => Number(row.price || 0)));
+    return sample.map((row) => ({ label: row.date, value: Math.round((Number(row.price || 0) / max) * 100) }));
+  }, [filteredRows]);
+
   return (
     <Card><CardContent>
       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales History</Typography>
       <Divider sx={{ my: 1.2 }} />
+      <Stack spacing={1}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Average ({windowDays}d)</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{money(averagePrice)}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {averageSellDays == null ? "Time to sell n/a" : `${Math.round(averageSellDays)} day avg time to sell`}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {dayOptions.map((days) => (
+              <Button
+                key={days}
+                onClick={() => setWindowDays(days)}
+                sx={{
+                  ...FIGMA_OPEN_BUTTON_SX,
+                  minWidth: 50,
+                  px: 1.1,
+                  bgcolor: days === windowDays ? alpha("#0A84FF", 0.2) : "transparent",
+                  border: "1px solid",
+                  borderColor: days === windowDays ? alpha("#0A84FF", 0.7) : "divider",
+                }}
+              >
+                {days}d
+              </Button>
+            ))}
+          </Stack>
+        </Stack>
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(12,minmax(0,1fr))", alignItems: "end", gap: 0.35, height: 54 }}>
+          {miniBars.map((bar, idx) => (
+            <Box
+              key={`${bar.label}-${idx}`}
+              title={`${bar.label}: ${bar.value}%`}
+              sx={{
+                borderRadius: 0.6,
+                minHeight: 6,
+                height: `${Math.max(10, bar.value)}%`,
+                backgroundColor: alpha("#0A84FF", 0.75),
+              }}
+            />
+          ))}
+          {!miniBars.length ? <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>No chart data.</Typography> : null}
+        </Box>
+      </Stack>
+      <Divider sx={{ my: 1.2 }} />
       <Stack spacing={0.8}>
-        {rows.slice(0, 10).map((row, idx) => (
+        {filteredRows.slice(0, 10).map((row, idx) => (
           <Box key={`${row.date}-${idx}`} sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
             <Typography variant="body2">{row.date} • {money(row.price)}</Typography>
             {typeof row.timeToSellDays === "number" ? <Typography variant="caption" color="text.secondary">Time to sell: {row.timeToSellDays} days</Typography> : null}
           </Box>
         ))}
-        {rows.length === 0 ? <Typography variant="body2" color="text.secondary">No sales yet.</Typography> : null}
+        {filteredRows.length === 0 ? <Typography variant="body2" color="text.secondary">No sales yet.</Typography> : null}
       </Stack>
     </CardContent></Card>
   );
