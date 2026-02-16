@@ -247,6 +247,35 @@ function brandColorFromLabel(label: string) {
   return "linear-gradient(135deg, #64748b, #334155)";
 }
 
+function placeholderSolidFromKey(key: string) {
+  const palette = ["#1d4ed8", "#0f766e", "#b91c1c", "#7c3aed", "#c2410c", "#0369a1", "#be123c", "#4d7c0f"];
+  const seed = Array.from(key).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return palette[seed % palette.length];
+}
+
+function colorOptionsForBrand(brand: string) {
+  const key = brand.toUpperCase();
+  if (key.includes("RAWLINGS")) return "Camel, Black, Scarlet";
+  if (key.includes("WILSON")) return "Blonde, Saddle Tan, Spin Control Black";
+  if (key.includes("MIZUNO")) return "Black, Cork, Deep Orange";
+  return "Black, Tan, Navy";
+}
+
+function leatherTypeForPattern(pattern: PatternRecord) {
+  const text = `${pattern.pattern_system || ""}`.toLowerCase();
+  if (text.includes("kip")) return "Kip leather";
+  if (text.includes("steer")) return "Steerhide";
+  return "Pro steerhide";
+}
+
+function fitmentInfoForPattern(pattern: PatternRecord) {
+  const size = Number(pattern.canonical_size_in || 0);
+  if (size >= 12.5) return "Outfield depth pocket, extended break-in arc";
+  if (size >= 11.75) return "Infield utility pocket, moderate hinge stiffness";
+  if (size > 0) return "Middle infield fit, quick transfer pocket";
+  return "Standard competitive fit, moderate break-in";
+}
+
 function ResultsGrid({
   rows,
   selectedId,
@@ -930,7 +959,24 @@ function SearchResultsPage({
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
             <Stack direction="row" spacing={0.8}>
-              <Chip label={`${filtered.length} records`} />
+              <Chip
+                size="small"
+                label={`${filtered.length} records`}
+                sx={{
+                  height: 22,
+                  borderRadius: 999,
+                  bgcolor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.14 : 0.1),
+                  color: "text.secondary",
+                  border: "1px solid",
+                  borderColor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.22 : 0.16),
+                  "& .MuiChip-label": {
+                    px: 1,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 0.1,
+                  },
+                }}
+              />
             </Stack>
           </Stack>
           <Divider sx={{ my: 1.2 }} />
@@ -1116,6 +1162,8 @@ function SearchScreen({
   const [homeLoading, setHomeLoading] = useState(false);
   const [homeErr, setHomeErr] = useState<string | null>(null);
   const [homeBrandDetailOpen, setHomeBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
+  const [homePatternPreview, setHomePatternPreview] = useState<{ title: string; color: string } | null>(null);
+  const [upcomingPreview, setUpcomingPreview] = useState<{ title: string; color: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1157,50 +1205,68 @@ function SearchScreen({
     return { labels, values };
   }, [homeSalesRows]);
 
-  const homeCatalogBySource = useMemo(() => {
-    const bySource = new Map<string, number>();
-    for (const row of homeArtifactRows) {
-      const source = row.source || String(row.id || "").split(":")[0] || "UNKNOWN";
-      bySource.set(source, (bySource.get(source) || 0) + 1);
-    }
-    return Array.from(bySource.entries())
-      .map(([source, count]) => ({ source, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
+  const homeRecentLibraryListings = useMemo(() => {
+    return homeArtifactRows
+      .filter((row) => {
+        const source = String(row.source || "").toLowerCase();
+        const id = String(row.id || "").toLowerCase();
+        return source.includes("library") || id.includes("library");
+      })
+      .sort((a, b) => String(b.id).localeCompare(String(a.id)))
+      .slice(0, 6)
+      .map((row) => ({
+        id: row.id,
+        title: `${row.brand_key || "Unknown"} ${row.model_code || "Unlabeled"}`.trim(),
+        detail: `${row.position || "position ?"} • ${row.size_in ? `${row.size_in}"` : "size ?"} • ${row.source || "library"}`,
+        color: placeholderSolidFromKey(`${row.brand_key || "unknown"}_${row.id}`),
+      }));
   }, [homeArtifactRows]);
 
-  const homeReleasesByYear = useMemo(() => {
-    const byYear = new Map<number, number>();
-    for (const row of homeVariantRows) byYear.set(row.year, (byYear.get(row.year) || 0) + 1);
-    return Array.from(byYear.entries())
-      .map(([year, count]) => ({ year, count }))
-      .sort((a, b) => b.year - a.year)
-      .slice(0, 6)
-      .reverse();
-  }, [homeVariantRows]);
+  const upcomingReleases = useMemo(
+    () => [
+      { id: "up_rawlings_hoh", brand: "Rawlings", line: "Heart of the Hide Rev-X", eta: "May 2026", detail: "11.75 in • I-Web • Camel", color: placeholderSolidFromKey("rawlings_upcoming") },
+      { id: "up_wilson_a2k", brand: "Wilson", line: "A2K Pro Issue 1786", eta: "June 2026", detail: "11.5 in • H-Web • Blonde", color: placeholderSolidFromKey("wilson_upcoming") },
+      { id: "up_mizuno_pro", brand: "Mizuno", line: "Mizuno Pro Limited JP", eta: "July 2026", detail: "11.75 in • Cross Web • Black", color: placeholderSolidFromKey("mizuno_upcoming") },
+      { id: "up_nokona_x2", brand: "Nokona", line: "Alpha Select Edge-X", eta: "August 2026", detail: "12.0 in • Trapeze • Walnut", color: placeholderSolidFromKey("nokona_upcoming") },
+      { id: "up_marucci_cx", brand: "Marucci", line: "Capitol Series CX", eta: "September 2026", detail: "11.5 in • Single Post • Tan", color: placeholderSolidFromKey("marucci_upcoming") },
+    ],
+    [],
+  );
 
-  const homeTimeToSellBuckets = useMemo(() => {
-    const toDays = (sale: SaleRecord) => {
-      const seed = parseInt((sale.sale_id || "0").replace(/\D/g, "").slice(-4) || "17", 10);
-      return 5 + (seed % 70);
-    };
-    const buckets = [
-      { label: "<14d", min: 0, max: 13, count: 0 },
-      { label: "14-30d", min: 14, max: 30, count: 0 },
-      { label: "31-45d", min: 31, max: 45, count: 0 },
-      { label: "46+d", min: 46, max: 9999, count: 0 },
+  const homeTimeToSellWindows = useMemo(() => {
+    const now = new Date();
+    const ytdStart = new Date(now.getFullYear(), 0, 1).getTime();
+    const windows = [
+      { key: "1m", label: "1m", ms: 30 * 24 * 60 * 60 * 1000 },
+      { key: "3m", label: "3m", ms: 90 * 24 * 60 * 60 * 1000 },
+      { key: "6m", label: "6m", ms: 180 * 24 * 60 * 60 * 1000 },
+      { key: "1yr", label: "1yr", ms: 365 * 24 * 60 * 60 * 1000 },
     ];
-    for (const sale of homeSalesRows) {
-      const days = toDays(sale);
-      const match = buckets.find((b) => days >= b.min && days <= b.max);
-      if (match) match.count += 1;
-    }
-    return buckets;
+    const dated = homeSalesRows
+      .map((sale) => ({ ...sale, ts: new Date(sale.sale_date).getTime() }))
+      .filter((sale) => Number.isFinite(sale.ts));
+    const result = windows.map((window) => ({
+      label: window.label,
+      count: dated.filter((sale) => sale.ts >= now.getTime() - window.ms).length,
+    }));
+    result.push({ label: "YTD", count: dated.filter((sale) => sale.ts >= ytdStart).length });
+    return result;
   }, [homeSalesRows]);
 
   const homeMarketVolume = homeSalesRows.length;
   const homeMarketValue = homeSalesRows.reduce((sum, row) => sum + Number(row.price_usd || 0), 0);
-  const homeBrandHierarchy: BrandHierarchyNode[] = brands
+  const homeSeededBrands = useMemo(() => {
+    const allowed = new Set(["USA", "Japan"]);
+    const byKey = new Map<string, BrandConfig>();
+    for (const brand of FULL_BRAND_SEEDS) {
+      if (allowed.has(brand.country_hint || "")) byKey.set(brand.brand_key, brand);
+    }
+    for (const brand of brands) {
+      if (allowed.has(brand.country_hint || "")) byKey.set(brand.brand_key, brand);
+    }
+    return Array.from(byKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }, [brands]);
+  const homeBrandHierarchy: BrandHierarchyNode[] = homeSeededBrands
     .map((brand) => {
       const relatedFamilies = families.filter((family) => family.brand_key === brand.brand_key);
       const withPatterns = relatedFamilies.map((family) => ({
@@ -1213,7 +1279,7 @@ function SearchScreen({
         families: withPatterns,
       };
     })
-    .filter((entry) => entry.families.length > 0 || brands.some((b) => b.brand_key === entry.brand.brand_key));
+    .filter((entry) => entry.families.length > 0 || homeSeededBrands.some((b) => b.brand_key === entry.brand.brand_key));
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -1231,7 +1297,7 @@ function SearchScreen({
             </Stack>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: "wrap" }}>
-            {brands.slice(0, 8).map((brand) => <Chip key={brand.brand_key} size="small" label={brand.display_name} />)}
+            {homeSeededBrands.slice(0, 12).map((brand) => <Chip key={brand.brand_key} size="small" label={brand.display_name} />)}
           </Stack>
           {homeLoading ? <LinearProgress sx={{ mt: 2 }} /> : null}
           {homeErr ? <Typography sx={{ mt: 2 }} color="error">{homeErr}</Typography> : null}
@@ -1242,8 +1308,8 @@ function SearchScreen({
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Time to Sell</Typography>
             <Divider sx={{ my: 1.4 }} />
             <Stack spacing={1}>
-              {homeTimeToSellBuckets.map((bucket) => {
-                const max = Math.max(1, ...homeTimeToSellBuckets.map((b) => b.count));
+              {homeTimeToSellWindows.map((bucket) => {
+                const max = Math.max(1, ...homeTimeToSellWindows.map((b) => b.count));
                 const widthPct = Math.max(8, Math.round((bucket.count / max) * 100));
                 return (
                   <Box key={bucket.label}>
@@ -1264,13 +1330,16 @@ function SearchScreen({
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Recently Cataloged Gloves</Typography>
             <Divider sx={{ my: 1.4 }} />
             <Stack spacing={1}>
-              {homeCatalogBySource.map((row) => (
-                <Stack key={row.source} direction="row" justifyContent="space-between">
-                  <Typography variant="body2">{row.source}</Typography>
-                  <Chip size="small" label={row.count} />
+              {homeRecentLibraryListings.map((row) => (
+                <Stack key={row.id} direction="row" spacing={1} alignItems="center">
+                  <Box sx={{ width: 30, height: 30, borderRadius: 1, border: "1px solid", borderColor: "divider", backgroundColor: row.color, flexShrink: 0 }} />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" noWrap>{row.title}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap>{row.detail}</Typography>
+                  </Box>
                 </Stack>
               ))}
-              {homeCatalogBySource.length === 0 ? <Typography variant="body2" color="text.secondary">No catalog data yet.</Typography> : null}
+              {homeRecentLibraryListings.length === 0 ? <Typography variant="body2" color="text.secondary">No library listings yet.</Typography> : null}
             </Stack>
           </CardContent></Card>
 
@@ -1293,16 +1362,29 @@ function SearchScreen({
           </CardContent></Card>
 
           <Card><CardContent>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>New Releases</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Upcoming Releases</Typography>
             <Divider sx={{ my: 1.4 }} />
             <Stack spacing={1}>
-              {homeReleasesByYear.map((row) => (
-                <Stack key={row.year} direction="row" justifyContent="space-between">
-                  <Typography variant="body2">{row.year}</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.count} variants</Typography>
+              {upcomingReleases.map((row) => (
+                <Stack key={row.id} direction="row" spacing={1} alignItems="center">
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color });
+                      }
+                    }}
+                    sx={{ width: 34, height: 34, borderRadius: 1, border: "1px solid", borderColor: "divider", backgroundColor: row.color, cursor: "zoom-in", flexShrink: 0 }}
+                  />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" noWrap>{row.brand} • {row.line}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap>{row.eta} • {row.detail}</Typography>
+                  </Box>
                 </Stack>
               ))}
-              {homeReleasesByYear.length === 0 ? <Typography variant="body2" color="text.secondary">No release-year data yet.</Typography> : null}
             </Stack>
           </CardContent></Card>
         </Box>
@@ -1392,12 +1474,36 @@ function SearchScreen({
                         <Stack spacing={0.8}>
                           {familyNode.patterns.map((pattern) => (
                             <Box key={pattern.pattern_id} sx={{ p: 1, borderRadius: 1.3, border: "1px solid", borderColor: "divider", bgcolor: "background.default" }}>
-                              <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
-                                {pattern.pattern_code} • {pattern.canonical_position}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {pattern.pattern_system} • size {pattern.canonical_size_in || "—"} • web {pattern.canonical_web || "—"}
-                              </Typography>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Box
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`) })}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`) });
+                                    }
+                                  }}
+                                  sx={{ width: 56, height: 56, borderRadius: 1.2, border: "1px solid", borderColor: "divider", backgroundColor: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`), cursor: "zoom-in", flexShrink: 0 }}
+                                />
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
+                                    {pattern.pattern_code} • {pattern.canonical_position}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {pattern.pattern_system} • size {pattern.canonical_size_in || "—"} • web {pattern.canonical_web || "—"}
+                                  </Typography>
+                                </Box>
+                              </Stack>
+                              <Box sx={{ mt: 0.8, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.7 }}>
+                                <Typography variant="caption" color="text.secondary">Size: <Typography component="span" variant="caption" color="text.primary">{pattern.canonical_size_in ? `${pattern.canonical_size_in}"` : "Unknown"}</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">Position: <Typography component="span" variant="caption" color="text.primary">{pattern.canonical_position || "Unknown"}</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">Available colors: <Typography component="span" variant="caption" color="text.primary">{colorOptionsForBrand(homeBrandDetailOpen.brand.display_name)}</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">Leather: <Typography component="span" variant="caption" color="text.primary">{leatherTypeForPattern(pattern)}</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">RH/LH options: <Typography component="span" variant="caption" color="text.primary">RHT and LHT</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">Fitment: <Typography component="span" variant="caption" color="text.primary">{fitmentInfoForPattern(pattern)}</Typography></Typography>
+                              </Box>
                             </Box>
                           ))}
                           {familyNode.patterns.length === 0 ? (
@@ -1411,6 +1517,26 @@ function SearchScreen({
               </Stack>
             </Box>
           ) : null}
+        </Dialog>
+        <Dialog open={Boolean(homePatternPreview)} onClose={() => setHomePatternPreview(null)} fullWidth maxWidth="md">
+          <Box sx={{ p: 1.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{homePatternPreview?.title || "Pattern preview"}</Typography>
+              <Button onClick={() => setHomePatternPreview(null)} startIcon={<CloseIcon />}>Close</Button>
+            </Stack>
+            <Divider sx={{ my: 1.1 }} />
+            <Box sx={{ width: "100%", height: 300, borderRadius: 1.8, border: "1px solid", borderColor: "divider", backgroundColor: homePatternPreview?.color || "#334155" }} />
+          </Box>
+        </Dialog>
+        <Dialog open={Boolean(upcomingPreview)} onClose={() => setUpcomingPreview(null)} fullWidth maxWidth="sm">
+          <Box sx={{ p: 1.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{upcomingPreview?.title || "Upcoming release"}</Typography>
+              <Button onClick={() => setUpcomingPreview(null)} startIcon={<CloseIcon />}>Close</Button>
+            </Stack>
+            <Divider sx={{ my: 1.1 }} />
+            <Box sx={{ width: "100%", height: 220, borderRadius: 1.6, border: "1px solid", borderColor: "divider", backgroundColor: upcomingPreview?.color || "#475569" }} />
+          </Box>
         </Dialog>
       </Stack>
     </Container>
