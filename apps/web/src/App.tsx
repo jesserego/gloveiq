@@ -236,6 +236,17 @@ function regionFromOrigin(origin: string | null | undefined): string {
   return "Global";
 }
 
+function brandColorFromLabel(label: string) {
+  const key = label.toLowerCase();
+  if (key.includes("rawlings")) return "linear-gradient(135deg, #f97316, #ea580c)";
+  if (key.includes("wilson")) return "linear-gradient(135deg, #ef4444, #b91c1c)";
+  if (key.includes("mizuno")) return "linear-gradient(135deg, #3b82f6, #1d4ed8)";
+  if (key.includes("nike")) return "linear-gradient(135deg, #6b7280, #111827)";
+  if (key.includes("marucci")) return "linear-gradient(135deg, #f59e0b, #92400e)";
+  if (key.includes("easton")) return "linear-gradient(135deg, #14b8a6, #0f766e)";
+  return "linear-gradient(135deg, #64748b, #334155)";
+}
+
 function ResultsGrid({
   rows,
   selectedId,
@@ -246,7 +257,7 @@ function ResultsGrid({
   onSelect: (row: SearchResult) => void;
 }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(3,minmax(0,1fr))" }, gap: 1.2 }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(3,minmax(0,1fr))", xl: "repeat(4,minmax(0,1fr))" }, gap: 1.2 }}>
       {rows.map((row) => (
         <Box
           key={row.id}
@@ -263,10 +274,30 @@ function ResultsGrid({
             cursor: "pointer",
           }}
         >
-          <Box component="img" src={row.thumbnail || glovePlaceholderImage} alt={row.title} sx={{ width: "100%", height: 126, borderRadius: 1.3, objectFit: "cover", border: "1px solid", borderColor: "divider", mb: 0.9 }} />
+          <Box
+            aria-label={`${row.title} brand visual`}
+            sx={{
+              width: "100%",
+              height: 168,
+              borderRadius: 1.3,
+              border: "1px solid",
+              borderColor: "divider",
+              mb: 0.9,
+              background: brandColorFromLabel(row.chips[0] || row.title),
+              display: "grid",
+              placeItems: "center",
+              color: "rgba(255,255,255,0.9)",
+              fontWeight: 900,
+              fontSize: 26,
+              letterSpacing: 0.5,
+              textTransform: "uppercase",
+            }}
+          >
+            {(row.chips[0] || row.title).slice(0, 2)}
+          </Box>
           <Typography sx={{ fontWeight: 800 }} noWrap>{row.title}</Typography>
           <Typography variant="body2" color="text.secondary" noWrap>{row.subtitle}</Typography>
-          <Stack direction="row" spacing={0.65} sx={{ mt: 0.8, flexWrap: "wrap" }}>
+          <Stack direction="row" sx={{ mt: 0.85, flexWrap: "wrap", gap: 0.7, alignItems: "center" }}>
             {row.chips.map((chip) => <Chip key={`${row.id}-${chip}`} size="small" label={chip} sx={FIGMA_TAG_BASE_SX} />)}
           </Stack>
         </Box>
@@ -599,6 +630,8 @@ function SearchResultsPage({
   const [iqOpen, setIqOpen] = useState(false);
   const [iqSeedQuery, setIqSeedQuery] = useState("");
   const [searchIntent, setSearchIntent] = useState<"listing" | "catalog">("catalog");
+  const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
+  const [previewRow, setPreviewRow] = useState<SearchResult | null>(null);
   const [selectedManufacturer, setSelectedManufacturer] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [resultsPage, setResultsPage] = useState(1);
@@ -629,7 +662,7 @@ function SearchResultsPage({
   };
 
   const rows = useMemo<SearchResultRow[]>(() => {
-    const variantRows: SearchResultRow[] = variants.slice(0, 80).map((v) => ({
+    const variantRows: SearchResultRow[] = variants.map((v) => ({
       id: v.variant_id,
       record_type: "variant",
       title: v.display_name,
@@ -646,7 +679,7 @@ function SearchResultsPage({
         recordType: "variant",
       },
     }));
-    const gloveRows: SearchResultRow[] = gloves.slice(0, 120).map((g) => ({
+    const gloveRows: SearchResultRow[] = gloves.map((g) => ({
       id: g.id,
       record_type: "artifact",
       title: g.model_code || g.id,
@@ -748,6 +781,68 @@ function SearchResultsPage({
     };
   }, [selectedId, variants]);
 
+  const previewVariant = useMemo(
+    () => (previewRow?.record_type === "variant" ? variants.find((v) => v.variant_id === previewRow.id) || null : null),
+    [previewRow, variants],
+  );
+  const previewArtifact = useMemo(
+    () => (previewRow?.record_type !== "variant" ? gloves.find((g) => g.id === previewRow?.id) || null : null),
+    [previewRow, gloves],
+  );
+  const previewSalesRows = useMemo(() => {
+    if (!previewRow) return [];
+    if (previewRow.record_type === "variant") {
+      return sales
+        .filter((s) => s.variant_id === previewRow.id)
+        .slice(0, 10)
+        .map((s) => ({ date: s.sale_date, price: s.price_usd }));
+    }
+    const normalizedModel = String(previewArtifact?.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!normalizedModel) return [];
+    const relatedVariantIds = new Set(
+      variants
+        .filter((v) => String(v.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === normalizedModel)
+        .map((v) => v.variant_id),
+    );
+    return sales
+      .filter((s) => relatedVariantIds.has(s.variant_id))
+      .slice(0, 10)
+      .map((s) => ({ date: s.sale_date, price: s.price_usd }));
+  }, [previewRow, previewArtifact, variants, sales]);
+
+  const previewDetails = useMemo<Array<{ label: string; value: string }>>(() => {
+    if (!previewRow) return [];
+    if (previewRow.record_type === "variant" && previewVariant) {
+      return [
+        { label: "Variant ID", value: previewVariant.variant_id },
+        { label: "Brand", value: previewVariant.brand_key },
+        { label: "Model", value: previewVariant.model_code || "Unknown" },
+        { label: "Pattern", value: previewVariant.pattern_id || "Unknown" },
+        { label: "Variant Label", value: previewVariant.variant_label || "Unknown" },
+        { label: "Web", value: previewVariant.web || "Unknown" },
+        { label: "Leather", value: previewVariant.leather || "Unknown" },
+        { label: "Made In", value: previewVariant.made_in || "Unknown" },
+        { label: "Year", value: String(previewVariant.year || "Unknown") },
+      ];
+    }
+    if (previewArtifact) {
+      return [
+        { label: "Artifact ID", value: previewArtifact.id },
+        { label: "Brand", value: previewArtifact.brand_key || "Unknown" },
+        { label: "Model", value: previewArtifact.model_code || "Unknown" },
+        { label: "Type", value: previewArtifact.object_type || "Unknown" },
+        { label: "Position", value: previewArtifact.position || "Unknown" },
+        { label: "Size", value: previewArtifact.size_in ? `${previewArtifact.size_in}` : "Unknown" },
+        { label: "Made In", value: previewArtifact.made_in || "Unknown" },
+        { label: "Source", value: previewArtifact.source || "Unknown" },
+        { label: "Verification", value: previewArtifact.verification_status || "Unknown" },
+        { label: "Condition", value: typeof previewArtifact.condition_score === "number" ? previewArtifact.condition_score.toFixed(2) : "Unknown" },
+        { label: "Valuation", value: money(previewArtifact.valuation_estimate || previewArtifact.valuation_high || previewArtifact.valuation_low || 0) },
+      ];
+    }
+    return [];
+  }, [previewRow, previewVariant, previewArtifact]);
+
   function handleSearch(nextQuery: string) {
     const normalized = nextQuery.trim();
     setQuery(nextQuery);
@@ -757,7 +852,7 @@ function SearchResultsPage({
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
-        <Card><CardContent>
+        <Box>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <GloveSearchBar
@@ -836,7 +931,6 @@ function SearchResultsPage({
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
             <Stack direction="row" spacing={0.8}>
               <Chip label={`${filtered.length} records`} />
-              <Chip size="small" label={searchIntent === "listing" ? "Listing lookup" : "Catalog search"} />
             </Stack>
           </Stack>
           <Divider sx={{ my: 1.2 }} />
@@ -845,7 +939,8 @@ function SearchResultsPage({
             selectedId={selectedId}
             onSelect={(row) => {
               setSelectedId(row.id);
-              onNavigate(routeForSearchResult(row));
+              setPreviewRow(row);
+              setResultPreviewOpen(true);
             }}
           />
           {filtered.length > resultsPageSize ? (
@@ -859,7 +954,7 @@ function SearchResultsPage({
               />
             </Stack>
           ) : null}
-        </CardContent></Card>
+        </Box>
       </Stack>
       <IQModeDrawer
         open={iqOpen}
@@ -868,6 +963,64 @@ function SearchResultsPage({
         topMatch={selectedVariant?.title}
         alternates={selectedVariant ? [selectedVariant.subtitle, selectedVariant.model, selectedVariant.pattern] : undefined}
       />
+      <Dialog open={resultPreviewOpen} onClose={() => setResultPreviewOpen(false)} fullWidth maxWidth="lg">
+        <Box sx={{ p: 1.5 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Result Preview</Typography>
+            <Button onClick={() => setResultPreviewOpen(false)} startIcon={<CloseIcon />}>Close</Button>
+          </Stack>
+          <Divider sx={{ my: 1.1 }} />
+          {previewRow ? (
+            <Stack spacing={1.2}>
+              <Box sx={{ width: "100%", height: 280, borderRadius: 1.8, border: "1px solid", borderColor: "divider", background: brandColorFromLabel(previewRow.chips[0] || previewRow.title), display: "grid", placeItems: "center", color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 48 }}>
+                {(previewRow.chips[0] || previewRow.title).slice(0, 2).toUpperCase()}
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{previewRow.title}</Typography>
+              <Typography variant="body2" color="text.secondary">{previewRow.subtitle}</Typography>
+              <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.8 }}>
+                {previewRow.chips.map((chip) => <Chip key={`preview-${previewRow.id}-${chip}`} size="small" label={chip} sx={FIGMA_TAG_BASE_SX} />)}
+              </Stack>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 1 }}>
+                {previewDetails.map((entry) => (
+                  <Box key={`${entry.label}-${entry.value}`} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.3 }}>
+                    <Typography variant="caption" color="text.secondary">{entry.label}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{entry.value}</Typography>
+                  </Box>
+                ))}
+              </Box>
+              {previewArtifact?.listing_url ? (
+                <Stack direction="row" justifyContent="flex-end">
+                  <Button onClick={() => window.open(previewArtifact.listing_url!, "_blank", "noopener,noreferrer")} sx={FIGMA_OPEN_BUTTON_SX}>
+                    Open Listing
+                  </Button>
+                </Stack>
+              ) : null}
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Recent Sales</Typography>
+                <Stack spacing={0.7} sx={{ mt: 0.8 }}>
+                  {previewSalesRows.slice(0, 6).map((sale, idx) => (
+                    <Box key={`${sale.date}-${idx}`} sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
+                      <Typography variant="body2">{sale.date} • {money(sale.price)}</Typography>
+                    </Box>
+                  ))}
+                  {previewSalesRows.length === 0 ? <Typography variant="body2" color="text.secondary">No sales linked to this record yet.</Typography> : null}
+                </Stack>
+              </Box>
+              <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                <Button color="inherit" onClick={() => setResultPreviewOpen(false)}>Close</Button>
+                <Button
+                  onClick={() => {
+                    setResultPreviewOpen(false);
+                    onNavigate(routeForSearchResult(previewRow));
+                  }}
+                >
+                  Open Full Profile
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+        </Box>
+      </Dialog>
     </Container>
   );
 }
@@ -4564,20 +4717,16 @@ export default function App() {
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
 
-      <Box sx={{ minHeight: "100vh", p: { xs: 0, md: 1.5 }, pb: { xs: 8, md: 1.5 } }}>
+      <Box sx={{ minHeight: "100dvh", p: 0, pb: { xs: 8, md: 0 } }}>
         <Box
           sx={{
-            minHeight: { xs: "100vh", md: "calc(100vh - 24px)" },
-            borderRadius: { xs: 0, md: 2.5 },
+            minHeight: "100dvh",
+            borderRadius: 0,
             overflow: "hidden",
-            border: { xs: "none", md: "1px solid" },
-            borderColor: { xs: "transparent", md: "divider" },
-            boxShadow: (theme) => ({
-              xs: "none",
-              md: theme.palette.mode === "dark" ? "0 22px 52px rgba(0,0,0,0.5)" : "0 18px 44px rgba(15,23,42,0.14)",
-            }),
-            backgroundColor: (theme) => theme.palette.mode === "dark" ? "rgba(28,28,30,0.84)" : "rgba(255,255,255,0.84)",
-            backdropFilter: "blur(24px) saturate(135%)",
+            border: "none",
+            boxShadow: "none",
+            backgroundColor: "background.default",
+            backdropFilter: "none",
           }}
         >
           <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
