@@ -5,11 +5,11 @@
   },
   "errors": [],
   "errors_count": 0,
-  "generated_at": "2026-02-14T00:58:42Z",
+  "generated_at": "2026-02-14T01:19:01Z",
   "input_xlsx": "/Users/jesserego/Documents/GitHub/gloveiq/scrapers/jbg/GloveIQ_Library_Master_Template_GOOGLE_NATIVE_FULLCAT_READY.xlsx",
   "listings_by_source": {
     "JBG": 1019,
-    "SS": 165
+    "SS": 387
   },
   "listings_total": 1184,
   "media_manifest_images_total": 97974,
