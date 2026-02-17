@@ -12,6 +12,9 @@ import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Autocomplete,
   Avatar,
@@ -29,6 +32,7 @@ import {
   Menu,
   MenuItem,
   Pagination,
+  Popover,
   Select,
   Slider,
   Stack,
@@ -55,6 +59,7 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import TuneIcon from "@mui/icons-material/Tune";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -226,14 +231,14 @@ function inferSearchIntent(query: string): "listing" | "catalog" {
 
 function regionFromOrigin(origin: string | null | undefined): string {
   const normalized = String(origin || "").trim().toLowerCase();
-  if (!normalized) return "Unknown";
-  if (normalized.includes("japan") || normalized === "jp") return "Asia";
-  if (normalized.includes("korea") || normalized.includes("china") || normalized.includes("taiwan")) return "Asia";
-  if (normalized.includes("usa") || normalized.includes("united states") || normalized.includes("canada") || normalized.includes("mexico")) return "North America";
-  if (normalized.includes("italy") || normalized.includes("germany") || normalized.includes("france") || normalized.includes("spain")) return "Europe";
-  if (normalized.includes("australia") || normalized.includes("new zealand")) return "Oceania";
-  if (normalized.includes("brazil") || normalized.includes("argentina") || normalized.includes("colombia")) return "South America";
-  return "Global";
+  if (!normalized) return "Western Pacific";
+  if (normalized.includes("japan") || normalized === "jp" || normalized.includes("korea") || normalized.includes("china") || normalized.includes("taiwan") || normalized.includes("australia") || normalized.includes("new zealand")) return "Western Pacific";
+  if (normalized.includes("thailand") || normalized.includes("vietnam") || normalized.includes("philippines") || normalized.includes("singapore") || normalized.includes("indonesia") || normalized.includes("malaysia")) return "South-East Asia";
+  if (normalized.includes("usa") || normalized.includes("united states") || normalized.includes("canada") || normalized.includes("mexico") || normalized.includes("brazil") || normalized.includes("argentina") || normalized.includes("colombia")) return "Americas";
+  if (normalized.includes("italy") || normalized.includes("germany") || normalized.includes("france") || normalized.includes("spain") || normalized.includes("uk")) return "Europe";
+  if (normalized.includes("egypt") || normalized.includes("saudi") || normalized.includes("uae") || normalized.includes("jordan") || normalized.includes("iran") || normalized.includes("iraq")) return "Eastern Mediterranean";
+  if (normalized.includes("south africa") || normalized.includes("nigeria") || normalized.includes("kenya") || normalized.includes("morocco")) return "Africa";
+  return "Americas";
 }
 
 function brandColorFromLabel(label: string) {
@@ -665,15 +670,22 @@ function SearchResultsPage({
   const [selectedRegion, setSelectedRegion] = useState("");
   const [resultsPage, setResultsPage] = useState(1);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [selectedHands, setSelectedHands] = useState<string[]>([]);
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [selectedWebs, setSelectedWebs] = useState<string[]>([]);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedPrices, setSelectedPrices] = useState<string[]>([]);
 
   const manufacturers = useMemo(
     () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
+    [],
+  );
+  const regions = useMemo(
+    () => ["Africa", "Americas", "South-East Asia", "Europe", "Eastern Mediterranean", "Western Pacific"],
     [],
   );
 
@@ -686,11 +698,50 @@ function SearchResultsPage({
       web: string;
       source: string;
       year: string;
+      sport: string;
+      condition: string;
+      position: string;
+      series: string;
+      priceBucket: string;
       recordType: "variant" | "artifact";
     };
   };
 
   const rows = useMemo<SearchResultRow[]>(() => {
+    const seriesFromModel = (model: string | null | undefined) => {
+      const raw = String(model || "").trim();
+      if (!raw) return "Unknown";
+      const token = raw.split(/[\s-_]/).filter(Boolean)[0];
+      return token || "Unknown";
+    };
+    const conditionBucket = (score: number | null | undefined) => {
+      if (typeof score !== "number") return "Unknown";
+      if (score >= 0.8) return "Excellent";
+      if (score >= 0.6) return "Good";
+      if (score >= 0.4) return "Fair";
+      return "Needs Work";
+    };
+    const priceBucket = (price: number | null | undefined) => {
+      const value = Number(price || 0);
+      if (!value) return "Unknown";
+      if (value < 100) return "$0-99";
+      if (value < 200) return "$100-199";
+      if (value < 400) return "$200-399";
+      if (value < 700) return "$400-699";
+      return "$700+";
+    };
+    const handFromLabel = (label: string | null | undefined) => {
+      const v = String(label || "").toLowerCase();
+      if (v.includes("lht") || v.includes("left")) return "LHT";
+      if (v.includes("rht") || v.includes("right")) return "RHT";
+      return "Unknown";
+    };
+    const sportFromPosition = (position: string | null | undefined) => {
+      const v = String(position || "").toLowerCase();
+      if (v.includes("softball")) return "Softball";
+      return "Baseball";
+    };
+
     const variantRows: SearchResultRow[] = variants.map((v) => ({
       id: v.variant_id,
       record_type: "variant",
@@ -700,11 +751,16 @@ function SearchResultsPage({
       meta: {
         brand: v.brand_key,
         region: regionFromOrigin(v.made_in),
-        hand: String(v.variant_label || "Unknown"),
+        hand: handFromLabel(v.variant_label),
         size: "Unknown",
         web: String(v.web || "Unknown"),
         source: "catalog",
         year: String(v.year || "Unknown"),
+        sport: "Baseball",
+        condition: "Unknown",
+        position: "Unknown",
+        series: seriesFromModel(v.model_code),
+        priceBucket: "Unknown",
         recordType: "variant",
       },
     }));
@@ -723,6 +779,11 @@ function SearchResultsPage({
         web: "Unknown",
         source: String(g.source || "Unknown"),
         year: "Unknown",
+        sport: sportFromPosition(g.position),
+        condition: conditionBucket(g.condition_score),
+        position: g.position || "Unknown",
+        series: seriesFromModel(g.model_code),
+        priceBucket: priceBucket(g.valuation_estimate || g.valuation_high || g.valuation_low),
         recordType: "artifact",
       },
     }));
@@ -738,6 +799,11 @@ function SearchResultsPage({
           web: row.chips.find((chip) => chip.toLowerCase().includes("web")) || "Unknown",
           source: "mock",
           year: row.chips.find((chip) => /^\d{4}$/.test(chip)) || "Unknown",
+          sport: "Baseball",
+          condition: "Unknown",
+          position: "Unknown",
+          series: "Unknown",
+          priceBucket: "Unknown",
           recordType: row.record_type === "variant" ? "variant" : "artifact",
         },
       }));
@@ -745,17 +811,15 @@ function SearchResultsPage({
     return merged;
   }, [variants, gloves]);
 
-  const regions = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.meta.region))).filter(Boolean).sort((a, b) => a.localeCompare(b)),
-    [rows],
-  );
-
-  const typeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.recordType))), [rows]);
+  const sportOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.sport))).filter((v) => v !== "Unknown"), [rows]);
+  const brandOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.brand))).filter((v) => v !== "Unknown"), [rows]);
+  const conditionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.condition))).filter((v) => v !== "Unknown"), [rows]);
   const handOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.hand))).filter((v) => v !== "Unknown"), [rows]);
+  const positionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.position))).filter((v) => v !== "Unknown"), [rows]);
   const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.size))).filter((v) => v !== "Unknown"), [rows]);
+  const seriesOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.series))).filter((v) => v !== "Unknown"), [rows]);
   const webOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.web))).filter((v) => v !== "Unknown"), [rows]);
-  const sourceOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.source))).filter((v) => v !== "Unknown"), [rows]);
-  const yearOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.year))).filter((v) => v !== "Unknown"), [rows]);
+  const priceOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.priceBucket))).filter((v) => v !== "Unknown"), [rows]);
 
   function toggleFilterValue(current: string[], value: string, setValue: (next: string[]) => void) {
     if (current.includes(value)) {
@@ -769,24 +833,27 @@ function SearchResultsPage({
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       const whole = `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase();
-      const manufacturerMatches = !selectedManufacturer || r.meta.brand.toLowerCase() === selectedManufacturer.toLowerCase() || whole.includes(selectedManufacturer.toLowerCase());
+      const manufacturerMatches = !selectedManufacturer || r.meta.brand.toLowerCase() === selectedManufacturer.toLowerCase();
       const regionMatches = !selectedRegion || r.meta.region === selectedRegion;
-      const typeMatches = selectedTypes.length === 0 || selectedTypes.includes(r.meta.recordType);
+      const sportMatches = selectedSports.length === 0 || selectedSports.includes(r.meta.sport);
+      const brandMatches = selectedBrands.length === 0 || selectedBrands.includes(r.meta.brand);
+      const conditionMatches = selectedConditions.length === 0 || selectedConditions.includes(r.meta.condition);
       const handMatches = selectedHands.length === 0 || selectedHands.includes(r.meta.hand);
+      const positionMatches = selectedPositions.length === 0 || selectedPositions.includes(r.meta.position);
       const sizeMatches = selectedSizes.length === 0 || selectedSizes.includes(r.meta.size);
+      const seriesMatches = selectedSeries.length === 0 || selectedSeries.includes(r.meta.series);
       const webMatches = selectedWebs.length === 0 || selectedWebs.includes(r.meta.web);
-      const sourceMatches = selectedSources.length === 0 || selectedSources.includes(r.meta.source);
-      const yearMatches = selectedYears.length === 0 || selectedYears.includes(r.meta.year);
+      const priceMatches = selectedPrices.length === 0 || selectedPrices.includes(r.meta.priceBucket);
       if (!manufacturerMatches) return false;
-      if (!regionMatches || !typeMatches || !handMatches || !sizeMatches || !webMatches || !sourceMatches || !yearMatches) return false;
+      if (!regionMatches || !sportMatches || !brandMatches || !conditionMatches || !handMatches || !positionMatches || !sizeMatches || !seriesMatches || !webMatches || !priceMatches) return false;
       if (!q) return true;
       return whole.includes(q);
     });
-  }, [query, rows, selectedManufacturer, selectedRegion, selectedTypes, selectedHands, selectedSizes, selectedWebs, selectedSources, selectedYears]);
+  }, [query, rows, selectedManufacturer, selectedRegion, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
 
   useEffect(() => {
     setResultsPage(1);
-  }, [query, selectedManufacturer, selectedRegion, selectedTypes, selectedHands, selectedSizes, selectedWebs, selectedSources, selectedYears]);
+  }, [query, selectedManufacturer, selectedRegion, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
 
   const resultsPageSize = 15;
   const pageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
@@ -906,55 +973,68 @@ function SearchResultsPage({
               </IconButton>
             </Tooltip>
           </Stack>
-          <Menu anchorEl={filterAnchor} open={Boolean(filterAnchor)} onClose={() => setFilterAnchor(null)}>
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Record Type</MenuItem>
-            {typeOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedTypes, value, setSelectedTypes)}>
-                <Checkbox size="small" checked={selectedTypes.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-            <Divider />
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Hand</MenuItem>
-            {handOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedHands, value, setSelectedHands)}>
-                <Checkbox size="small" checked={selectedHands.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-            <Divider />
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Size</MenuItem>
-            {sizeOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedSizes, value, setSelectedSizes)}>
-                <Checkbox size="small" checked={selectedSizes.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-            <Divider />
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Web</MenuItem>
-            {webOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedWebs, value, setSelectedWebs)}>
-                <Checkbox size="small" checked={selectedWebs.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-            <Divider />
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Source</MenuItem>
-            {sourceOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedSources, value, setSelectedSources)}>
-                <Checkbox size="small" checked={selectedSources.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-            <Divider />
-            <MenuItem disabled sx={{ opacity: 0.8 }}>Year</MenuItem>
-            {yearOptions.map((value) => (
-              <MenuItem key={value} onClick={() => toggleFilterValue(selectedYears, value, setSelectedYears)}>
-                <Checkbox size="small" checked={selectedYears.includes(value)} />
-                {value}
-              </MenuItem>
-            ))}
-          </Menu>
+          <Popover
+            anchorEl={filterAnchor}
+            open={Boolean(filterAnchor)}
+            onClose={() => setFilterAnchor(null)}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            PaperProps={{ sx: { width: 360, maxHeight: "72vh", overflow: "auto" } }}
+          >
+            <Box sx={{ p: 1 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 0.5, pb: 0.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Filters</Typography>
+                <Button
+                  color="inherit"
+                  sx={FIGMA_OPEN_BUTTON_SX}
+                  onClick={() => {
+                    setSelectedSports([]);
+                    setSelectedBrands([]);
+                    setSelectedConditions([]);
+                    setSelectedHands([]);
+                    setSelectedPositions([]);
+                    setSelectedSizes([]);
+                    setSelectedSeries([]);
+                    setSelectedWebs([]);
+                    setSelectedPrices([]);
+                  }}
+                >
+                  Clear
+                </Button>
+              </Stack>
+              {[
+                { key: "sport", title: "Sport", options: sportOptions, selected: selectedSports, setSelected: setSelectedSports },
+                { key: "brand", title: "Brand", options: brandOptions, selected: selectedBrands, setSelected: setSelectedBrands },
+                { key: "condition", title: "Condition", options: conditionOptions, selected: selectedConditions, setSelected: setSelectedConditions },
+                { key: "hand", title: "Throwing Hand", options: handOptions, selected: selectedHands, setSelected: setSelectedHands },
+                { key: "position", title: "Position", options: positionOptions, selected: selectedPositions, setSelected: setSelectedPositions },
+                { key: "size", title: "Size", options: sizeOptions, selected: selectedSizes, setSelected: setSelectedSizes },
+                { key: "series", title: "Series", options: seriesOptions, selected: selectedSeries, setSelected: setSelectedSeries },
+                { key: "web", title: "Web Type", options: webOptions, selected: selectedWebs, setSelected: setSelectedWebs },
+                { key: "price", title: "Price", options: priceOptions, selected: selectedPrices, setSelected: setSelectedPrices },
+              ].map((section) => (
+                <Accordion key={section.key} disableGutters sx={{ boxShadow: "none", borderTop: "1px solid", borderColor: "divider", "&:before": { display: "none" } }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Stack direction="row" spacing={0.8} alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{section.title}</Typography>
+                      {section.selected.length > 0 ? <Chip size="small" label={section.selected.length} /> : null}
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ pt: 0.2, pb: 1 }}>
+                    <Stack spacing={0.2}>
+                      {section.options.map((value) => (
+                        <MenuItem key={`${section.key}-${value}`} onClick={() => toggleFilterValue(section.selected, value, section.setSelected)} sx={{ borderRadius: 1 }}>
+                          <Checkbox size="small" checked={section.selected.includes(value)} />
+                          <Typography variant="body2">{value}</Typography>
+                        </MenuItem>
+                      ))}
+                      {section.options.length === 0 ? <Typography variant="caption" color="text.secondary">No options available.</Typography> : null}
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          </Popover>
           <Divider sx={{ my: 1.2 }} />
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
