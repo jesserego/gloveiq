@@ -27,7 +27,7 @@ export function buildAppTheme(mode: AppThemeMode) {
         ? { primary: "#F2F2F7", secondary: "rgba(235,235,245,0.72)" }
         : { primary: "#1C1C1E", secondary: "rgba(60,60,67,0.72)" },
     },
-    shape: { borderRadius: 14 },
+    shape: { borderRadius: 8 },
     typography: {
       fontFamily: [
         "-apple-system",
@@ -74,7 +74,7 @@ export function buildAppTheme(mode: AppThemeMode) {
             backgroundColor: elevated,
             backdropFilter: "blur(22px) saturate(130%)",
             boxShadow: isDark ? "0 20px 42px rgba(0,0,0,0.45)" : "0 10px 28px rgba(15,23,42,0.10)",
-            borderRadius: 18,
+            borderRadius: 8,
           },
         },
       },

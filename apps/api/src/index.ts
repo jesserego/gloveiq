@@ -45,6 +45,18 @@ const resolvedPort = Number(process.env.PORT || 8787);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${resolvedPort}`;
 const b2PublicBaseUrl = (process.env.B2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
 
+function readOpenAiKey(): string {
+  const raw = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!raw) return "";
+  if (raw === "sk-REPLACE_ME" || raw === "REPLACE_ME") return "";
+  return raw;
+}
+
+if (!readOpenAiKey()) {
+  // Visible startup signal so local setup issues are caught before first upload call.
+  console.warn("[startup] OPENAI_API_KEY is not configured. Appraisal endpoint will fall back to local heuristic.");
+}
+
 app.use("/seed-images", express.static(path.join(publicDir, "seed")));
 app.use("/uploads", express.static(uploadsDir));
 
@@ -347,7 +359,7 @@ function qualityScoresForFile(file: Express.Multer.File) {
 }
 
 async function runVisionIdentify(files: Express.Multer.File[], hint: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = readOpenAiKey();
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured on API server.");
   const schema = {
     type: "object",

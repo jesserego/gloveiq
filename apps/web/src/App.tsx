@@ -303,8 +303,8 @@ function ResultsGrid({
             p: 1.2,
             border: "1px solid",
             borderColor: selectedId === row.id ? "primary.main" : "divider",
-            borderRadius: 2,
-            backgroundColor: selectedId === row.id ? alpha("#0A84FF", 0.14) : "transparent",
+            borderRadius: "8px",
+            backgroundColor: selectedId === row.id ? alpha("#0A84FF", 0.12) : "#FFFFFF",
             cursor: "pointer",
           }}
         >
@@ -5146,6 +5146,10 @@ export default function App() {
   const [gloves, setGloves] = useState<Artifact[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
+  const [leftRailCollapsed, setLeftRailCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("gloveiq-left-rail-collapsed") === "1";
+  });
 
   useEffect(() => { api.brands().then(setBrands).catch(() => setBrands([])); }, []);
   useEffect(() => { api.families().then(setFamilies).catch(() => setFamilies([])); }, []);
@@ -5156,6 +5160,9 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("gloveiq-theme-mode", colorMode);
   }, [colorMode]);
+  useEffect(() => {
+    window.localStorage.setItem("gloveiq-left-rail-collapsed", leftRailCollapsed ? "1" : "0");
+  }, [leftRailCollapsed]);
   useEffect(() => {
     if (route.name === "artifactDetail") {
       setLastArtifactId(route.artifactId);
@@ -5209,13 +5216,23 @@ export default function App() {
             backdropFilter: "none",
           }}
         >
-          <Box sx={{ minHeight: "100%", display: "grid", gridTemplateColumns: { xs: "1fr", md: "280px 1fr" } }}>
+          <Box
+            sx={{
+              minHeight: "100%",
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: `${leftRailCollapsed ? 88 : 280}px 1fr` },
+              transition: "grid-template-columns 280ms cubic-bezier(0.22, 1, 0.36, 1)",
+              willChange: "grid-template-columns",
+            }}
+          >
             <SidebarNav
               locale={locale}
               activeTab={activeTab}
               canOpenArtifact={true}
               colorMode={colorMode}
+              collapsed={leftRailCollapsed}
               onToggleColorMode={() => setColorMode((m) => (m === "light" ? "dark" : "light"))}
+              onToggleCollapsed={() => setLeftRailCollapsed((v) => !v)}
               onSelect={onSelectTab}
             />
 

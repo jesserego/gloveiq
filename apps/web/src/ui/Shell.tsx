@@ -3,6 +3,7 @@ import {
   Box,
   Divider,
   FormControl,
+  IconButton,
   MenuItem,
   Select,
   Stack,
@@ -21,6 +22,8 @@ import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
+import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 
 import type { Locale } from "../i18n/strings";
 import { t } from "../i18n/strings";
@@ -29,24 +32,28 @@ import gloveIqLogo from "../assets/GloveIQ.logo.png";
 import type { AppThemeMode } from "./theme";
 
 const BRAND_LOGO_BLUE_FILTER = "hue-rotate(205deg) saturate(185%) brightness(0.95)";
-const SIDEBAR_LOGO_SHIFT_X = -28;
 
 export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
 export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
+const IOS_RAIL_EASE = "280ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 export function SidebarNav({
   locale,
   activeTab,
   canOpenArtifact,
   colorMode,
+  collapsed,
   onToggleColorMode,
+  onToggleCollapsed,
   onSelect,
 }: {
   locale: Locale;
   activeTab: MainTab;
   canOpenArtifact: boolean;
   colorMode: AppThemeMode;
+  collapsed: boolean;
   onToggleColorMode: () => void;
+  onToggleCollapsed: () => void;
   onSelect: (tab: MainTab) => void;
 }) {
   const theme = useTheme();
@@ -67,40 +74,30 @@ export function SidebarNav({
       sx={{
         display: { xs: "none", md: "flex" },
         flexDirection: "column",
-        p: 2,
-        gap: 1.5,
+        p: collapsed ? 1 : 2,
+        gap: collapsed ? 1.1 : 1.5,
         background: isDark
           ? "linear-gradient(180deg, rgba(28,28,30,0.92), rgba(18,18,20,0.88))"
           : "linear-gradient(180deg, rgba(255,255,255,0.90), rgba(242,242,247,0.88))",
         backdropFilter: "blur(22px) saturate(130%)",
         borderRight: `1px solid ${theme.palette.divider}`,
         color: "text.primary",
+        transition: `padding ${IOS_RAIL_EASE}, gap ${IOS_RAIL_EASE}`,
       }}
     >
-      <Stack spacing={0.6} alignItems="center" sx={{ px: 0.2, py: 0.4, width: "100%" }}>
-        <Box
-          sx={{
-            width: 152,
-            height: 52,
-            overflow: "hidden",
-          }}
-        >
-          <Box
-            component="img"
-            src={gloveIqLogo}
-            alt="GloveIQ logo"
-            sx={{
-              width: 182,
-              height: 58,
-              objectFit: "contain",
-              filter: BRAND_LOGO_BLUE_FILTER,
-              display: "block",
-              transform: `translateX(${SIDEBAR_LOGO_SHIFT_X}px)`,
-            }}
-          />
-        </Box>
-        <Typography sx={{ fontSize: 12, color: "text.secondary", letterSpacing: 0.2, textAlign: "center" }} noWrap>
-          v0.1.0 • Update 2026.02.12
+      <Stack direction="row" justifyContent="flex-end">
+        <IconButton size="small" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={onToggleCollapsed}>
+          <Box sx={{ display: "grid", placeItems: "center", transform: collapsed ? "rotate(0deg)" : "rotate(0deg)", transition: `transform ${IOS_RAIL_EASE}` }}>
+            {collapsed ? <ChevronRightRoundedIcon fontSize="small" /> : <ChevronLeftRoundedIcon fontSize="small" />}
+          </Box>
+        </IconButton>
+      </Stack>
+      <Stack spacing={0.35} alignItems={collapsed ? "center" : "flex-start"} sx={{ px: 0.2, py: 0.4, width: "100%", transition: `all ${IOS_RAIL_EASE}` }}>
+        <Typography sx={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2, textAlign: collapsed ? "center" : "left", width: "100%", transition: `all ${IOS_RAIL_EASE}` }} noWrap>
+          {collapsed ? "GQ" : "GloveIQ"}
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: "text.secondary", letterSpacing: 0.2, textAlign: collapsed ? "center" : "left", width: "100%", transition: `all ${IOS_RAIL_EASE}` }} noWrap>
+          {collapsed ? "v0.1.0" : "v0.1.0 • Update 2026.02.12"}
         </Typography>
       </Stack>
 
@@ -121,7 +118,7 @@ export function SidebarNav({
                 }
               }}
               sx={{
-                px: 1.1,
+                px: collapsed ? 0.5 : 1.1,
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
@@ -129,19 +126,32 @@ export function SidebarNav({
                 backgroundColor: active ? alpha(theme.palette.primary.main, 0.16) : "transparent",
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,
-                transition: "all 140ms ease",
+                transition: `all ${IOS_RAIL_EASE}`,
                 "&:hover": {
                   backgroundColor: disabled ? "transparent" : isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
                 },
               }}
             >
-              <Stack direction="row" spacing={1.2} alignItems="center">
+              <Stack direction="row" spacing={collapsed ? 0 : 1.2} alignItems="center" justifyContent={collapsed ? "center" : "flex-start"}>
                 <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? alpha(theme.palette.primary.main, 0.2) : isDark ? "rgba(120,120,128,0.24)" : "rgba(120,120,128,0.16)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
-                  <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                <Box
+                  sx={{
+                    minWidth: 0,
+                    overflow: "hidden",
+                    width: collapsed ? 0 : "auto",
+                    opacity: collapsed ? 0 : 1,
+                    transform: collapsed ? "translateX(-6px)" : "translateX(0px)",
+                    transition: `opacity ${IOS_RAIL_EASE}, transform ${IOS_RAIL_EASE}, width ${IOS_RAIL_EASE}`,
+                  }}
+                >
+                  {!collapsed ? (
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
+                  ) : null}
+                  {!collapsed ? (
+                    <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                  ) : null}
                 </Box>
               </Stack>
             </Box>
@@ -167,26 +177,39 @@ export function SidebarNav({
                 }
               }}
               sx={{
-                px: 1.1,
+                px: collapsed ? 0.5 : 1.1,
                 py: 0.95,
                 borderRadius: 2,
                 border: "1px solid",
                 borderColor: active ? alpha(theme.palette.primary.main, 0.45) : "transparent",
                 backgroundColor: active ? alpha(theme.palette.primary.main, 0.16) : "transparent",
                 cursor: "pointer",
-                transition: "all 140ms ease",
+                transition: `all ${IOS_RAIL_EASE}`,
                 "&:hover": {
                   backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
                 },
               }}
             >
-              <Stack direction="row" spacing={1.2} alignItems="center">
+              <Stack direction="row" spacing={collapsed ? 0 : 1.2} alignItems="center" justifyContent={collapsed ? "center" : "flex-start"}>
                 <Box sx={{ width: 26, height: 26, borderRadius: 1.3, backgroundColor: active ? alpha(theme.palette.primary.main, 0.2) : isDark ? "rgba(120,120,128,0.24)" : "rgba(120,120,128,0.16)", display: "grid", placeItems: "center" }}>
                   {item.icon}
                 </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
-                  <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                <Box
+                  sx={{
+                    minWidth: 0,
+                    overflow: "hidden",
+                    width: collapsed ? 0 : "auto",
+                    opacity: collapsed ? 0 : 1,
+                    transform: collapsed ? "translateX(-6px)" : "translateX(0px)",
+                    transition: `opacity ${IOS_RAIL_EASE}, transform ${IOS_RAIL_EASE}, width ${IOS_RAIL_EASE}`,
+                  }}
+                >
+                  {!collapsed ? (
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
+                  ) : null}
+                  {!collapsed ? (
+                    <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>
+                  ) : null}
                 </Box>
               </Stack>
             </Box>
@@ -196,31 +219,64 @@ export function SidebarNav({
 
       <Box
         sx={{
-          p: 1.1,
+          p: collapsed ? 0.6 : 1.1,
           mt: 0.25,
           borderRadius: 2,
-          border: `1px solid ${theme.palette.divider}`,
+          border: collapsed ? "none" : `1px solid ${theme.palette.divider}`,
           backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)",
         }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-          <Stack direction="row" alignItems="center" spacing={0.8}>
+        {collapsed ? (
+          <Box
+            role="button"
+            tabIndex={0}
+            aria-label="Toggle light/dark mode"
+            onClick={onToggleColorMode}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleColorMode();
+              }
+            }}
+            sx={{
+              width: 26,
+              height: 26,
+              mx: "auto",
+              borderRadius: 1.3,
+              backgroundColor: isDark ? "rgba(120,120,128,0.24)" : "rgba(120,120,128,0.16)",
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+              transition: `all ${IOS_RAIL_EASE}`,
+              "&:hover": {
+                backgroundColor: isDark ? "rgba(120,120,128,0.34)" : "rgba(120,120,128,0.24)",
+              },
+            }}
+          >
             {isDark ? <DarkModeOutlinedIcon fontSize="small" /> : <LightModeOutlinedIcon fontSize="small" />}
-            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
-              {colorMode === "dark" ? "Dark mode" : "Light mode"}
-            </Typography>
+          </Box>
+        ) : (
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+            <Stack direction="row" alignItems="center" spacing={0.8}>
+              {isDark ? <DarkModeOutlinedIcon fontSize="small" /> : <LightModeOutlinedIcon fontSize="small" />}
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+                {colorMode === "dark" ? "Dark mode" : "Light mode"}
+              </Typography>
+            </Stack>
+            <Switch checked={colorMode === "dark"} onChange={onToggleColorMode} inputProps={{ "aria-label": "Toggle light/dark mode" }} />
           </Stack>
-          <Switch checked={colorMode === "dark"} onChange={onToggleColorMode} inputProps={{ "aria-label": "Toggle light/dark mode" }} />
-        </Stack>
+        )}
       </Box>
 
       <Box sx={{ mt: "auto" }} />
 
-      <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
-        <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
-        <br />
-        Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
-      </Box>
+      {!collapsed ? (
+        <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
+          <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
+          <br />
+          Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
+        </Box>
+      ) : null}
     </Box>
   );
 }

@@ -9,7 +9,7 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
@@ -40,6 +40,10 @@ export default function GloveSearchBar({
   selectedRegion = "",
   onSelectRegion,
 }: Props) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const toneBase = isDark ? "#fff" : "#000";
+  const toneInverse = isDark ? "#000" : "#fff";
   const [manufacturerAnchor, setManufacturerAnchor] = useState<HTMLElement | null>(null);
   const [regionAnchor, setRegionAnchor] = useState<HTMLElement | null>(null);
 
@@ -50,23 +54,23 @@ export default function GloveSearchBar({
         minHeight: 58,
         borderRadius: 999,
         border: "1px solid",
-        borderColor: alpha("#fff", 0.23),
-        bgcolor: alpha("#fff", 0.03),
-        boxShadow: `0 2px 8px ${alpha("#000", 0.45)}`,
+        borderColor: alpha(toneBase, isDark ? 0.23 : 0.2),
+        bgcolor: alpha(toneBase, isDark ? 0.03 : 0.02),
+        boxShadow: `0 2px 8px ${alpha(toneInverse, isDark ? 0.45 : 0.14)}`,
         px: { xs: 1.1, sm: 1.5 },
         display: "flex",
         alignItems: "center",
         gap: 0.5,
         transition: "box-shadow .16s ease, border-color .16s ease",
         "&:focus-within": {
-          borderColor: alpha("#9CC8FF", 0.92),
-          boxShadow: `0 0 0 3px ${alpha("#0A84FF", 0.3)}, 0 2px 10px ${alpha("#000", 0.5)}`,
+          borderColor: alpha("#0A84FF", 0.92),
+          boxShadow: `0 0 0 3px ${alpha("#0A84FF", isDark ? 0.3 : 0.16)}, 0 2px 10px ${alpha(toneInverse, isDark ? 0.5 : 0.22)}`,
         },
       }}
     >
       <Tooltip title="Search">
         <IconButton aria-label="Search" onClick={() => onSearch(value)} size="small">
-          <SearchIcon sx={{ color: alpha("#fff", 0.76) }} />
+          <SearchIcon sx={{ color: alpha(theme.palette.text.primary, 0.78) }} />
         </IconButton>
       </Tooltip>
 
@@ -92,7 +96,7 @@ export default function GloveSearchBar({
               fontSize: { xs: 16, sm: 18 },
               lineHeight: 1.3,
               "::placeholder": {
-                color: alpha("#fff", 0.68),
+                color: alpha(theme.palette.text.primary, 0.62),
                 opacity: 1,
               },
             },
@@ -106,7 +110,7 @@ export default function GloveSearchBar({
             aria-label="Region"
             onClick={(evt) => setRegionAnchor(evt.currentTarget)}
           >
-            <PublicIcon sx={{ color: alpha("#fff", 0.78) }} />
+            <PublicIcon sx={{ color: alpha(theme.palette.text.primary, 0.78) }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={selectedManufacturer ? `Brand: ${selectedManufacturer}` : "Select brand"}>
@@ -114,7 +118,7 @@ export default function GloveSearchBar({
             aria-label="Brand"
             onClick={(evt) => setManufacturerAnchor(evt.currentTarget)}
           >
-            <SportsBaseballIcon sx={{ color: alpha("#fff", 0.78) }} />
+            <SportsBaseballIcon sx={{ color: alpha(theme.palette.text.primary, 0.78) }} />
           </IconButton>
         </Tooltip>
         <Button
@@ -127,12 +131,12 @@ export default function GloveSearchBar({
             minWidth: 108,
             px: 1.45,
             height: 36,
-            borderColor: alpha("#fff", 0.26),
+            borderColor: alpha(toneBase, isDark ? 0.26 : 0.24),
             color: "text.primary",
-            backgroundColor: alpha("#fff", 0.05),
+            backgroundColor: alpha(toneBase, isDark ? 0.05 : 0.04),
             "&:hover": {
-              borderColor: alpha("#fff", 0.38),
-              backgroundColor: alpha("#fff", 0.1),
+              borderColor: alpha(toneBase, isDark ? 0.38 : 0.34),
+              backgroundColor: alpha(toneBase, isDark ? 0.1 : 0.08),
             },
           }}
         >
