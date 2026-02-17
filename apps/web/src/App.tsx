@@ -715,11 +715,10 @@ function SearchResultsPage({
       return token || "Unknown";
     };
     const conditionBucket = (score: number | null | undefined) => {
-      if (typeof score !== "number") return "Unknown";
-      if (score >= 0.8) return "Excellent";
-      if (score >= 0.6) return "Good";
-      if (score >= 0.4) return "Fair";
-      return "Needs Work";
+      if (typeof score !== "number") return "Other";
+      if (score >= 0.95) return "New";
+      if (score > 0) return "Used";
+      return "Other";
     };
     const priceBucket = (price: number | null | undefined) => {
       const value = Number(price || 0);
@@ -732,14 +731,36 @@ function SearchResultsPage({
     };
     const handFromLabel = (label: string | null | undefined) => {
       const v = String(label || "").toLowerCase();
-      if (v.includes("lht") || v.includes("left")) return "LHT";
-      if (v.includes("rht") || v.includes("right")) return "RHT";
-      return "Unknown";
+      if (v.includes("lht") || v.includes("left")) return "LH";
+      if (v.includes("rht") || v.includes("right")) return "RH";
+      return "Other";
     };
-    const sportFromPosition = (position: string | null | undefined) => {
-      const v = String(position || "").toLowerCase();
+    const sportFromText = (value: string | null | undefined) => {
+      const v = String(value || "").toLowerCase();
+      if (v.includes("rubber")) return "Rubberball";
       if (v.includes("softball")) return "Softball";
       return "Baseball";
+    };
+    const positionBucket = (position: string | null | undefined) => {
+      const p = String(position || "").toLowerCase();
+      if (p.includes("infield")) return "Infield";
+      if (p.includes("outfield")) return "Outfield";
+      if (p.includes("pitcher")) return "Pitcher";
+      if (p.includes("catch")) return "Catcher";
+      if (p.includes("first")) return "First Base";
+      if (p.includes("youth")) return "Youth (All)";
+      if (p.includes("trainer")) return "Trainer";
+      return "Other";
+    };
+    const webBucket = (web: string | null | undefined) => {
+      const v = String(web || "").toLowerCase();
+      if (v.includes("i-web") || v === "i") return "I-Web";
+      if (v.includes("closed")) return "Closed Web";
+      if (v.includes("h-web") || v.includes("h web")) return "H-Web";
+      if (v.includes("single")) return "Single Post";
+      if (v.includes("trapeze")) return "Trapeze";
+      if (v.includes("double")) return "Double Post";
+      return "Other";
     };
 
     const variantRows: SearchResultRow[] = variants.map((v) => ({
@@ -753,12 +774,12 @@ function SearchResultsPage({
         region: regionFromOrigin(v.made_in),
         hand: handFromLabel(v.variant_label),
         size: "Unknown",
-        web: String(v.web || "Unknown"),
+        web: webBucket(v.web),
         source: "catalog",
         year: String(v.year || "Unknown"),
-        sport: "Baseball",
-        condition: "Unknown",
-        position: "Unknown",
+        sport: sportFromText(v.variant_label),
+        condition: "Other",
+        position: "Other",
         series: seriesFromModel(v.model_code),
         priceBucket: "Unknown",
         recordType: "variant",
@@ -774,14 +795,14 @@ function SearchResultsPage({
       meta: {
         brand: String(g.brand_key || "Unknown"),
         region: regionFromOrigin(g.made_in),
-        hand: "Unknown",
+        hand: "Other",
         size: g.size_in ? `${g.size_in}` : "Unknown",
-        web: "Unknown",
+        web: webBucket(g.model_code),
         source: String(g.source || "Unknown"),
         year: "Unknown",
-        sport: sportFromPosition(g.position),
+        sport: sportFromText(`${g.position || ""} ${g.model_code || ""}`),
         condition: conditionBucket(g.condition_score),
-        position: g.position || "Unknown",
+        position: positionBucket(g.position),
         series: seriesFromModel(g.model_code),
         priceBucket: priceBucket(g.valuation_estimate || g.valuation_high || g.valuation_low),
         recordType: "artifact",
@@ -794,14 +815,14 @@ function SearchResultsPage({
         meta: {
           brand: row.chips[0] || "Unknown",
           region: "Global",
-          hand: row.chips.find((chip) => chip.includes("HT")) || "Unknown",
+          hand: handFromLabel(row.chips.join(" ")),
           size: row.chips.find((chip) => /\d/.test(chip)) || "Unknown",
-          web: row.chips.find((chip) => chip.toLowerCase().includes("web")) || "Unknown",
+          web: webBucket(row.chips.find((chip) => chip.toLowerCase().includes("web"))),
           source: "mock",
           year: row.chips.find((chip) => /^\d{4}$/.test(chip)) || "Unknown",
           sport: "Baseball",
-          condition: "Unknown",
-          position: "Unknown",
+          condition: "Other",
+          position: "Other",
           series: "Unknown",
           priceBucket: "Unknown",
           recordType: row.record_type === "variant" ? "variant" : "artifact",
@@ -811,14 +832,14 @@ function SearchResultsPage({
     return merged;
   }, [variants, gloves]);
 
-  const sportOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.sport))).filter((v) => v !== "Unknown"), [rows]);
+  const sportOptions = useMemo(() => ["Baseball", "Softball", "Rubberball"], []);
   const brandOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.brand))).filter((v) => v !== "Unknown"), [rows]);
-  const conditionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.condition))).filter((v) => v !== "Unknown"), [rows]);
-  const handOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.hand))).filter((v) => v !== "Unknown"), [rows]);
-  const positionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.position))).filter((v) => v !== "Unknown"), [rows]);
+  const conditionOptions = useMemo(() => ["New", "Used", "Other"], []);
+  const handOptions = useMemo(() => ["RH", "LH"], []);
+  const positionOptions = useMemo(() => ["Infield", "Outfield", "Pitcher", "Catcher", "First Base", "Youth (All)", "Trainer"], []);
   const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.size))).filter((v) => v !== "Unknown"), [rows]);
   const seriesOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.series))).filter((v) => v !== "Unknown"), [rows]);
-  const webOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.web))).filter((v) => v !== "Unknown"), [rows]);
+  const webOptions = useMemo(() => ["I-Web", "Closed Web", "H-Web", "Single Post", "Trapeze", "Double Post"], []);
   const priceOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.priceBucket))).filter((v) => v !== "Unknown"), [rows]);
 
   function toggleFilterValue(current: string[], value: string, setValue: (next: string[]) => void) {
@@ -1010,7 +1031,7 @@ function SearchResultsPage({
                 { key: "position", title: "Position", options: positionOptions, selected: selectedPositions, setSelected: setSelectedPositions },
                 { key: "size", title: "Size", options: sizeOptions, selected: selectedSizes, setSelected: setSelectedSizes },
                 { key: "series", title: "Series", options: seriesOptions, selected: selectedSeries, setSelected: setSelectedSeries },
-                { key: "web", title: "Web Type", options: webOptions, selected: selectedWebs, setSelected: setSelectedWebs },
+                { key: "web", title: "Web", options: webOptions, selected: selectedWebs, setSelected: setSelectedWebs },
                 { key: "price", title: "Price", options: priceOptions, selected: selectedPrices, setSelected: setSelectedPrices },
               ].map((section) => (
                 <Accordion key={section.key} disableGutters sx={{ boxShadow: "none", borderTop: "1px solid", borderColor: "divider", "&:before": { display: "none" } }}>
@@ -1244,6 +1265,9 @@ function SearchScreen({
   const [homeBrandDetailOpen, setHomeBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
   const [homePatternPreview, setHomePatternPreview] = useState<{ title: string; color: string } | null>(null);
   const [upcomingPreview, setUpcomingPreview] = useState<{ title: string; color: string } | null>(null);
+  const [homeGlobalWindow, setHomeGlobalWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
+  const [homeUsWindow, setHomeUsWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
+  const [homeJapanWindow, setHomeJapanWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
 
   useEffect(() => {
     let cancelled = false;
@@ -1273,14 +1297,37 @@ function SearchScreen({
   }, []);
 
   const homeMonthlySales = useMemo(() => {
+    const inGlobalEbayMarkets = (sale: SaleRecord) => {
+      const source = String(sale.source || "").toLowerCase();
+      const url = String(sale.source_url || "").toLowerCase();
+      if (!(source.includes("ebay") || url.includes("ebay."))) return false;
+      const marketHints = [
+        "ebay_us", "ebay_jp", "ebay_uk", "ebay_de", "ebay_au", "ebay_ca", "ebay_fr", "ebay_it", "ebay_es",
+        "ebay us", "ebay japan", "ebay united kingdom", "ebay germany", "ebay australia", "ebay canada", "ebay france", "ebay italy", "ebay spain",
+      ];
+      if (marketHints.some((hint) => source.includes(hint))) return true;
+      const domains = [
+        "ebay.com/",
+        "ebay.co.jp",
+        "ebay.co.uk",
+        "ebay.de",
+        "ebay.com.au",
+        "ebay.ca",
+        "ebay.fr",
+        "ebay.it",
+        "ebay.es",
+      ];
+      return domains.some((domain) => url.includes(domain));
+    };
     const now = new Date();
     const labels: string[] = [];
     const values: number[] = [];
+    const scopedSales = homeSalesRows.filter(inGlobalEbayMarkets);
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       labels.push(month);
-      values.push(homeSalesRows.filter((s) => String(s.sale_date).startsWith(month)).length);
+      values.push(scopedSales.filter((s) => String(s.sale_date).startsWith(month)).length);
     }
     return { labels, values };
   }, [homeSalesRows]);
@@ -1333,8 +1380,116 @@ function SearchScreen({
     return result;
   }, [homeSalesRows]);
 
-  const homeMarketVolume = homeSalesRows.length;
-  const homeMarketValue = homeSalesRows.reduce((sum, row) => sum + Number(row.price_usd || 0), 0);
+  const homeWindowOptions = [
+    { key: "1mo" as const, label: "1mo", ms: 30 * 24 * 60 * 60 * 1000 },
+    { key: "3mo" as const, label: "3mo", ms: 90 * 24 * 60 * 60 * 1000 },
+    { key: "6mo" as const, label: "6mo", ms: 180 * 24 * 60 * 60 * 1000 },
+    { key: "1yr" as const, label: "1yr", ms: 365 * 24 * 60 * 60 * 1000 },
+    { key: "ytd" as const, label: "YTD", ms: 0 },
+  ];
+  const filterSalesByWindow = (salesRows: SaleRecord[], windowKey: "1mo" | "3mo" | "6mo" | "1yr" | "ytd") => {
+    const now = new Date();
+    const nowTs = now.getTime();
+    const ytdStart = new Date(now.getFullYear(), 0, 1).getTime();
+    const selected = homeWindowOptions.find((option) => option.key === windowKey) || homeWindowOptions[0];
+    return salesRows
+      .map((sale) => ({ ...sale, ts: new Date(sale.sale_date).getTime() }))
+      .filter((sale) => Number.isFinite(sale.ts))
+      .filter((sale) => selected.key === "ytd" ? sale.ts >= ytdStart : sale.ts >= nowTs - selected.ms);
+  };
+
+  const detectEbayCountry = (sale: SaleRecord): "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain" | null => {
+    const source = String(sale.source || "").toLowerCase();
+    const url = String(sale.source_url || "").toLowerCase();
+    const checks: Array<{ country: "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"; hits: string[] }> = [
+      { country: "US", hits: ["ebay_us", "ebay us", "ebay.com/"] },
+      { country: "Japan", hits: ["ebay_jp", "ebay japan", "ebay.co.jp", "ebay.jp"] },
+      { country: "United Kingdom", hits: ["ebay_uk", "ebay uk", "ebay united kingdom", "ebay.co.uk"] },
+      { country: "Germany", hits: ["ebay_de", "ebay germany", "ebay.de"] },
+      { country: "Australia", hits: ["ebay_au", "ebay australia", "ebay.com.au"] },
+      { country: "Canada", hits: ["ebay_ca", "ebay canada", "ebay.ca"] },
+      { country: "France", hits: ["ebay_fr", "ebay france", "ebay.fr"] },
+      { country: "Italy", hits: ["ebay_it", "ebay italy", "ebay.it"] },
+      { country: "Spain", hits: ["ebay_es", "ebay spain", "ebay.es"] },
+    ];
+    for (const check of checks) {
+      if (check.hits.some((hit) => source.includes(hit) || url.includes(hit))) return check.country;
+    }
+    return null;
+  };
+
+  const homeGlobalWindowedSales = useMemo(() => {
+    return filterSalesByWindow(homeSalesRows, homeGlobalWindow).filter((sale) => detectEbayCountry(sale) !== null);
+  }, [homeSalesRows, homeGlobalWindow]);
+
+  const homeGlobalByCountry = useMemo(() => {
+    const countries: Array<"US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"> = [
+      "US", "Japan", "United Kingdom", "Germany", "Australia", "Canada", "France", "Italy", "Spain",
+    ];
+    return countries.map((country) => {
+      const salesRows = homeGlobalWindowedSales.filter((sale) => detectEbayCountry(sale) === country);
+      const value = salesRows.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0);
+      return { country, count: salesRows.length, value };
+    });
+  }, [homeGlobalWindowedSales]);
+
+  const homeGlobalMarket = useMemo(() => {
+    return {
+      count: homeGlobalWindowedSales.length,
+      value: homeGlobalWindowedSales.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0),
+    };
+  }, [homeGlobalWindowedSales]);
+
+  const homeRegionalSales = useMemo(() => {
+    const variantOriginById = new Map<string, string>();
+    for (const variant of homeVariantRows) {
+      variantOriginById.set(variant.variant_id, String(variant.made_in || "").toLowerCase());
+    }
+    const isJapan = (origin: string) => origin.includes("japan") || origin === "jp";
+    const isUS = (origin: string) => origin.includes("usa") || origin.includes("united states") || origin === "us";
+    const isEbay = (sale: SaleRecord) => {
+      const source = String(sale.source || "").toLowerCase();
+      const url = String(sale.source_url || "").toLowerCase();
+      return source.includes("ebay") || url.includes("ebay.");
+    };
+    const isEbayJapan = (sale: SaleRecord) => {
+      const source = String(sale.source || "").toLowerCase();
+      const url = String(sale.source_url || "").toLowerCase();
+      return source.includes("ebay_jp") || source.includes("ebay japan") || url.includes("ebay.co.jp") || url.includes("ebay.jp");
+    };
+    const isEbayUS = (sale: SaleRecord) => {
+      const source = String(sale.source || "").toLowerCase();
+      const url = String(sale.source_url || "").toLowerCase();
+      return source.includes("ebay_us") || source.includes("ebay us") || url.includes("ebay.com");
+    };
+
+    let usCount = 0;
+    let usValue = 0;
+    let japanCount = 0;
+    let japanValue = 0;
+
+    for (const sale of filterSalesByWindow(homeSalesRows, homeUsWindow)) {
+      if (!isEbay(sale)) continue;
+      const origin = variantOriginById.get(sale.variant_id) || "";
+      if (isEbayUS(sale) || isUS(origin)) {
+        usCount += 1;
+        usValue += Number(sale.price_usd || 0);
+      }
+    }
+    for (const sale of filterSalesByWindow(homeSalesRows, homeJapanWindow)) {
+      if (!isEbay(sale)) continue;
+      const origin = variantOriginById.get(sale.variant_id) || "";
+      if (isEbayJapan(sale) || isJapan(origin)) {
+        japanCount += 1;
+        japanValue += Number(sale.price_usd || 0);
+      }
+    }
+
+    return {
+      us: { count: usCount, value: usValue, avg: usCount ? usValue / usCount : 0 },
+      japan: { count: japanCount, value: japanValue, avg: japanCount ? japanValue / japanCount : 0 },
+    };
+  }, [homeSalesRows, homeVariantRows, homeUsWindow, homeJapanWindow]);
   const homeSeededBrands = useMemo(() => {
     const allowed = new Set(["USA", "Japan"]);
     const byKey = new Map<string, BrandConfig>();
@@ -1424,10 +1579,40 @@ function SearchScreen({
           </CardContent></Card>
 
           <Card><CardContent>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Glove Market (All Sales)</Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Global Glove Market (All Sales)</Typography>
+              <Stack direction="row" spacing={0.45}>
+                {homeWindowOptions.map((option) => (
+                  <Button
+                    key={option.key}
+                    color="inherit"
+                    sx={{
+                      ...FIGMA_OPEN_BUTTON_SX,
+                      minWidth: 44,
+                      px: 0.9,
+                      border: "1px solid",
+                      borderColor: homeGlobalWindow === option.key ? "primary.main" : "divider",
+                      bgcolor: homeGlobalWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
+                    }}
+                    onClick={() => setHomeGlobalWindow(option.key)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
             <Divider sx={{ my: 1.4 }} />
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeMarketValue)}</Typography>
-            <Typography variant="body2" color="text.secondary">{homeMarketVolume} tracked sales</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeGlobalMarket.value)}</Typography>
+            <Typography variant="body2" color="text.secondary">{homeGlobalMarket.count} tracked sales in selected window</Typography>
+            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,minmax(0,1fr))" }, gap: 0.7 }}>
+              {homeGlobalByCountry.map((row) => (
+                <Box key={row.country} sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                  <Typography variant="caption" color="text.secondary">{row.country}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(row.value)}</Typography>
+                  <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
+                </Box>
+              ))}
+            </Box>
             <Stack direction="row" spacing={0.6} sx={{ mt: 1.25, alignItems: "flex-end", height: 96 }}>
               {homeMonthlySales.values.map((value, idx) => {
                 const max = Math.max(1, ...homeMonthlySales.values);
@@ -1466,6 +1651,95 @@ function SearchScreen({
                 </Stack>
               ))}
             </Stack>
+          </CardContent></Card>
+        </Box>
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
+          <Card><CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>US Market Sales</Typography>
+              <Stack direction="row" spacing={0.4}>
+                {homeWindowOptions.map((option) => (
+                  <Button
+                    key={`us-${option.key}`}
+                    color="inherit"
+                    sx={{
+                      ...FIGMA_OPEN_BUTTON_SX,
+                      minWidth: 42,
+                      px: 0.8,
+                      border: "1px solid",
+                      borderColor: homeUsWindow === option.key ? "primary.main" : "divider",
+                      bgcolor: homeUsWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
+                    }}
+                    onClick={() => setHomeUsWindow(option.key)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+            <Divider sx={{ my: 1.2 }} />
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.us.value)}</Typography>
+            <Typography variant="body2" color="text.secondary">{homeRegionalSales.us.count} eBay US sales in selected window</Typography>
+            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Avg sale</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.us.avg)}</Typography>
+              </Box>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Share</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.us.count / homeGlobalMarket.count) * 100)}%` : "0%"}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Sales</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.us.count}</Typography>
+              </Box>
+            </Box>
+          </CardContent></Card>
+          <Card><CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Japan Market Sales</Typography>
+              <Stack direction="row" spacing={0.4}>
+                {homeWindowOptions.map((option) => (
+                  <Button
+                    key={`jp-${option.key}`}
+                    color="inherit"
+                    sx={{
+                      ...FIGMA_OPEN_BUTTON_SX,
+                      minWidth: 42,
+                      px: 0.8,
+                      border: "1px solid",
+                      borderColor: homeJapanWindow === option.key ? "primary.main" : "divider",
+                      bgcolor: homeJapanWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
+                    }}
+                    onClick={() => setHomeJapanWindow(option.key)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+            <Divider sx={{ my: 1.2 }} />
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.japan.value)}</Typography>
+            <Typography variant="body2" color="text.secondary">{homeRegionalSales.japan.count} eBay Japan sales in selected window</Typography>
+            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Avg sale</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.japan.avg)}</Typography>
+              </Box>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Share</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.japan.count / homeGlobalMarket.count) * 100)}%` : "0%"}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                <Typography variant="caption" color="text.secondary">Sales</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.japan.count}</Typography>
+              </Box>
+            </Box>
           </CardContent></Card>
         </Box>
 
