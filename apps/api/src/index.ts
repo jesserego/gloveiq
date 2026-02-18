@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
+import { loadLibraryStore } from "./libraryStore.js";
 
 function loadEnvFile(filePath: string) {
   if (!fs.existsSync(filePath)) return;
@@ -44,6 +45,7 @@ const libraryManifestPath = path.join(libraryExportDir, "media_manifest.jsonl");
 const resolvedPort = Number(process.env.PORT || 8787);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${resolvedPort}`;
 const b2PublicBaseUrl = (process.env.B2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+const libraryApiBasePath = "/api/library";
 
 function readOpenAiKey(): string {
   const raw = String(process.env.OPENAI_API_KEY || "").trim();
@@ -628,12 +630,39 @@ const exportArtifacts: Artifact[] = exportListings
   .filter((row): row is Artifact => Boolean(row));
 
 const artifacts: Artifact[] = exportArtifacts.length ? exportArtifacts : seedArtifacts;
+const libraryStore = loadLibraryStore({ exportDir: libraryExportDir, env: process.env });
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get(`${libraryApiBasePath}/health`, (_req, res) => res.json({ ok: true, stats: libraryStore.stats }));
+app.get(`${libraryApiBasePath}/search`, (req, res) => {
+  const q = String(req.query.q || "");
+  return res.json({ results: libraryStore.search(q) });
+});
+app.get(`${libraryApiBasePath}/gloves/:id`, (req, res) => {
+  const detail = libraryStore.gloveDetail(String(req.params.id || ""));
+  if (!detail) return res.status(404).json({ error: "Glove not found" });
+  return res.json(detail);
+});
+app.get(`${libraryApiBasePath}/listings/:id`, (req, res) => {
+  const detail = libraryStore.listingDetail(String(req.params.id || ""));
+  if (!detail) return res.status(404).json({ error: "Listing not found" });
+  return res.json(detail);
+});
 app.get("/media/key/:encoded(*)", (req, res) => {
   const key = String(req.params.encoded || "").replace(/^\/+/, "");
   const sourceUrl = String(req.query.source_url || "");
+  const exp = String(req.query.exp || "");
+  const sig = String(req.query.sig || "");
+  const signingSecret = String(process.env.B2_SIGNING_SECRET || "").trim();
   if (!key) return res.status(400).json({ error: "Missing media key" });
+  if (signingSecret) {
+    const expInt = Number(exp);
+    if (!Number.isFinite(expInt) || expInt < Math.floor(Date.now() / 1000)) {
+      return res.status(401).json({ error: "Expired media signature" });
+    }
+    const expected = crypto.createHmac("sha256", signingSecret).update(`${key}.${exp}`).digest("hex");
+    if (!sig || sig !== expected) return res.status(401).json({ error: "Invalid media signature" });
+  }
   if (b2PublicBaseUrl) return res.redirect(302, `${b2PublicBaseUrl}/${key}`);
   if (/^https?:\/\//i.test(sourceUrl)) return res.redirect(302, sourceUrl);
   return res.status(404).json({ error: "Media not resolvable. Set B2_PUBLIC_BASE_URL or provide source fallback." });

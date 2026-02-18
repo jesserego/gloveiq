@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"(optional)\""
+    "lint": "echo \"(optional)\"",
+    "library:validate": "python3 ../../scrapers/jbg/validate_library_xlsx.py",
+    "library:ingest": "python3 ../../scrapers/jbg/run_gloveiq_pipeline.py --library-only"
   },
   "dependencies": {
     "@gloveiq/shared": "0.1.0",

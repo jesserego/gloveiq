@@ -74,6 +74,74 @@ export type AppraisalAnalyzeResponse = {
   cache?: string;
 };
 
+export type LibrarySearchRow = {
+  id: string;
+  record_type: "variant" | "artifact";
+  canonical_name: string;
+  brand: string | null;
+  item_number: string | null;
+  pattern: string | null;
+  series: string | null;
+  level: string | null;
+  sport: string | null;
+  age_group: string | null;
+  size_in: number | null;
+  throwing_hand: string | null;
+  price_summary: {
+    count: number;
+    min: number | null;
+    max: number | null;
+    avg: number | null;
+    currency: string | null;
+  };
+  hero_image_url: string | null;
+};
+
+export type LibraryGlove = {
+  id: string;
+  record_type: "variant" | "artifact";
+  canonical_name: string;
+  item_number: string | null;
+  pattern: string | null;
+  series: string | null;
+  level: string | null;
+  sport: string | null;
+  age_group: string | null;
+  size_in: number | null;
+  throwing_hand: string | null;
+  market_origin: string | null;
+  normalized_specs: Record<string, string | null>;
+  confidence: Record<string, number>;
+  metrics: {
+    listings_count: number;
+    available_count: number;
+    price_min: number | null;
+    price_max: number | null;
+    price_avg: number | null;
+  };
+  images: Array<{ listing_id: string; role: string; url: string }>;
+  listings: Array<{ id: string; title: string | null; price: number | null; currency: string | null; url: string | null; source: string }>;
+};
+
+export type LibraryListing = {
+  id: string;
+  glove_id: string;
+  record_type: "variant" | "artifact";
+  source: string;
+  source_listing_id: string;
+  url: string | null;
+  title: string | null;
+  condition: string | null;
+  price_amount: number | null;
+  price_currency: string | null;
+  available: boolean;
+  created_at: string | null;
+  seen_at: string | null;
+  raw_specs: Array<{ spec_key: string; spec_value: string | null; source_label: string }>;
+  raw: { html: string | null; text: string | null };
+  images: Array<{ role: string; b2_key: string; source_url: string | null; signed_url: string | null }>;
+};
+
 export const api = {
   brands: () => json<BrandConfig[]>(`${API_BASE}/brands`),
   families: (q?: string) => json<FamilyRecord[]>(`${API_BASE}/families${q ? `?q=${encodeURIComponent(q)}` : ""}`),
@@ -104,4 +172,10 @@ export const api = {
     if (hint && hint.trim()) fd.append("hint", hint.trim());
     return json<AppraisalAnalyzeResponse>(`${API_BASE}/appraisal/analyze`, { method: "POST", body: fd });
   },
+  librarySearch: async (q: string) => {
+    const out = await json<{ results: LibrarySearchRow[] }>(`${API_BASE}/api/library/search?q=${encodeURIComponent(q || "")}`);
+    return out.results || [];
+  },
+  libraryGlove: (id: string) => json<LibraryGlove>(`${API_BASE}/api/library/gloves/${encodeURIComponent(id)}`),
+  libraryListing: (id: string) => json<LibraryListing>(`${API_BASE}/api/library/listings/${encodeURIComponent(id)}`),
 };

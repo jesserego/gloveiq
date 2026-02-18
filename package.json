@@ -11,6 +11,8 @@
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run dev",
     "build": "npm --workspace apps/web run build",
+    "library:validate": "npm --workspace apps/api run library:validate",
+    "library:ingest": "npm --workspace apps/api run library:ingest",
     "typecheck": "npm --workspace apps/web run typecheck && npm --workspace apps/api run typecheck",
     "lint": "npm --workspace apps/web run lint && npm --workspace apps/api run lint"
   },

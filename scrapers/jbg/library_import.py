@@ -87,6 +87,30 @@ KNOWN_BRANDS = [
     "44 Pro",
 ]
 
+REQUIRED_SPEC_FIELDS = [
+    "Item #",
+    "Back",
+    "Color",
+    "Fit",
+    "Leather",
+    "Level",
+    "Lining",
+    "Padding",
+    "Pattern",
+    "Series",
+    "Shell",
+    "Size",
+    "Special Feature",
+    "Sport",
+    "Throwing Hand",
+    "Usage",
+    "Used by",
+    "Web",
+    "Wrist",
+    "Age Group",
+    "Description",
+]
+
 
 @dataclass
 class ValidationResult:
@@ -303,6 +327,80 @@ def _norm_images(v: Any) -> List[str]:
     return out
 
 
+def _slug(s: Optional[str]) -> str:
+    raw = (_clean(s) or "unknown").lower()
+    return re.sub(r"[^a-z0-9]+", "-", raw).strip("-") or "unknown"
+
+
+def _record_type_from_listing(*, source: str, condition: Optional[str], model_code: Optional[str], title: Optional[str]) -> str:
+    text = " ".join([source or "", condition or "", model_code or "", title or ""]).lower()
+    artifact_markers = ["custom", "one of one", "1/1", "game used", "player issued", "modified", "re-lace", "relace"]
+    if any(marker in text for marker in artifact_markers):
+        return "artifact"
+    if model_code and _clean(model_code) and _clean(model_code) != "Unknown":
+        return "variant"
+    if source.upper() in {"JBG", "JUSTBALLGLOVES"}:
+        return "variant"
+    return "artifact"
+
+
+def _build_spec_map(
+    title: Optional[str],
+    description: Optional[str],
+    model_code: Optional[str],
+    size_in: Optional[float],
+    throw_hand: Optional[str],
+    sport: Optional[str],
+    web_type: Optional[str],
+    glove_profile: Optional[Dict[str, Any]] = None,
+    spec_json: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, Optional[str]], Dict[str, float]]:
+    by_lower: Dict[str, str] = {}
+    for container in (glove_profile or {}, spec_json or {}):
+        for k, v in container.items():
+            kk = _clean(k)
+            vv = _clean(v)
+            if kk and vv:
+                by_lower[kk.lower()] = vv
+
+    def from_any(*keys: str) -> Optional[str]:
+        for key in keys:
+            hit = by_lower.get(key.lower())
+            if hit:
+                return hit
+        return None
+
+    out: Dict[str, Optional[str]] = {
+        "Item #": _clean(model_code),
+        "Back": from_any("Back"),
+        "Color": from_any("Color"),
+        "Fit": from_any("Fit"),
+        "Leather": from_any("Leather"),
+        "Level": from_any("Level"),
+        "Lining": from_any("Lining"),
+        "Padding": from_any("Padding"),
+        "Pattern": from_any("Pattern"),
+        "Series": from_any("Series"),
+        "Shell": from_any("Shell"),
+        "Size": from_any("Size") or (f"{size_in:.2f}" if isinstance(size_in, (int, float)) else None),
+        "Special Feature": from_any("Special Feature"),
+        "Sport": from_any("Sport") or _clean(sport),
+        "Throwing Hand": from_any("Throwing Hand") or _clean(throw_hand),
+        "Usage": from_any("Usage"),
+        "Used by": from_any("Used by"),
+        "Web": from_any("Web") or _clean(web_type),
+        "Wrist": from_any("Wrist"),
+        "Age Group": from_any("Age Group"),
+        "Description": _clean(description) or _clean(title),
+    }
+
+    confidence: Dict[str, float] = {}
+    for field in REQUIRED_SPEC_FIELDS:
+        value = out.get(field)
+        confidence[field] = 0.92 if value else 0.0
+    return out, confidence
+
+
 def _guess_ext_and_ct(url: str) -> Tuple[str, str]:
     no_query = url.split("?", 1)[0]
     ct, _ = mimetypes.guess_type(no_query)
@@ -387,6 +485,30 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
         throw_hand = _norm_throw(_clean(norm_obj.get("throw_hand")) if isinstance(norm_obj, dict) else None)
         position = _norm_position(_clean(norm_obj.get("position")) if isinstance(norm_obj, dict) else None)
         web_type = _clean(norm_obj.get("web")) if isinstance(norm_obj, dict) else None
+        description = _clean(norm_obj.get("description")) if isinstance(norm_obj, dict) else None
+        record_type = _record_type_from_listing(
+            source="SS",
+            condition=_clean(row.get("condition")),
+            model_code=model,
+            title=title,
+        )
+        canonical_name = " ".join([x for x in [brand, model, f"{size_in:.2f}" if isinstance(size_in, (int, float)) else None] if x]).strip() or title or "Unknown"
+        glove_id = (
+            f"variant:{_slug(brand)}:{_slug(model)}:{_slug(str(size_in) if size_in is not None else 'na')}:{_slug(throw_hand or 'unk')}"
+            if record_type == "variant"
+            else f"artifact:SS:{listing_id}"
+        )
+        specs_raw, specs_conf = _build_spec_map(
+            title=title,
+            description=description,
+            model_code=model,
+            size_in=size_in,
+            throw_hand=throw_hand,
+            sport=_infer_sport(title, {}),
+            web_type=web_type,
+            glove_profile={},
+            spec_json=norm_raw if isinstance(norm_raw, dict) else {},
+        )
 
         if not brand:
             defaults_applied["brand_unknown"] = defaults_applied.get("brand_unknown", 0) + 1
@@ -396,10 +518,13 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
         images = _norm_images(row.get("images_json"))
         listing = {
             "listing_pk": _stable_key("SS", listing_id),
+            "glove_id": glove_id,
+            "record_type": record_type,
             "source": "SS",
             "source_listing_id": listing_id,
             "url": url,
             "title": title,
+            "canonical_name": canonical_name,
             "brand": brand or "Unknown",
             "model": model or "Unknown",
             "model_code": model or "Unknown",
@@ -415,7 +540,18 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
             "currency": _clean(row.get("currency")) or "USD",
             "created_at": None,
             "seen_at": None,
+            "item_number": model or None,
+            "pattern": _clean(norm_obj.get("pattern")) if isinstance(norm_obj, dict) else None,
+            "series": _clean(norm_obj.get("series")) if isinstance(norm_obj, dict) else None,
+            "level": _clean(norm_obj.get("level")) if isinstance(norm_obj, dict) else None,
+            "age_group": _clean(norm_obj.get("age_group")) if isinstance(norm_obj, dict) else None,
+            "market_origin": None,
             "raw_specs": norm_raw if isinstance(norm_raw, dict) else {},
+            "spec_fields_raw": specs_raw,
+            "normalized_specs": {k: v for k, v in specs_raw.items() if v},
+            "normalized_confidence": specs_conf,
+            "raw_html": None,
+            "raw_text": title,
             "images": images,
         }
         listings.append(listing)
@@ -498,13 +634,42 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
             defaults_applied["model_unknown"] = defaults_applied.get("model_unknown", 0) + 1
 
         images = _norm_images(row.get("images_json"))
+        description = _clean(row.get("description_snippet"))
+        sport = _infer_sport(title, glove_profile if isinstance(glove_profile, dict) else {})
+        condition = "New" if source == "JBG" else "Unknown"
+        record_type = _record_type_from_listing(
+            source=source,
+            condition=condition,
+            model_code=model_code,
+            title=title,
+        )
+        canonical_name = " ".join([x for x in [brand, model_code or model, f"{size_in:.2f}" if isinstance(size_in, (int, float)) else None] if x]).strip() or title or "Unknown"
+        glove_id = (
+            f"variant:{_slug(brand)}:{_slug(model_code or model)}:{_slug(str(size_in) if size_in is not None else 'na')}:{_slug(throw_hand or 'unk')}"
+            if record_type == "variant"
+            else f"artifact:{source}:{pid}"
+        )
+        specs_raw, specs_conf = _build_spec_map(
+            title=title,
+            description=description,
+            model_code=model_code or model,
+            size_in=size_in,
+            throw_hand=throw_hand,
+            sport=sport,
+            web_type=web_text,
+            glove_profile=glove_profile if isinstance(glove_profile, dict) else {},
+            spec_json=spec_json if isinstance(spec_json, dict) else {},
+        )
 
         listing = {
             "listing_pk": _stable_key(source, pid),
+            "glove_id": glove_id,
+            "record_type": record_type,
             "source": source,
             "source_listing_id": pid,
             "url": url,
             "title": title,
+            "canonical_name": canonical_name,
             "brand": brand or "Unknown",
             "model": model or "Unknown",
             "model_code": model_code or "Unknown",
@@ -514,16 +679,27 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
             "player_position": position or "Unknown",
             "position": position or "Unknown",
             "web_type": web_text or "Unknown",
-            "sport": _infer_sport(title, glove_profile if isinstance(glove_profile, dict) else {}),
-            "condition": "New" if source == "JBG" else "Unknown",
+            "sport": sport,
+            "condition": condition,
             "price": price,
             "currency": "USD",
             "created_at": _clean(cat.get("catalog_scraped_at")),
             "seen_at": _clean(row.get("detail_scraped_at")),
+            "item_number": model_code or None,
+            "pattern": _clean(glove_profile.get("pattern")) if isinstance(glove_profile, dict) else None,
+            "series": _clean(glove_profile.get("series")) if isinstance(glove_profile, dict) else None,
+            "level": _clean(glove_profile.get("level")) if isinstance(glove_profile, dict) else None,
+            "age_group": _clean(glove_profile.get("age_group")) if isinstance(glove_profile, dict) else None,
+            "market_origin": _clean(glove_profile.get("country")) if isinstance(glove_profile, dict) else None,
             "raw_specs": {
                 "glove_profile": glove_profile if isinstance(glove_profile, dict) else {},
                 "spec_json": spec_json if isinstance(spec_json, dict) else {},
             },
+            "spec_fields_raw": specs_raw,
+            "normalized_specs": {k: v for k, v in specs_raw.items() if v},
+            "normalized_confidence": specs_conf,
+            "raw_html": None,
+            "raw_text": _clean(row.get("description_snippet")) or title,
             "images": images,
         }
         listings.append(listing)
@@ -585,9 +761,12 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
         )
 
     by_source_final: Dict[str, int] = {}
+    by_record_type: Dict[str, int] = {}
     for listing in listings_sorted:
         src = listing.get("source") or "Unknown"
         by_source_final[src] = by_source_final.get(src, 0) + 1
+        rtype = listing.get("record_type") or "artifact"
+        by_record_type[rtype] = by_record_type.get(rtype, 0) + 1
 
     report = {
         "generated_at": _now_iso(),
@@ -595,6 +774,7 @@ def build_exports(xlsx_path: str, b2_prefix: str) -> Dict[str, Any]:
         "rows_scanned": rows_scanned,
         "listings_total": len(listings_sorted),
         "listings_by_source": by_source_final,
+        "listings_by_record_type": by_record_type,
         "media_manifest_rows": len(media_rows),
         "media_manifest_images_total": image_total,
         "errors_count": len(errors),
