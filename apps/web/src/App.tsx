@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
+import { Tier } from "@gloveiq/shared";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import type { SearchResult, VariantProfileRecord, GloveProfileRecord } from "./data/search-mocks";
 import { MOCK_SEARCH_RESULTS } from "./data/search-mocks";
@@ -10,6 +11,11 @@ import { buildAppTheme, type AppThemeMode } from "./ui/theme";
 import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
+import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
+import { freeTierMetricsMock } from "./mock/freeTierMetrics";
+import { TierGate } from "./components/TierGate";
+import { FeatureKey, featureMinTier, hasFeature } from "./lib/features";
+import { useTier } from "./providers/TierProvider";
 
 import {
   Accordion,
@@ -60,6 +66,9 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import TuneIcon from "@mui/icons-material/Tune";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
+import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -87,6 +96,7 @@ type Route =
   | { name: "artifactDetail"; artifactId: string }
   | { name: "variantProfile"; variantId: string }
   | { name: "gloveProfile"; gloveId: string }
+  | { name: "brandProfile"; brandKey: string }
   | { name: "pricing" };
 
 function money(n: number | null | undefined) {
@@ -102,7 +112,7 @@ function confidenceBandFromScore(score: number): "Low" | "Medium" | "High" {
 }
 
 function routeToTab(route: Route): MainTab {
-  if (route.name === "artifacts" || route.name === "artifactDetail" || route.name === "variantProfile" || route.name === "gloveProfile") return "artifact";
+  if (route.name === "artifacts" || route.name === "artifactDetail" || route.name === "variantProfile" || route.name === "gloveProfile" || route.name === "brandProfile") return "artifact";
   if (route.name === "appraisal") return "appraisal";
   if (route.name === "account") return "account";
   return route.name;
@@ -111,6 +121,7 @@ function routeToTab(route: Route): MainTab {
 function routeFromPath(pathname: string): Route {
   if (pathname.startsWith("/variants/")) return { name: "variantProfile", variantId: decodeURIComponent(pathname.replace("/variants/", "")) };
   if (pathname.startsWith("/gloves/")) return { name: "gloveProfile", gloveId: decodeURIComponent(pathname.replace("/gloves/", "")) };
+  if (pathname.startsWith("/brands/")) return { name: "brandProfile", brandKey: decodeURIComponent(pathname.replace("/brands/", "")) };
   if (pathname === "/artifacts") return { name: "artifacts" };
   if (pathname === "/appraisal") return { name: "appraisal" };
   if (pathname === "/account") return { name: "account" };
@@ -121,6 +132,7 @@ function routeFromPath(pathname: string): Route {
 function pathFromRoute(route: Route): string {
   if (route.name === "variantProfile") return `/variants/${encodeURIComponent(route.variantId)}`;
   if (route.name === "gloveProfile") return `/gloves/${encodeURIComponent(route.gloveId)}`;
+  if (route.name === "brandProfile") return `/brands/${encodeURIComponent(route.brandKey)}`;
   if (route.name === "artifacts") return "/artifacts";
   if (route.name === "appraisal") return "/appraisal";
   if (route.name === "account") return "/account";
@@ -176,6 +188,8 @@ const BRAND_COMPANY_INFO: Record<string, { company: string; contact: string }> =
   LOUISVILLE_SLUGGER: { company: "Louisville Slugger", contact: "www.slugger.com/en-us/contact-us" },
   NIKE: { company: "Nike, Inc.", contact: "www.nike.com/help" },
   FORTY_FOUR: { company: "44 Pro Gloves", contact: "support@44pro.com" },
+  "44_PRO": { company: "44 Pro Gloves", contact: "support@44pro.com" },
+  "44_PRO_DTC": { company: "44 Pro Gloves", contact: "support@44pro.com" },
   SSK: { company: "SSK Corporation", contact: "www.sskbaseballshop.com/pages/contact" },
   ADIDAS: { company: "adidas AG", contact: "www.adidas.com/us/help" },
   JAX: { company: "JAX Baseball", contact: "hello@jaxbaseball.com" },
@@ -220,6 +234,30 @@ type BrandHierarchyNode = {
   details: { company: string; contact: string };
   families: Array<{ family: FamilyRecord; patterns: PatternRecord[] }>;
 };
+
+function brandKeyCandidates(brandKey: string): string[] {
+  const raw = String(brandKey || "").toUpperCase();
+  if (!raw) return [];
+  const set = new Set<string>([raw]);
+  const base = raw.replace(/_(US|JP|DTC|VINTAGE)$/, "");
+  if (base) set.add(base);
+  const compact = raw.replace(/_JAPAN$/, "").replace(/_UNITED_STATES$/, "");
+  if (compact) set.add(compact);
+  return Array.from(set).filter(Boolean);
+}
+
+function familyMatchesBrand(familyBrandKey: string, brandKey: string): boolean {
+  const familyKey = String(familyBrandKey || "").toUpperCase();
+  if (!familyKey) return false;
+  return brandKeyCandidates(brandKey).includes(familyKey);
+}
+
+function brandInfoForKey(brandKey: string, displayName: string) {
+  for (const key of brandKeyCandidates(brandKey)) {
+    if (BRAND_COMPANY_INFO[key]) return BRAND_COMPANY_INFO[key];
+  }
+  return { company: displayName, contact: "Contact unavailable" };
+}
 
 function inferSearchIntent(query: string): "listing" | "catalog" {
   const q = query.trim().toLowerCase();
@@ -653,11 +691,13 @@ function SearchResultsPage({
   gloves,
   sales,
   onNavigate,
+  onOpenBrandProfile,
 }: {
   variants: VariantRecord[];
   gloves: Artifact[];
   sales: SaleRecord[];
   onNavigate: (route: Route) => void;
+  onOpenBrandProfile: (brandKey: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1244,19 +1284,127 @@ function GloveProfilePage({
   );
 }
 
+function BrandProfilePage({
+  brandKey,
+  brands,
+  families,
+  patterns,
+  onBack,
+}: {
+  brandKey: string;
+  brands: BrandConfig[];
+  families: FamilyRecord[];
+  patterns: PatternRecord[];
+  onBack: () => void;
+}) {
+  const normalizedKey = String(brandKey || "").toUpperCase();
+  const base = brands.length > 0 ? brands : FULL_BRAND_SEEDS;
+  const brand = base.find((row) => String(row.brand_key || "").toUpperCase() === normalizedKey) || null;
+
+  if (!brand) {
+    return (
+      <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+        <Card><CardContent>
+          <Typography sx={{ fontWeight: 900 }}>Brand not found</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>No profile exists for `{brandKey}`.</Typography>
+          <Button sx={{ mt: 2 }} onClick={onBack}>Back</Button>
+        </CardContent></Card>
+      </Container>
+    );
+  }
+
+  const detail = brandInfoForKey(brand.brand_key, brand.display_name);
+  const familiesForBrand = families.filter((family) => familyMatchesBrand(family.brand_key, brand.brand_key));
+  const patternCount = familiesForBrand.reduce((sum, family) => sum + patterns.filter((pattern) => pattern.family_id === family.family_id).length, 0);
+  const logoSrc = brandLogoSrc(detail.contact);
+
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <Stack spacing={1.5}>
+        <Card><CardContent>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.2}>
+            <Stack direction="row" spacing={1.2} alignItems="center">
+              <Avatar
+                src={logoSrc || undefined}
+                alt={`${brand.display_name} logo`}
+                sx={{ width: 48, height: 48, bgcolor: "background.paper", color: "text.primary", border: "1px solid", borderColor: "divider", fontWeight: 700 }}
+                imgProps={{ referrerPolicy: "no-referrer" }}
+              >
+                {!logoSrc ? brandLogoMark(brand.display_name) : null}
+              </Avatar>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 900 }}>{brand.display_name}</Typography>
+                <Typography variant="body2" color="text.secondary">{detail.company} • {detail.contact}</Typography>
+              </Box>
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip size="small" label={brand.country_hint || "Country unknown"} />
+              <Chip size="small" label={brand.supports_variant_ai ? "Variant AI ready" : "Rule-only"} color={brand.supports_variant_ai ? "success" : "default"} />
+              <Chip size="small" label={`${familiesForBrand.length} families`} />
+              <Chip size="small" label={`${patternCount} patterns`} />
+              <Button onClick={onBack}>Back</Button>
+            </Stack>
+          </Stack>
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Product Families</Typography>
+          <Divider sx={{ my: 1.4 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2,minmax(0,1fr))" }, gap: 1.2 }}>
+            {familiesForBrand.map((family) => {
+              const familyPatterns = patterns.filter((pattern) => pattern.family_id === family.family_id);
+              return (
+                <Card key={family.family_id}>
+                  <CardContent>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{family.display_name}</Typography>
+                      <Chip size="small" label={`${familyPatterns.length} patterns`} />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {family.family_key} • tier {family.tier}
+                    </Typography>
+                    <Divider sx={{ my: 1.2 }} />
+                    <Stack spacing={0.8}>
+                      {familyPatterns.map((pattern) => (
+                        <Box key={pattern.pattern_id} sx={{ p: 1, borderRadius: 1.2, border: "1px solid", borderColor: "divider", bgcolor: "background.default" }}>
+                          <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
+                            {pattern.pattern_code} • {pattern.canonical_position}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {pattern.pattern_system} • size {pattern.canonical_size_in || "—"} • web {pattern.canonical_web || "—"}
+                          </Typography>
+                        </Box>
+                      ))}
+                      {familyPatterns.length === 0 ? <Typography variant="body2" color="text.secondary">No patterns linked to this family yet.</Typography> : null}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {familiesForBrand.length === 0 ? <Typography variant="body2" color="text.secondary">No families linked to this brand yet.</Typography> : null}
+          </Box>
+        </CardContent></Card>
+      </Stack>
+    </Container>
+  );
+}
+
 function SearchScreen({
   locale,
   brands,
   families,
   patterns,
   onOpenArtifact,
+  onOpenBrandProfile,
 }: {
   locale: Locale;
   brands: BrandConfig[];
   families: FamilyRecord[];
   patterns: PatternRecord[];
   onOpenArtifact: (id: string) => void;
+  onOpenBrandProfile: (brandKey: string) => void;
 }) {
+  const { tier } = useTier();
   const [homeSalesRows, setHomeSalesRows] = useState<SaleRecord[]>([]);
   const [homeArtifactRows, setHomeArtifactRows] = useState<Artifact[]>([]);
   const [homeVariantRows, setHomeVariantRows] = useState<VariantRecord[]>([]);
@@ -1268,6 +1416,241 @@ function SearchScreen({
   const [homeGlobalWindow, setHomeGlobalWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
   const [homeUsWindow, setHomeUsWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
   const [homeJapanWindow, setHomeJapanWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
+  const [homeBrandSearchInput, setHomeBrandSearchInput] = useState("");
+  const [homeBrandPage, setHomeBrandPage] = useState(1);
+  type SoldWindowKey = "1mo" | "3mo" | "6mo" | "1yr" | "5yr" | "ytd";
+  const [freeSoldWindow, setFreeSoldWindow] = useState<SoldWindowKey>("1mo");
+  const freeTierMarketMetrics = {
+    totalGlovesSold30d: 1842,
+    medianSalePrice30d: 226,
+    p10: 88,
+    p90: 468,
+    activeListingsCount: 3917,
+    sellThroughRate: 46.8,
+    topBrandsByVolume: [
+      { brand: "Rawlings", volume: 362 },
+      { brand: "Wilson", volume: 341 },
+      { brand: "Mizuno", volume: 216 },
+      { brand: "44 Pro", volume: 144 },
+      { brand: "Zett", volume: 119 },
+    ],
+    trendingModels30d: [
+      { model: "A2000 1786", changePct: 12.4 },
+      { model: "HOH PRO204", changePct: 9.7 },
+      { model: "Mizuno Pro Haga IF", changePct: 7.9 },
+      { model: "44 Pro C2", changePct: 6.3 },
+    ],
+    fastestSellingModels: [
+      { model: "A2K 1787", avgDays: 4.1 },
+      { model: "Pro Preferred PROS205", avgDays: 5.3 },
+      { model: "Mizuno Pro Classic", avgDays: 5.9 },
+      { model: "Zett ProStatus", avgDays: 6.2 },
+    ],
+    regionalMedian: { us: 238, jp: 274, eu: 211 },
+  };
+  const freeTierModelMetrics = {
+    currentMedianPrice: 248,
+    salesCount30d: 64,
+    listingViewMode: "Public listing view (no condition normalization)",
+    priceSeries30d: [198, 204, 201, 216, 224, 237, 242, 248, 245, 251],
+  };
+  type FreeVizMode = "bars" | "line" | "dots";
+  const [freeVizModeByCard, setFreeVizModeByCard] = useState<Record<string, FreeVizMode>>({
+    sold30d: "bars",
+    median30d: "line",
+    p10p90: "dots",
+    activeListings: "bars",
+    sellThrough: "line",
+    regionalMedian: "bars",
+    topBrands: "bars",
+    trendingModels: "line",
+    fastestModels: "dots",
+    modelMedian: "line",
+    modelSales30d: "bars",
+    basicChart: "line",
+    listingView: "dots",
+  });
+  const setFreeVizMode = (key: string, mode: FreeVizMode) =>
+    setFreeVizModeByCard((prev) => ({ ...prev, [key]: mode }));
+  const freeSeriesByCard: Record<string, number[]> = {
+    sold30d: [1200, 1330, 1410, 1520, 1615, 1720, freeTierMarketMetrics.totalGlovesSold30d],
+    median30d: [211, 218, 224, 219, 231, 238, freeTierMarketMetrics.medianSalePrice30d],
+    p10p90: [freeTierMarketMetrics.p10, 142, 186, 244, 306, 377, freeTierMarketMetrics.p90],
+    activeListings: [3500, 3568, 3620, 3710, 3805, 3870, freeTierMarketMetrics.activeListingsCount],
+    sellThrough: [39.2, 41.1, 42.8, 44.6, 45.2, 46.1, freeTierMarketMetrics.sellThroughRate],
+    regionalMedian: [freeTierMarketMetrics.regionalMedian.us, freeTierMarketMetrics.regionalMedian.jp, freeTierMarketMetrics.regionalMedian.eu],
+    topBrands: freeTierMarketMetrics.topBrandsByVolume.map((row) => row.volume),
+    trendingModels: freeTierMarketMetrics.trendingModels30d.map((row) => row.changePct),
+    fastestModels: freeTierMarketMetrics.fastestSellingModels.map((row) => row.avgDays),
+    modelMedian: [214, 220, 227, 231, 238, 243, freeTierModelMetrics.currentMedianPrice],
+    modelSales30d: [31, 37, 44, 49, 53, 59, freeTierModelMetrics.salesCount30d],
+    basicChart: freeTierModelMetrics.priceSeries30d,
+    listingView: [82, 88, 91, 93, 96, 98, 100],
+  };
+  const freeSoldWindowOptions: Array<{ key: SoldWindowKey; label: string }> = [
+    { key: "1mo", label: "1mo" },
+    { key: "3mo", label: "3mo" },
+    { key: "6mo", label: "6mo" },
+    { key: "1yr", label: "1yr" },
+    { key: "5yr", label: "5yr" },
+    { key: "ytd", label: "YTD" },
+  ];
+  const freeSoldChartByWindow: Record<SoldWindowKey, { bars: number[]; labels: string[]; sold: number; previousDeltaPct: number | null; lastYearDeltaPct: number | null }> = {
+    "1mo": {
+      bars: [1, 0, 1, 0, 2, 4, 1, 5, 2, 7, 5, 5, 1, 11, 1, 9, 5, 10, 10, 13, 12, 4, 3, 4, 0, 2, 0, 1],
+      labels: ["May 30", "Jun 4", "Jun 9", "Jun 14", "Jun 19", "Jun 24"],
+      sold: 119,
+      previousDeltaPct: 3,
+      lastYearDeltaPct: null,
+    },
+    "3mo": {
+      bars: [22, 28, 31, 26, 33, 37, 42, 39, 44, 46, 52, 48],
+      labels: ["Mar", "Apr", "May", "Jun"],
+      sold: 448,
+      previousDeltaPct: 6.4,
+      lastYearDeltaPct: 4.2,
+    },
+    "6mo": {
+      bars: [32, 35, 38, 41, 39, 45, 49, 44, 51, 56, 58, 61],
+      labels: ["Jan", "Mar", "May", "Jul", "Sep", "Nov"],
+      sold: 912,
+      previousDeltaPct: 8.8,
+      lastYearDeltaPct: 5.1,
+    },
+    "1yr": {
+      bars: [36, 34, 40, 43, 41, 44, 49, 51, 53, 55, 57, 60],
+      labels: ["J", "M", "M", "J", "S", "N"],
+      sold: 1770,
+      previousDeltaPct: 11.2,
+      lastYearDeltaPct: 9.7,
+    },
+    "5yr": {
+      bars: [420, 470, 515, 560, 618],
+      labels: ["2021", "2022", "2023", "2024", "2025"],
+      sold: 2583,
+      previousDeltaPct: 13.6,
+      lastYearDeltaPct: 21.4,
+    },
+    "ytd": {
+      bars: [38, 42, 45, 50, 53, 57, 61, 66, 69, 73],
+      labels: ["Jan", "Mar", "May", "Jul", "Sep", "Nov"],
+      sold: 554,
+      previousDeltaPct: 7.1,
+      lastYearDeltaPct: 6.2,
+    },
+  };
+  const freeSoldChart = freeSoldChartByWindow[freeSoldWindow];
+  const renderFreeViz = (cardKey: string) => {
+    const series = freeSeriesByCard[cardKey] || [];
+    const mode = freeVizModeByCard[cardKey] || "bars";
+    if (!series.length) return null;
+    const max = Math.max(...series, 1);
+    const min = Math.min(...series, 0);
+    const normalized = series.map((v) => (max === min ? 0.5 : (v - min) / (max - min)));
+    if (mode === "bars") {
+      return (
+        <Stack direction="row" spacing={0.4} sx={{ mt: 0.8, alignItems: "flex-end", height: 64 }}>
+          {normalized.map((value, idx) => (
+            <Box
+              key={`${cardKey}-bar-${idx}`}
+              sx={{
+                flex: 1,
+                height: `${Math.max(10, Math.round(value * 100))}%`,
+                borderRadius: 0.8,
+                bgcolor: alpha("#64748B", 0.72),
+              }}
+            />
+          ))}
+        </Stack>
+      );
+    }
+    if (mode === "dots") {
+      return (
+        <Stack direction="row" spacing={0.55} sx={{ mt: 1.1, alignItems: "center", minHeight: 40 }}>
+          {normalized.map((value, idx) => (
+            <Box
+              key={`${cardKey}-dot-${idx}`}
+              sx={{
+                width: 9,
+                height: 9,
+                borderRadius: "50%",
+                bgcolor: alpha("#475569", 0.32 + value * 0.6),
+                transform: `translateY(${Math.round((1 - value) * 12)}px)`,
+              }}
+            />
+          ))}
+        </Stack>
+      );
+    }
+    const points = normalized
+      .map((value, idx) => {
+        const x = series.length === 1 ? 0 : (idx / (series.length - 1)) * 100;
+        const y = 100 - value * 100;
+        return `${x},${y}`;
+      })
+      .join(" ");
+    return (
+      <Box sx={{ mt: 0.8, height: 64 }}>
+        <Box component="svg" viewBox="0 0 100 100" preserveAspectRatio="none" sx={{ width: "100%", height: "100%" }}>
+          <polyline
+            fill="none"
+            stroke={alpha("#475569", 0.86)}
+            strokeWidth="3"
+            points={points}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Box>
+      </Box>
+    );
+  };
+  const freeVizSelect = (cardKey: string) => (
+    <Stack
+      direction="row"
+      spacing={0.35}
+      sx={{
+        p: 0.35,
+        borderRadius: 999,
+        border: "1px solid",
+        borderColor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.22 : 0.14),
+        bgcolor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.1 : 0.05),
+      }}
+    >
+      {([
+        { value: "bars" as const, label: "Bars" },
+        { value: "line" as const, label: "Line" },
+        { value: "dots" as const, label: "Dots" },
+      ]).map((option) => {
+        const active = (freeVizModeByCard[cardKey] || "bars") === option.value;
+        return (
+          <Button
+            key={`${cardKey}-${option.value}`}
+            color="inherit"
+            sx={{
+              ...FIGMA_OPEN_BUTTON_SX,
+              minWidth: 0,
+              px: 0.85,
+              height: 24,
+              minHeight: 24,
+              fontSize: 11,
+              borderRadius: 999,
+              border: "1px solid",
+              borderColor: active ? alpha("#0A84FF", 0.5) : "transparent",
+              bgcolor: active ? alpha("#0A84FF", 0.16) : "transparent",
+              color: active ? "#0A84FF" : "text.secondary",
+              "&:hover": {
+                borderColor: active ? alpha("#0A84FF", 0.6) : alpha("#0A84FF", 0.24),
+                bgcolor: active ? alpha("#0A84FF", 0.22) : alpha("#0A84FF", 0.08),
+              },
+            }}
+            onClick={() => setFreeVizMode(cardKey, option.value)}
+          >
+            {option.label}
+          </Button>
+        );
+      })}
+    </Stack>
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1276,7 +1659,12 @@ function SearchScreen({
       setHomeErr(null);
       try {
         const [sales, artifacts, variants] = await Promise.all([
-          api.sales(),
+          api.sales(undefined, {
+            live: true,
+            query: "baseball glove",
+            perMarket: 20,
+            globalIds: ["EBAY-US", "EBAY-JP", "EBAY-GB", "EBAY-DE", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"],
+          }),
           api.artifacts(undefined, { photoMode: "none" }),
           api.variants(),
         ]);
@@ -1387,6 +1775,40 @@ function SearchScreen({
     { key: "1yr" as const, label: "1yr", ms: 365 * 24 * 60 * 60 * 1000 },
     { key: "ytd" as const, label: "YTD", ms: 0 },
   ];
+  const homeFilterButtonSx = (selected: boolean) => ({
+    ...FIGMA_OPEN_BUTTON_SX,
+    minWidth: 44,
+    px: 0.9,
+    border: "1px solid",
+    borderColor: selected ? "primary.main" : "divider",
+    color: selected ? "primary.main" : "text.secondary",
+    bgcolor: selected ? alpha("#0A84FF", 0.16) : "transparent",
+    "&:hover": {
+      borderColor: selected ? "primary.main" : alpha("#0A84FF", 0.32),
+      bgcolor: selected ? alpha("#0A84FF", 0.22) : alpha("#0A84FF", 0.08),
+      color: selected ? "primary.main" : "text.primary",
+    },
+  });
+  const salesInPreviousWindow = (salesRows: SaleRecord[], windowKey: "1mo" | "3mo" | "6mo" | "1yr" | "ytd") => {
+    const now = new Date();
+    const nowTs = now.getTime();
+    const ytdStart = new Date(now.getFullYear(), 0, 1).getTime();
+    return salesRows
+      .map((sale) => ({ ...sale, ts: new Date(sale.sale_date).getTime() }))
+      .filter((sale) => Number.isFinite(sale.ts))
+      .filter((sale) => {
+        if (windowKey === "ytd") {
+          const elapsed = nowTs - ytdStart;
+          const prevStart = new Date(now.getFullYear() - 1, 0, 1).getTime();
+          const prevEnd = prevStart + elapsed;
+          return sale.ts >= prevStart && sale.ts <= prevEnd;
+        }
+        const selected = homeWindowOptions.find((option) => option.key === windowKey) || homeWindowOptions[0];
+        const end = nowTs - selected.ms;
+        const start = end - selected.ms;
+        return sale.ts >= start && sale.ts < end;
+      });
+  };
   const filterSalesByWindow = (salesRows: SaleRecord[], windowKey: "1mo" | "3mo" | "6mo" | "1yr" | "ytd") => {
     const now = new Date();
     const nowTs = now.getTime();
@@ -1421,24 +1843,54 @@ function SearchScreen({
   const homeGlobalWindowedSales = useMemo(() => {
     return filterSalesByWindow(homeSalesRows, homeGlobalWindow).filter((sale) => detectEbayCountry(sale) !== null);
   }, [homeSalesRows, homeGlobalWindow]);
+  const homeGlobalPreviousWindowedSales = useMemo(() => {
+    return salesInPreviousWindow(homeSalesRows, homeGlobalWindow).filter((sale) => detectEbayCountry(sale) !== null);
+  }, [homeSalesRows, homeGlobalWindow]);
 
   const homeGlobalByCountry = useMemo(() => {
-    const countries: Array<"US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"> = [
-      "US", "Japan", "United Kingdom", "Germany", "Australia", "Canada", "France", "Italy", "Spain",
-    ];
+    const countries: Array<"US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"> = ["US", "Japan", "United Kingdom", "Germany", "Australia", "Canada", "France", "Italy", "Spain"];
+    const dummyByCountry: Record<(typeof countries)[number], { count: number; value: number }> = {
+      US: { count: 148, value: 57340 },
+      Japan: { count: 121, value: 49220 },
+      "United Kingdom": { count: 47, value: 16410 },
+      Germany: { count: 58, value: 20180 },
+      Australia: { count: 42, value: 15430 },
+      Canada: { count: 39, value: 14120 },
+      France: { count: 31, value: 10960 },
+      Italy: { count: 28, value: 9840 },
+      Spain: { count: 24, value: 8620 },
+    };
+    const useDummy = homeGlobalWindowedSales.length === 0;
     return countries.map((country) => {
       const salesRows = homeGlobalWindowedSales.filter((sale) => detectEbayCountry(sale) === country);
+      const previousRows = homeGlobalPreviousWindowedSales.filter((sale) => detectEbayCountry(sale) === country);
       const value = salesRows.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0);
-      return { country, count: salesRows.length, value };
+      const previousValueRaw = previousRows.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0);
+      const previousValue = previousValueRaw > 0 ? previousValueRaw : 1;
+      const changePctRaw = ((value - previousValueRaw) / previousValue) * 100;
+      const changePct = Number.isFinite(changePctRaw) ? Math.round(changePctRaw) : 0;
+      if (useDummy || salesRows.length === 0) {
+        const dummy = dummyByCountry[country];
+        const dummyTrend = country === "US" || country === "Germany" || country === "Australia" ? 8 : country === "Japan" || country === "Canada" ? -4 : 2;
+        return { country, count: dummy.count, value: dummy.value, is_dummy: true, change_pct: dummyTrend };
+      }
+      return { country, count: salesRows.length, value, is_dummy: false, change_pct: changePct };
     });
-  }, [homeGlobalWindowedSales]);
+  }, [homeGlobalPreviousWindowedSales, homeGlobalWindowedSales]);
 
   const homeGlobalMarket = useMemo(() => {
+    const hasDummy = homeGlobalByCountry.some((row) => row.is_dummy);
+    if (hasDummy) {
+      return {
+        count: homeGlobalByCountry.reduce((sum, row) => sum + row.count, 0),
+        value: homeGlobalByCountry.reduce((sum, row) => sum + row.value, 0),
+      };
+    }
     return {
       count: homeGlobalWindowedSales.length,
       value: homeGlobalWindowedSales.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0),
     };
-  }, [homeGlobalWindowedSales]);
+  }, [homeGlobalByCountry, homeGlobalWindowedSales]);
 
   const homeRegionalSales = useMemo(() => {
     const variantOriginById = new Map<string, string>();
@@ -1491,30 +1943,75 @@ function SearchScreen({
     };
   }, [homeSalesRows, homeVariantRows, homeUsWindow, homeJapanWindow]);
   const homeSeededBrands = useMemo(() => {
-    const allowed = new Set(["USA", "Japan"]);
+    const base = brands.length > 0 ? brands : FULL_BRAND_SEEDS;
     const byKey = new Map<string, BrandConfig>();
-    for (const brand of FULL_BRAND_SEEDS) {
-      if (allowed.has(brand.country_hint || "")) byKey.set(brand.brand_key, brand);
-    }
-    for (const brand of brands) {
-      if (allowed.has(brand.country_hint || "")) byKey.set(brand.brand_key, brand);
+    for (const brand of base) {
+      byKey.set(brand.brand_key, brand);
     }
     return Array.from(byKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [brands]);
   const homeBrandHierarchy: BrandHierarchyNode[] = homeSeededBrands
     .map((brand) => {
-      const relatedFamilies = families.filter((family) => family.brand_key === brand.brand_key);
+      const relatedFamilies = families.filter((family) => familyMatchesBrand(family.brand_key, brand.brand_key));
       const withPatterns = relatedFamilies.map((family) => ({
         family,
         patterns: patterns.filter((pattern) => pattern.family_id === family.family_id),
       }));
       return {
         brand,
-        details: BRAND_COMPANY_INFO[brand.brand_key] || { company: brand.display_name, contact: "Contact unavailable" },
+        details: brandInfoForKey(brand.brand_key, brand.display_name),
         families: withPatterns,
       };
     })
     .filter((entry) => entry.families.length > 0 || homeSeededBrands.some((b) => b.brand_key === entry.brand.brand_key));
+
+  const homeBrandSearchOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const entry of homeBrandHierarchy) {
+      values.add(entry.brand.display_name);
+      values.add(entry.brand.brand_key);
+      values.add(entry.details.company);
+      if (entry.brand.country_hint) values.add(entry.brand.country_hint);
+      for (const familyNode of entry.families) {
+        values.add(familyNode.family.display_name);
+        values.add(familyNode.family.family_key);
+        for (const pattern of familyNode.patterns) {
+          values.add(pattern.pattern_code);
+          values.add(pattern.pattern_system);
+        }
+      }
+    }
+    return Array.from(values).filter(Boolean).sort((a, b) => a.localeCompare(b)).slice(0, 80);
+  }, [homeBrandHierarchy]);
+  const homeSuggestedBrandFilters = homeBrandSearchOptions.slice(0, 6);
+  const homeBrandSearchTerm = homeBrandSearchInput.trim().toLowerCase();
+  const homeBrandFiltered = useMemo(() => {
+    if (!homeBrandSearchTerm) return homeBrandHierarchy;
+    return homeBrandHierarchy.filter((entry) => {
+      const haystack = [
+        entry.brand.display_name,
+        entry.brand.brand_key,
+        entry.brand.country_hint || "",
+        entry.details.company,
+        entry.details.contact,
+        ...entry.families.flatMap((familyNode) => [
+          familyNode.family.display_name,
+          familyNode.family.family_key,
+          ...familyNode.patterns.map((pattern) => `${pattern.pattern_code} ${pattern.pattern_system} ${pattern.canonical_position}`),
+        ]),
+      ].join(" ").toLowerCase();
+      return haystack.includes(homeBrandSearchTerm);
+    });
+  }, [homeBrandHierarchy, homeBrandSearchTerm]);
+  const homeBrandPageSize = 9;
+  const homeBrandPageCount = Math.max(1, Math.ceil(homeBrandFiltered.length / homeBrandPageSize));
+  const homeVisibleBrands = homeBrandFiltered.slice((homeBrandPage - 1) * homeBrandPageSize, homeBrandPage * homeBrandPageSize);
+  const canViewJapanMarketPanel = hasFeature(FeatureKey.JAPAN_MARKET_PANEL, tier);
+  const canViewBrandSeedsPanel = hasFeature(FeatureKey.BRAND_SEEDS_PANEL, tier);
+
+  useEffect(() => {
+    setHomeBrandPage(1);
+  }, [homeBrandSearchTerm, homeBrandHierarchy.length]);
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -1537,6 +2034,8 @@ function SearchScreen({
           {homeLoading ? <LinearProgress sx={{ mt: 2 }} /> : null}
           {homeErr ? <Typography sx={{ mt: 2 }} color="error">{homeErr}</Typography> : null}
         </CardContent></Card>
+
+        {tier === Tier.FREE ? <FreeTierDashboard data={freeTierMetricsMock} /> : null}
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
           <Card><CardContent>
@@ -1586,14 +2085,7 @@ function SearchScreen({
                   <Button
                     key={option.key}
                     color="inherit"
-                    sx={{
-                      ...FIGMA_OPEN_BUTTON_SX,
-                      minWidth: 44,
-                      px: 0.9,
-                      border: "1px solid",
-                      borderColor: homeGlobalWindow === option.key ? "primary.main" : "divider",
-                      bgcolor: homeGlobalWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
-                    }}
+                    sx={homeFilterButtonSx(homeGlobalWindow === option.key)}
                     onClick={() => setHomeGlobalWindow(option.key)}
                   >
                     {option.label}
@@ -1607,9 +2099,28 @@ function SearchScreen({
             <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,minmax(0,1fr))" }, gap: 0.7 }}>
               {homeGlobalByCountry.map((row) => (
                 <Box key={row.country} sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                  <Typography variant="caption" color="text.secondary">{row.country}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {row.country}
+                    {row.is_dummy ? " • demo" : ""}
+                  </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(row.value)}</Typography>
-                  <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
+                  <Stack direction="row" spacing={0.45} alignItems="center" justifyContent="space-between">
+                    <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
+                    <Stack direction="row" spacing={0.25} alignItems="center">
+                      {row.change_pct > 1 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: "success.main" }} /> : null}
+                      {row.change_pct < -1 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: "error.main" }} /> : null}
+                      {Math.abs(row.change_pct) <= 1 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: "text.secondary" }} /> : null}
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: row.change_pct > 1 ? "success.main" : row.change_pct < -1 ? "error.main" : "text.secondary",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {row.change_pct > 0 ? "+" : ""}{row.change_pct}%
+                      </Typography>
+                    </Stack>
+                  </Stack>
                 </Box>
               ))}
             </Box>
@@ -1626,32 +2137,34 @@ function SearchScreen({
             </Stack>
           </CardContent></Card>
 
-          <Card><CardContent>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Upcoming Releases</Typography>
-            <Divider sx={{ my: 1.4 }} />
-            <Stack spacing={1}>
-              {upcomingReleases.map((row) => (
-                <Stack key={row.id} direction="row" spacing={1} alignItems="center">
-                  <Box
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color })}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color });
-                      }
-                    }}
-                    sx={{ width: 34, height: 34, borderRadius: 1, border: "1px solid", borderColor: "divider", backgroundColor: row.color, cursor: "zoom-in", flexShrink: 0 }}
-                  />
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography variant="body2" noWrap>{row.brand} • {row.line}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap>{row.eta} • {row.detail}</Typography>
-                  </Box>
-                </Stack>
-              ))}
-            </Stack>
-          </CardContent></Card>
+          <TierGate min={featureMinTier[FeatureKey.UPCOMING_RELEASES_PANEL]}>
+            <Card><CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Upcoming Releases</Typography>
+              <Divider sx={{ my: 1.4 }} />
+              <Stack spacing={1}>
+                {upcomingReleases.map((row) => (
+                  <Stack key={row.id} direction="row" spacing={1} alignItems="center">
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color })}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setUpcomingPreview({ title: `${row.brand} ${row.line}`, color: row.color });
+                        }
+                      }}
+                      sx={{ width: 34, height: 34, borderRadius: 1, border: "1px solid", borderColor: "divider", backgroundColor: row.color, cursor: "zoom-in", flexShrink: 0 }}
+                    />
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography variant="body2" noWrap>{row.brand} • {row.line}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>{row.eta} • {row.detail}</Typography>
+                    </Box>
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent></Card>
+          </TierGate>
         </Box>
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
@@ -1663,14 +2176,7 @@ function SearchScreen({
                   <Button
                     key={`us-${option.key}`}
                     color="inherit"
-                    sx={{
-                      ...FIGMA_OPEN_BUTTON_SX,
-                      minWidth: 42,
-                      px: 0.8,
-                      border: "1px solid",
-                      borderColor: homeUsWindow === option.key ? "primary.main" : "divider",
-                      bgcolor: homeUsWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
-                    }}
+                    sx={{ ...homeFilterButtonSx(homeUsWindow === option.key), minWidth: 42, px: 0.8 }}
                     onClick={() => setHomeUsWindow(option.key)}
                   >
                     {option.label}
@@ -1698,98 +2204,144 @@ function SearchScreen({
               </Box>
             </Box>
           </CardContent></Card>
-          <Card><CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Japan Market Sales</Typography>
-              <Stack direction="row" spacing={0.4}>
-                {homeWindowOptions.map((option) => (
-                  <Button
-                    key={`jp-${option.key}`}
-                    color="inherit"
-                    sx={{
-                      ...FIGMA_OPEN_BUTTON_SX,
-                      minWidth: 42,
-                      px: 0.8,
-                      border: "1px solid",
-                      borderColor: homeJapanWindow === option.key ? "primary.main" : "divider",
-                      bgcolor: homeJapanWindow === option.key ? alpha("#0A84FF", 0.14) : "transparent",
-                    }}
-                    onClick={() => setHomeJapanWindow(option.key)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
+          {canViewJapanMarketPanel ? (
+            <Card><CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Japan Market Sales</Typography>
+                <Stack direction="row" spacing={0.4}>
+                  {homeWindowOptions.map((option) => (
+                    <Button
+                      key={`jp-${option.key}`}
+                      color="inherit"
+                      sx={{ ...homeFilterButtonSx(homeJapanWindow === option.key), minWidth: 42, px: 0.8 }}
+                      onClick={() => setHomeJapanWindow(option.key)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </Stack>
               </Stack>
-            </Stack>
-            <Divider sx={{ my: 1.2 }} />
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.japan.value)}</Typography>
-            <Typography variant="body2" color="text.secondary">{homeRegionalSales.japan.count} eBay Japan sales in selected window</Typography>
-            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Avg sale</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.japan.avg)}</Typography>
+              <Divider sx={{ my: 1.2 }} />
+              <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.japan.value)}</Typography>
+              <Typography variant="body2" color="text.secondary">{homeRegionalSales.japan.count} eBay Japan sales in selected window</Typography>
+              <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
+                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                  <Typography variant="caption" color="text.secondary">Avg sale</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.japan.avg)}</Typography>
+                </Box>
+                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                  <Typography variant="caption" color="text.secondary">Share</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.japan.count / homeGlobalMarket.count) * 100)}%` : "0%"}
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+                  <Typography variant="caption" color="text.secondary">Sales</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.japan.count}</Typography>
+                </Box>
               </Box>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Share</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                  {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.japan.count / homeGlobalMarket.count) * 100)}%` : "0%"}
-                </Typography>
-              </Box>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Sales</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.japan.count}</Typography>
-              </Box>
-            </Box>
-          </CardContent></Card>
+            </CardContent></Card>
+          ) : null}
         </Box>
 
-        <Card><CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Seeds</Typography>
-            <Chip label={`${homeBrandHierarchy.length} brands`} />
-          </Stack>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.25 }}>
-            {homeBrandHierarchy.map((entry) => {
-              const supportLabel = entry.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only";
-              const logoSrc = brandLogoSrc(entry.details.contact);
-              return (
-                <Box key={entry.brand.brand_key} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-                  <Stack direction="row" spacing={1.1} alignItems="center">
-                    <Avatar
-                      src={logoSrc || undefined}
-                      alt={`${entry.brand.display_name} logo`}
-                      sx={{ width: 34, height: 34, bgcolor: "background.paper", color: "text.primary", border: "1px solid", borderColor: "divider", fontWeight: 700, fontSize: 12 }}
-                      imgProps={{ referrerPolicy: "no-referrer" }}
+        {canViewBrandSeedsPanel ? (
+          <Card><CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Brand Seeds</Typography>
+              <Chip label={`${homeBrandFiltered.length} brands`} />
+            </Stack>
+            <Stack spacing={1} sx={{ mt: 1.25 }}>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ md: "center" }}>
+                <Autocomplete
+                  freeSolo
+                  options={homeBrandSearchOptions}
+                  inputValue={homeBrandSearchInput}
+                  onInputChange={(_event, value) => setHomeBrandSearchInput(value)}
+                  sx={{ minWidth: { xs: "100%", md: 380 } }}
+                  renderInput={(params) => <TextField {...params} placeholder="Search brands, families, patterns…" size="small" />}
+                />
+                <Button
+                  color="inherit"
+                  sx={FIGMA_OPEN_BUTTON_SX}
+                  onClick={() => {
+                    setHomeBrandSearchInput("");
+                    setHomeBrandPage(1);
+                  }}
+                >
+                  Clear Filter
+                </Button>
+              </Stack>
+              <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                {homeSuggestedBrandFilters.map((option) => (
+                  <Chip
+                    key={option}
+                    size="small"
+                    label={option}
+                    onClick={() => setHomeBrandSearchInput(option)}
+                    clickable
+                  />
+                ))}
+                {homeSuggestedBrandFilters.length > 0 ? <Chip size="small" label="Suggested" /> : null}
+              </Stack>
+            </Stack>
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.25 }}>
+              {homeVisibleBrands.map((entry) => {
+                const supportLabel = entry.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only";
+                const logoSrc = brandLogoSrc(entry.details.contact);
+                return (
+                  <Box key={entry.brand.brand_key} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+                    <Stack direction="row" spacing={1.1} alignItems="center">
+                      <Avatar
+                        src={logoSrc || undefined}
+                        alt={`${entry.brand.display_name} logo`}
+                        sx={{ width: 34, height: 34, bgcolor: "background.paper", color: "text.primary", border: "1px solid", borderColor: "divider", fontWeight: 700, fontSize: 12 }}
+                        imgProps={{ referrerPolicy: "no-referrer" }}
+                      >
+                        {!logoSrc ? brandLogoMark(entry.brand.display_name) : null}
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>{entry.brand.display_name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {entry.details.company} • {entry.details.contact}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={0.8} sx={{ mt: 1.1, flexWrap: "wrap" }}>
+                      <Chip size="small" label={supportLabel} color={entry.brand.supports_variant_ai ? "success" : "default"} />
+                      <Chip size="small" label={entry.brand.country_hint || "Country unknown"} />
+                      <Chip size="small" label={`${entry.families.length} families`} />
+                    </Stack>
+                    <Button
+                      fullWidth
+                      endIcon={<KeyboardArrowRightIcon />}
+                      sx={{ mt: 1.1 }}
+                      onClick={() => setHomeBrandDetailOpen(entry)}
                     >
-                      {!logoSrc ? brandLogoMark(entry.brand.display_name) : null}
-                    </Avatar>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 900 }} noWrap>{entry.brand.display_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {entry.details.company} • {entry.details.contact}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Stack direction="row" spacing={0.8} sx={{ mt: 1.1, flexWrap: "wrap" }}>
-                    <Chip size="small" label={supportLabel} color={entry.brand.supports_variant_ai ? "success" : "default"} />
-                    <Chip size="small" label={entry.brand.country_hint || "Country unknown"} />
-                    <Chip size="small" label={`${entry.families.length} families`} />
-                  </Stack>
-                  <Button
-                    fullWidth
-                    endIcon={<KeyboardArrowRightIcon />}
-                    sx={{ mt: 1.1 }}
-                    disabled={entry.families.length === 0}
-                    onClick={() => setHomeBrandDetailOpen(entry)}
-                  >
-                    Open brand profile
-                  </Button>
-                </Box>
-              );
-            })}
-          </Box>
-        </CardContent></Card>
+                      Open brand profile
+                    </Button>
+                  </Box>
+                );
+              })}
+            </Box>
+            {homeBrandFiltered.length > homeBrandPageSize ? (
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ mt: 1.5 }}>
+                <Button color="inherit" sx={FIGMA_OPEN_BUTTON_SX} disabled={homeBrandPage <= 1} onClick={() => setHomeBrandPage((p) => Math.max(1, p - 1))}>
+                  Previous
+                </Button>
+                <Chip size="small" label={`Page ${homeBrandPage} / ${homeBrandPageCount}`} />
+                <Button
+                  color="inherit"
+                  sx={FIGMA_OPEN_BUTTON_SX}
+                  disabled={homeBrandPage >= homeBrandPageCount}
+                  onClick={() => setHomeBrandPage((p) => Math.min(homeBrandPageCount, p + 1))}
+                >
+                  Next
+                </Button>
+              </Stack>
+            ) : null}
+          </CardContent></Card>
+        ) : null}
 
         <Dialog
           open={Boolean(homeBrandDetailOpen)}
@@ -2000,12 +2552,9 @@ function SearchScreen({
     return seededBrands
       .filter((brand) => (brandFilter === "all" ? true : brand.brand_key === brandFilter))
       .map((brand) => {
-        const details = BRAND_COMPANY_INFO[brand.brand_key] || {
-          company: `${brand.display_name} Brand Team`,
-          contact: "support@brand.example",
-        };
+        const details = brandInfoForKey(brand.brand_key, brand.display_name);
         const familyNodes = families
-          .filter((family) => family.brand_key === brand.brand_key)
+          .filter((family) => familyMatchesBrand(family.brand_key, brand.brand_key))
           .map((family) => {
             const familyPatterns = patterns.filter((pattern) => pattern.family_id === family.family_id);
             return { family, patterns: familyPatterns };
@@ -3172,14 +3721,14 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   );
   const variantBrandHierarchy: BrandHierarchyNode[] = brandRows
     .map((brand) => {
-      const relatedFamilies = familyRows.filter((family) => family.brand_key === brand.brand_key);
+      const relatedFamilies = familyRows.filter((family) => familyMatchesBrand(family.brand_key, brand.brand_key));
       const withPatterns = relatedFamilies.map((family) => ({
         family,
         patterns: patternRows.filter((pattern) => pattern.family_id === family.family_id),
       }));
       return {
         brand,
-        details: BRAND_COMPANY_INFO[brand.brand_key] || { company: brand.display_name, contact: "Contact unavailable" },
+        details: brandInfoForKey(brand.brand_key, brand.display_name),
         families: withPatterns,
       };
     })
@@ -5203,8 +5752,66 @@ export default function App() {
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
+      <Box
+        aria-hidden
+        sx={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 0,
+          pointerEvents: "none",
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            width: 620,
+            height: 620,
+            top: -190,
+            left: -130,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 30% 30%, rgba(10,132,255,0.36), rgba(10,132,255,0.02) 70%)",
+            filter: "blur(42px)",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            width: 700,
+            height: 700,
+            right: -170,
+            top: -210,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 60% 40%, rgba(94,92,230,0.32), rgba(94,92,230,0.02) 74%)",
+            filter: "blur(56px)",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            width: 560,
+            height: 560,
+            left: "22%",
+            bottom: -260,
+            borderRadius: "50%",
+            background: colorMode === "dark"
+              ? "radial-gradient(circle at 50% 50%, rgba(48,209,88,0.20), rgba(48,209,88,0.01) 70%)"
+              : "radial-gradient(circle at 50% 50%, rgba(255,159,10,0.16), rgba(255,159,10,0.01) 72%)",
+            filter: "blur(52px)",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            opacity: colorMode === "dark" ? 0.2 : 0.26,
+            backgroundImage:
+              "repeating-linear-gradient(135deg, rgba(120,120,128,0.08) 0px, rgba(120,120,128,0.08) 1px, transparent 1px, transparent 22px)",
+          }}
+        />
+      </Box>
 
-      <Box sx={{ minHeight: "100dvh", p: 0, pb: { xs: 8, md: 0 } }}>
+      <Box sx={{ minHeight: "100dvh", p: 0, pb: { xs: 8, md: 0 }, position: "relative", zIndex: 1 }}>
         <Box
           sx={{
             minHeight: "100dvh",
@@ -5212,8 +5819,8 @@ export default function App() {
             overflow: "hidden",
             border: "none",
             boxShadow: "none",
-            backgroundColor: "background.default",
-            backdropFilter: "none",
+            backgroundColor: "transparent",
+            backdropFilter: "blur(2px)",
           }}
         >
           <Box
@@ -5256,6 +5863,7 @@ export default function App() {
                           setLastArtifactId(id);
                           setRoute({ name: "artifactDetail", artifactId: id });
                         }}
+                        onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
                       />
                     ) : route.name === "artifacts" ? (
                       <SearchResultsPage
@@ -5263,6 +5871,7 @@ export default function App() {
                         gloves={gloves}
                         sales={sales}
                         onNavigate={(next) => setRoute(next)}
+                        onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
                       />
                     ) : route.name === "appraisal" ? (
                       <AppraisalScreen locale={locale} />
@@ -5312,6 +5921,14 @@ export default function App() {
                         const related = variants.filter((v) => String(v.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
                         return <GloveProfilePage glove={found} relatedVariants={related} sales={sales} />;
                       })()
+                    ) : route.name === "brandProfile" ? (
+                      <BrandProfilePage
+                        brandKey={route.brandKey}
+                        brands={brands}
+                        families={families}
+                        patterns={patterns}
+                        onBack={() => setRoute({ name: "search" })}
+                      />
                     ) : (
                       <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
                     )}
