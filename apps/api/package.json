@@ -7,10 +7,16 @@
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"(optional)\"",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "contract:check": "tsx scripts/checkContracts.ts",
+    "test:contracts": "tsx --test tests/contracts/*.test.ts",
+    "ci:contracts": "npm run contract:check && npm run test:contracts",
     "library:validate": "python3 ../../scrapers/jbg/validate_library_xlsx.py",
     "library:ingest": "python3 ../../scrapers/jbg/run_gloveiq_pipeline.py --library-only"
   },
   "dependencies": {
+    "@prisma/client": "^6.16.2",
     "@gloveiq/shared": "0.1.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
@@ -20,6 +26,7 @@
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
     "@types/multer": "^1.4.12",
+    "prisma": "^6.16.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }

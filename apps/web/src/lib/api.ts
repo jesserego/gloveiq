@@ -1,4 +1,5 @@
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
+import type { Tier } from "@gloveiq/shared";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8787";
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -59,6 +60,14 @@ export type SaleRecord = {
   source: string;
   source_url: string | null;
   is_referral: boolean;
+};
+
+type SalesOptions = {
+  live?: boolean;
+  liveOnly?: boolean;
+  query?: string;
+  perMarket?: number;
+  globalIds?: string[];
 };
 
 export type AppraisalAnalyzeResponse = {
@@ -142,13 +151,99 @@ export type LibraryListing = {
   images: Array<{ role: string; b2_key: string; source_url: string | null; signed_url: string | null }>;
 };
 
+export type CollectionStatus = "OWNED" | "WANT";
+
+export type CollectionVariantSummary = {
+  variantId: string;
+  brand: string;
+  model: string | null;
+  pattern: string | null;
+  sizeIn: number | null;
+  throwHand: string;
+  title: string;
+  year: number;
+  web: string | null;
+} | null;
+
+export type CollectionMarketMetrics = {
+  currentMedianCents: number | null;
+  ma7Cents: number | null;
+  ma30Cents: number | null;
+  ma90Cents: number | null;
+  p10Cents: number | null;
+  p90Cents: number | null;
+  salesCount30d: number;
+  activeListingsCount: number;
+  positionValueCents: number | null;
+  pnlCents: number | null;
+  lastUpdatedAt: string;
+};
+
+export type CollectionItem = {
+  id: string;
+  status: CollectionStatus;
+  quantity: number;
+  condition: string | null;
+  normalizedCondition: string | null;
+  acquisitionPriceCents: number | null;
+  acquisitionDate: string | null;
+  targetPriceCents: number | null;
+  notes: string | null;
+  sku: string | null;
+  location: string | null;
+  createdAt: string;
+  updatedAt: string;
+  variant: CollectionVariantSummary;
+  market: CollectionMarketMetrics;
+};
+
+export type CollectionImportRow = {
+  id: string;
+  jobId: string;
+  rawRowJson: Record<string, unknown>;
+  matchedVariantId: string | null;
+  errorsJson: unknown;
+  createdAt: string;
+};
+
+export type CollectionImportJob = {
+  id: string;
+  userId: string;
+  status: "PENDING" | "PREVIEW_READY" | "IMPORTED" | "FAILED";
+  fileName: string | null;
+  totalRows: number;
+  matchedRows: number;
+  unmatchedRows: number;
+  errorRows: number;
+  createdAt: string;
+  updatedAt: string;
+  rows: CollectionImportRow[];
+};
+
+function authHeaders(tier?: Tier): HeadersInit {
+  return {
+    "x-user-id": "dev-user",
+    "x-user-tier": String(tier || "FREE"),
+  };
+}
+
 export const api = {
   brands: () => json<BrandConfig[]>(`${API_BASE}/brands`),
   families: (q?: string) => json<FamilyRecord[]>(`${API_BASE}/families${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   patterns: (q?: string) => json<PatternRecord[]>(`${API_BASE}/patterns${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   variants: (q?: string) => json<VariantRecord[]>(`${API_BASE}/variants${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   comps: (q?: string) => json<CompRecord[]>(`${API_BASE}/comps${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  sales: (q?: string) => json<SaleRecord[]>(`${API_BASE}/sales${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  sales: (q?: string, opts?: SalesOptions) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (opts?.live) params.set("live", "1");
+    if (opts?.liveOnly) params.set("live_only", "1");
+    if (opts?.query) params.set("query", opts.query);
+    if (typeof opts?.perMarket === "number") params.set("per_market", String(opts.perMarket));
+    if (opts?.globalIds?.length) params.set("global_ids", opts.globalIds.join(","));
+    const suffix = params.toString();
+    return json<SaleRecord[]>(`${API_BASE}/sales${suffix ? `?${suffix}` : ""}`);
+  },
   artifacts: (
     q?: string,
     opts?: { photoMode?: "none" | "hero" | "full"; limit?: number; offset?: number },
@@ -178,4 +273,55 @@ export const api = {
   },
   libraryGlove: (id: string) => json<LibraryGlove>(`${API_BASE}/api/library/gloves/${encodeURIComponent(id)}`),
   libraryListing: (id: string) => json<LibraryListing>(`${API_BASE}/api/library/listings/${encodeURIComponent(id)}`),
+  meCollection: (status: CollectionStatus, tier?: Tier) => {
+    return json<{ items: CollectionItem[] }>(`${API_BASE}/api/me/collection?status=${status}`, { headers: authHeaders(tier) });
+  },
+  addCollectionItem: (payload: Record<string, unknown>, tier?: Tier) => {
+    return json<CollectionItem>(`${API_BASE}/api/me/collection`, {
+      method: "POST",
+      headers: { ...authHeaders(tier), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  patchCollectionItem: (id: string, payload: Record<string, unknown>, tier?: Tier) => {
+    return json<CollectionItem>(`${API_BASE}/api/me/collection/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(tier), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteCollectionItem: (id: string, tier?: Tier) => {
+    return json<{ ok: true }>(`${API_BASE}/api/me/collection/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(tier),
+    });
+  },
+  uploadInventoryCsv: async (file: File, tier?: Tier) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return json<{ jobId: string; status: string; rows: CollectionImportRow[] }>(`${API_BASE}/api/me/inventory/import`, {
+      method: "POST",
+      headers: authHeaders(tier),
+      body: fd,
+    });
+  },
+  getInventoryImportJob: (jobId: string, tier?: Tier) => {
+    return json<CollectionImportJob>(`${API_BASE}/api/me/inventory/import/${encodeURIComponent(jobId)}`, { headers: authHeaders(tier) });
+  },
+  resolveInventoryImportRow: (jobId: string, rowId: string, variantId: string, tier?: Tier) => {
+    return json<{ row: CollectionImportRow; matchedRows: number; unmatchedRows: number; errorRows: number }>(
+      `${API_BASE}/api/me/inventory/import/${encodeURIComponent(jobId)}/resolve`,
+      {
+        method: "POST",
+        headers: { ...authHeaders(tier), "Content-Type": "application/json" },
+        body: JSON.stringify({ rowId, variantId }),
+      },
+    );
+  },
+  confirmInventoryImport: (jobId: string, tier?: Tier) => {
+    return json<{ ok: boolean; imported: number }>(`${API_BASE}/api/me/inventory/import/${encodeURIComponent(jobId)}/confirm`, {
+      method: "POST",
+      headers: authHeaders(tier),
+    });
+  },
 };

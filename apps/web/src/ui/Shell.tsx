@@ -30,17 +30,20 @@ import { t } from "../i18n/strings";
 import { Button } from "./Primitives";
 import gloveIqLogo from "../assets/GloveIQ.logo.png";
 import type { AppThemeMode } from "./theme";
+import TierSwitch from "../components/TierSwitch";
 
 const BRAND_LOGO_BLUE_FILTER = "hue-rotate(205deg) saturate(185%) brightness(0.95)";
 
-export type MainTab = "search" | "artifact" | "appraisal" | "account" | "pricing";
-export type ShellRouteName = "search" | "artifact" | "appraisal" | "account" | "pricing";
+export type MainTab = "search" | "artifact" | "appraisal" | "collection" | "account" | "pricing";
+export type ShellRouteName = "search" | "artifact" | "appraisal" | "collection" | "account" | "pricing";
 const IOS_RAIL_EASE = "280ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 export function SidebarNav({
   locale,
   activeTab,
   canOpenArtifact,
+  canOpenCollection,
+  collectionLabel,
   colorMode,
   collapsed,
   onToggleColorMode,
@@ -50,6 +53,8 @@ export function SidebarNav({
   locale: Locale;
   activeTab: MainTab;
   canOpenArtifact: boolean;
+  canOpenCollection: boolean;
+  collectionLabel: string;
   colorMode: AppThemeMode;
   collapsed: boolean;
   onToggleColorMode: () => void;
@@ -62,6 +67,7 @@ export function SidebarNav({
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
     { tab: "appraisal" as const, label: t(locale, "tab.appraisal"), subtitle: "Upload and estimate", icon: <UploadFileOutlinedIcon fontSize="small" /> },
+    { tab: "collection" as const, label: collectionLabel, subtitle: "Owned and wantlist", icon: <LocalOfferIcon fontSize="small" /> },
   ];
   const utilityItems = [
     { tab: "account" as const, label: t(locale, "tab.account"), subtitle: "Login, profile, security", icon: <AccountCircleOutlinedIcon fontSize="small" /> },
@@ -104,7 +110,7 @@ export function SidebarNav({
       <Stack spacing={0.75}>
         {items.map((item) => {
           const active = item.tab === activeTab;
-          const disabled = item.tab === "artifact" && !canOpenArtifact;
+          const disabled = (item.tab === "artifact" && !canOpenArtifact) || (item.tab === "collection" && !canOpenCollection);
           return (
             <Box
               key={item.tab}
@@ -277,6 +283,12 @@ export function SidebarNav({
           Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
         </Box>
       ) : null}
+
+      {!collapsed ? (
+        <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)" }}>
+          <TierSwitch compact />
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -400,11 +412,15 @@ export function MobileBottomNav({
   locale,
   activeTab,
   canOpenArtifact,
+  canOpenCollection,
+  collectionLabel,
   onSelect,
 }: {
   locale: Locale;
   activeTab: MainTab;
   canOpenArtifact: boolean;
+  canOpenCollection: boolean;
+  collectionLabel: string;
   onSelect: (tab: MainTab) => void;
 }) {
   const theme = useTheme();
@@ -413,6 +429,7 @@ export function MobileBottomNav({
     { name: "search" as const, label: t(locale, "tab.search"), icon: <SearchIcon fontSize="small" /> },
     { name: "artifact" as const, label: t(locale, "tab.artifact"), icon: <SportsBaseballIcon fontSize="small" /> },
     { name: "appraisal" as const, label: t(locale, "tab.appraisal"), icon: <UploadFileOutlinedIcon fontSize="small" /> },
+    { name: "collection" as const, label: collectionLabel, icon: <LocalOfferIcon fontSize="small" /> },
     { name: "account" as const, label: t(locale, "tab.account"), icon: <AccountCircleOutlinedIcon fontSize="small" /> },
     { name: "pricing" as const, label: t(locale, "tab.pricing"), icon: <LocalOfferIcon fontSize="small" /> },
   ];
@@ -436,7 +453,7 @@ export function MobileBottomNav({
       <Stack direction="row" spacing={0.5} sx={{ p: 0.75 }}>
         {tabs.map((tab) => {
           const active = activeTab === tab.name;
-          const disabled = tab.name === "artifact" && !canOpenArtifact;
+          const disabled = (tab.name === "artifact" && !canOpenArtifact) || (tab.name === "collection" && !canOpenCollection);
           return (
             <Box
               key={tab.name}

@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CollectionItemStatus {
+  OWNED
+  WANT
+}
+
+enum ImportJobStatus {
+  PENDING
+  PREVIEW_READY
+  IMPORTED
+  FAILED
+}
+
+model UserCollectionItem {
+  id                   String               @id @default(uuid()) @db.Uuid
+  userId               String               @db.VarChar(128)
+  variantId            String               @db.VarChar(128)
+  status               CollectionItemStatus @default(OWNED)
+  quantity             Int                  @default(1)
+  condition            String?              @db.VarChar(64)
+  normalizedCondition  String?              @db.VarChar(64)
+  acquisitionPriceCents Int?
+  acquisitionDate      DateTime?            @db.Date
+  targetPriceCents     Int?
+  notes                String?
+  sku                  String?              @db.VarChar(128)
+  location             String?              @db.VarChar(128)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([userId, status])
+  @@index([variantId])
+  @@index([userId, updatedAt])
+}
+
+model CollectionImportJob {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.VarChar(128)
+  status         ImportJobStatus @default(PENDING)
+  fileName       String?         @db.VarChar(255)
+  totalRows      Int             @default(0)
+  matchedRows    Int             @default(0)
+  unmatchedRows  Int             @default(0)
+  errorRows      Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  rows           CollectionImportRow[]
+
+  @@index([userId, createdAt])
+}
+
+model CollectionImportRow {
+  id               String               @id @default(uuid()) @db.Uuid
+  jobId            String               @db.Uuid
+  rawRowJson       Json
+  matchedVariantId String?              @db.VarChar(128)
+  errorsJson       Json?
+  createdAt        DateTime             @default(now())
+
+  job CollectionImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([matchedVariantId])
+}

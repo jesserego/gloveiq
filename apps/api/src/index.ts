@@ -6,7 +6,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
+import { PrismaClient } from "@prisma/client";
 import { loadLibraryStore } from "./libraryStore.js";
+import { mountCollectionRoutes } from "./collectionRoutes.js";
 
 function loadEnvFile(filePath: string) {
   if (!fs.existsSync(filePath)) return;
@@ -160,6 +162,182 @@ function pct(values: number[], p: number) {
   if (lo === hi) return sorted[lo];
   const t = idx - lo;
   return sorted[lo] * (1 - t) + sorted[hi] * t;
+}
+
+type LiveSaleRow = {
+  sale_id: string;
+  variant_id: string;
+  brand_key: string;
+  sale_date: string;
+  price_usd: number;
+  condition_score_proxy: number | null;
+  source: string;
+  source_url: string | null;
+  is_referral: boolean;
+};
+
+const ebayTokenCache: { token: string | null; expiresAt: number } = { token: null, expiresAt: 0 };
+const EBAY_GLOBAL_IDS = ["EBAY-US", "EBAY-GB", "EBAY-DE", "EBAY-JP", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"];
+
+function inferBrandKeyFromTitle(title: string): string {
+  const lower = (title || "").toLowerCase();
+  for (const brand of brands) {
+    const key = String(brand.brand_key || "").toLowerCase().replace(/_/g, " ");
+    const display = String(brand.display_name || "").toLowerCase();
+    if ((display && lower.includes(display)) || (key && lower.includes(key))) return brand.brand_key;
+  }
+  return "UNKNOWN";
+}
+
+function conditionScoreFromText(condition: string | null): number | null {
+  const text = String(condition || "").toLowerCase();
+  if (!text) return null;
+  if (text.includes("new")) return 1;
+  if (text.includes("excellent")) return 0.88;
+  if (text.includes("very good")) return 0.8;
+  if (text.includes("good")) return 0.72;
+  if (text.includes("fair")) return 0.58;
+  if (text.includes("parts")) return 0.3;
+  return 0.65;
+}
+
+async function getEbayAccessToken(): Promise<string | null> {
+  const nowTs = Date.now();
+  if (ebayTokenCache.token && ebayTokenCache.expiresAt > nowTs + 60_000) return ebayTokenCache.token;
+
+  const clientId = String(process.env.EBAY_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.EBAY_CLIENT_SECRET || "").trim();
+  if (!clientId || !clientSecret) return null;
+
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    scope: "https://api.ebay.com/oauth/api_scope",
+  });
+  const rsp = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  if (!rsp.ok) return null;
+  const json = await rsp.json() as any;
+  const token = String(json?.access_token || "").trim();
+  const expiresIn = Number(json?.expires_in || 0);
+  if (!token || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
+  ebayTokenCache.token = token;
+  ebayTokenCache.expiresAt = nowTs + (expiresIn * 1000);
+  return token;
+}
+
+async function fetchEbaySoldRowsPerMarket(params: { globalId: string; pageSize: number; query: string; appId?: string; token?: string }): Promise<LiveSaleRow[]> {
+  const { globalId, pageSize, query, appId, token } = params;
+  const source = `ebay_${globalId.replace("EBAY-", "").toLowerCase()}`;
+  if (appId) {
+    const url = new URL("https://svcs.ebay.com/services/search/FindingService/v1");
+    url.searchParams.set("OPERATION-NAME", "findCompletedItems");
+    url.searchParams.set("SERVICE-VERSION", "1.13.0");
+    url.searchParams.set("SECURITY-APPNAME", appId);
+    url.searchParams.set("RESPONSE-DATA-FORMAT", "JSON");
+    url.searchParams.set("REST-PAYLOAD", "true");
+    url.searchParams.set("GLOBAL-ID", globalId);
+    url.searchParams.set("keywords", query);
+    url.searchParams.set("paginationInput.entriesPerPage", String(pageSize));
+    url.searchParams.set("itemFilter(0).name", "SoldItemsOnly");
+    url.searchParams.set("itemFilter(0).value", "true");
+
+    const rsp = await fetch(url.toString(), { headers: { "Accept": "application/json" } });
+    if (!rsp.ok) return [];
+    const data = await rsp.json() as any;
+    const items = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || [];
+    return items.map((item: any): LiveSaleRow => {
+      const itemId = String(item?.itemId?.[0] || "");
+      const title = String(item?.title?.[0] || "");
+      const saleDate = String(item?.listingInfo?.[0]?.endTime?.[0] || new Date().toISOString());
+      const currentPrice = Number(item?.sellingStatus?.[0]?.convertedCurrentPrice?.[0]?.__value__ || item?.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 0);
+      const sourceUrl = String(item?.viewItemURL?.[0] || "");
+      const condition = String(item?.condition?.[0]?.conditionDisplayName?.[0] || "");
+      return {
+        sale_id: `ebay_${globalId}_${itemId}`,
+        variant_id: "unknown_variant",
+        brand_key: inferBrandKeyFromTitle(title),
+        sale_date: saleDate,
+        price_usd: Number.isFinite(currentPrice) ? currentPrice : 0,
+        condition_score_proxy: conditionScoreFromText(condition),
+        source,
+        source_url: sourceUrl || null,
+        is_referral: false,
+      };
+    });
+  }
+
+  if (!token) return [];
+  const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", String(pageSize));
+  url.searchParams.set("sort", "newlyListed");
+  const rsp = await fetch(url.toString(), {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "X-EBAY-C-MARKETPLACE-ID": globalId,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!rsp.ok) return [];
+  const data = await rsp.json() as any;
+  const items = Array.isArray(data?.itemSummaries) ? data.itemSummaries : [];
+  return items.map((item: any): LiveSaleRow => {
+    const itemId = String(item?.itemId || "");
+    const title = String(item?.title || "");
+    const saleDate = String(item?.itemCreationDate || new Date().toISOString());
+    const price = Number(item?.price?.value || 0);
+    const sourceUrl = String(item?.itemWebUrl || "");
+    const condition = String(item?.condition || "");
+    return {
+      sale_id: `ebay_${globalId}_${itemId}`,
+      variant_id: "unknown_variant",
+      brand_key: inferBrandKeyFromTitle(title),
+      sale_date: saleDate,
+      price_usd: Number.isFinite(price) ? price : 0,
+      condition_score_proxy: conditionScoreFromText(condition),
+      source,
+      source_url: sourceUrl || null,
+      is_referral: false,
+    };
+  });
+}
+
+async function fetchLiveEbaySales(params: { query: string; perMarket: number; globalIds: string[] }): Promise<LiveSaleRow[]> {
+  const appId = String(process.env.EBAY_APP_ID || "").trim();
+  const token = appId ? null : await getEbayAccessToken();
+  if (!appId && !token) return [];
+
+  const allRows: LiveSaleRow[] = [];
+  for (const globalId of params.globalIds) {
+    const rows = await fetchEbaySoldRowsPerMarket({
+      globalId,
+      pageSize: params.perMarket,
+      query: params.query,
+      appId: appId || undefined,
+      token: token || undefined,
+    });
+    allRows.push(...rows);
+  }
+
+  const dedup = new Map<string, LiveSaleRow>();
+  for (const row of allRows) dedup.set(row.sale_id, row);
+  return Array.from(dedup.values())
+    .filter((row) => Number.isFinite(row.price_usd) && row.price_usd > 0)
+    .sort((a, b) => String(b.sale_date).localeCompare(String(a.sale_date)));
+}
+
+function hasEbayLiveConfig() {
+  const appId = String(process.env.EBAY_APP_ID || "").trim();
+  const clientId = String(process.env.EBAY_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.EBAY_CLIENT_SECRET || "").trim();
+  return Boolean(appId || (clientId && clientSecret));
 }
 
 type SeedFamily = {
@@ -467,7 +645,49 @@ function loadJsonlFile<T>(filePath: string): T[] {
   return out;
 }
 
-const brands = loadSeedFile<{
+function loadCategoryStore(): {
+  brand_variant: Array<{ brand_variant_id: string; display_name?: string; market?: string | null }>;
+  model_family: Array<{ model_family_id: string; brand_variant_id: string; display_name?: string; type?: string | null; notes?: string | null }>;
+  variant: Array<{ variant_id: string; brand_variant_id: string; model_family_id?: string | null; mold_family_id?: string | null; canonical_title?: string | null }>;
+  mold_family: Array<{ mold_family_id: string; canonical_name?: string | null; position?: string | null; role?: string | null; size_bucket?: string | null; web?: string | null; typical_sizes?: string[] }>;
+} | null {
+  const p = path.join(runtimeDir, "category-store.json");
+  if (!fs.existsSync(p)) return null;
+  try {
+    const raw = fs.readFileSync(p, "utf-8");
+    const parsed = JSON.parse(raw) as any;
+    return {
+      brand_variant: Array.isArray(parsed?.brand_variant) ? parsed.brand_variant : [],
+      model_family: Array.isArray(parsed?.model_family) ? parsed.model_family : [],
+      variant: Array.isArray(parsed?.variant) ? parsed.variant : [],
+      mold_family: Array.isArray(parsed?.mold_family) ? parsed.mold_family : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function runtimeIdToBrandKey(id: string): string {
+  return String(id || "").trim().toUpperCase();
+}
+
+function marketToCountryHint(market: string | null | undefined): string | undefined {
+  const key = String(market || "").trim().toUpperCase();
+  if (!key) return undefined;
+  if (key === "US") return "USA";
+  if (key === "JP") return "Japan";
+  return key;
+}
+
+function parseSizeBucketToInches(sizeBucket: string | null | undefined): number | null {
+  const raw = String(sizeBucket || "").trim();
+  if (!raw) return null;
+  const normalized = raw.replace(/_/g, ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const seedBrands = loadSeedFile<{
   brand_key: string;
   display_name: string;
   country_hint: string | null;
@@ -476,11 +696,67 @@ const brands = loadSeedFile<{
   brand_key: row.brand_key as BrandConfig["brand_key"],
   display_name: row.display_name,
   country_hint: row.country_hint || undefined,
-  supports_variant_ai: row.ai_support === "supported",
+  supports_variant_ai: row.ai_support !== "NONE",
 }));
 
-const families = loadSeedFile<SeedFamily>("families.json");
-const patterns = loadSeedFile<SeedPattern>("patterns.json");
+const categoryStore = loadCategoryStore();
+const runtimeBrands: BrandConfig[] = (categoryStore?.brand_variant || []).map((row) => ({
+  brand_key: runtimeIdToBrandKey(row.brand_variant_id) as BrandConfig["brand_key"],
+  display_name: String(row.display_name || row.brand_variant_id || "").trim() || "Unknown",
+  country_hint: marketToCountryHint(row.market),
+  supports_variant_ai: true,
+}));
+
+const brandsByKey = new Map<string, BrandConfig>();
+for (const row of [...seedBrands, ...runtimeBrands]) {
+  if (!row.brand_key) continue;
+  brandsByKey.set(row.brand_key, row);
+}
+const brands = Array.from(brandsByKey.values()).sort((a, b) => a.display_name.localeCompare(b.display_name));
+
+const seedFamilies = loadSeedFile<SeedFamily>("families.json");
+const runtimeFamilies: SeedFamily[] = (categoryStore?.model_family || []).map((row) => ({
+  family_id: row.model_family_id,
+  brand_key: runtimeIdToBrandKey(row.brand_variant_id),
+  family_key: String(row.type || "runtime_family").toUpperCase(),
+  display_name: String(row.display_name || row.model_family_id),
+  tier: "RUNTIME",
+  default_country_hint: null,
+}));
+const familiesById = new Map<string, SeedFamily>();
+for (const row of [...seedFamilies, ...runtimeFamilies]) {
+  if (!row.family_id) continue;
+  familiesById.set(row.family_id, row);
+}
+const families = Array.from(familiesById.values());
+
+const seedPatterns = loadSeedFile<SeedPattern>("patterns.json");
+const moldById = new Map((categoryStore?.mold_family || []).map((row) => [row.mold_family_id, row]));
+const runtimePatterns: SeedPattern[] = (categoryStore?.variant || [])
+  .filter((row) => row.model_family_id)
+  .map((row) => {
+    const mold = row.mold_family_id ? moldById.get(row.mold_family_id) : undefined;
+    const patternCode = String(mold?.web || mold?.canonical_name || row.mold_family_id || "UNKNOWN");
+    const canonicalPosition = String(mold?.position || mold?.role || "Unknown");
+    const sizeIn = parseSizeBucketToInches(mold?.size_bucket || mold?.typical_sizes?.[0]);
+    return {
+      pattern_id: `runtime_${row.variant_id}`,
+      brand_key: runtimeIdToBrandKey(row.brand_variant_id),
+      family_id: String(row.model_family_id),
+      pattern_system: String(row.canonical_title || mold?.canonical_name || "Runtime catalog"),
+      pattern_code: patternCode,
+      canonical_position: canonicalPosition,
+      canonical_size_in: sizeIn,
+      canonical_web: mold?.web || null,
+    };
+  });
+const patternsById = new Map<string, SeedPattern>();
+for (const row of [...seedPatterns, ...runtimePatterns]) {
+  if (!row.pattern_id) continue;
+  patternsById.set(row.pattern_id, row);
+}
+const patterns = Array.from(patternsById.values());
+
 const variants = loadSeedFile<SeedVariant>("variants.json");
 const artifactsRaw = loadSeedFile<SeedArtifact>("artifacts.json");
 const comps = loadSeedFile<SeedComp>("comps.json");
@@ -631,6 +907,7 @@ const exportArtifacts: Artifact[] = exportListings
 
 const artifacts: Artifact[] = exportArtifacts.length ? exportArtifacts : seedArtifacts;
 const libraryStore = loadLibraryStore({ exportDir: libraryExportDir, env: process.env });
+const prisma = new PrismaClient();
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get(`${libraryApiBasePath}/health`, (_req, res) => res.json({ ok: true, stats: libraryStore.stats }));
@@ -696,11 +973,39 @@ app.get("/comps", (req, res) => {
   res.setHeader("x-total-count", String(rows.length));
   res.json(paged);
 });
-app.get("/sales", (req, res) => {
+app.get("/sales", async (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase();
   const limit = Number(req.query.limit || 0);
   const offset = Math.max(0, Number(req.query.offset || 0));
-  const rows = !q ? sales : sales.filter((s) => JSON.stringify(s).toLowerCase().includes(q));
+  const live = ["1", "true", "yes"].includes(String(req.query.live || "").toLowerCase());
+  const liveOnly = ["1", "true", "yes"].includes(String(req.query.live_only || "").toLowerCase());
+  const perMarket = Math.min(100, Math.max(5, Number(req.query.per_market || 25)));
+  const queryText = String(req.query.query || req.query.keywords || "baseball glove");
+  const globalIds = String(req.query.global_ids || "")
+    .split(",")
+    .map((v) => v.trim().toUpperCase())
+    .filter(Boolean);
+  const marketIds = globalIds.length ? globalIds : EBAY_GLOBAL_IDS;
+
+  let liveRows: LiveSaleRow[] = [];
+  if (live) {
+    if (!hasEbayLiveConfig()) {
+      res.setHeader("x-live-source", "unavailable");
+      res.setHeader("x-live-count", "0");
+    } else {
+      try {
+        liveRows = await fetchLiveEbaySales({ query: queryText, perMarket, globalIds: marketIds });
+        res.setHeader("x-live-source", "ebay");
+        res.setHeader("x-live-count", String(liveRows.length));
+      } catch {
+        res.setHeader("x-live-source", "error");
+      }
+    }
+  }
+
+  const baseRows = liveOnly ? [] : sales;
+  const merged = [...liveRows, ...baseRows];
+  const rows = !q ? merged : merged.filter((s) => JSON.stringify(s).toLowerCase().includes(q));
   const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
   res.setHeader("x-total-count", String(rows.length));
   res.json(paged);
@@ -1014,6 +1319,17 @@ app.get("/appraisal/runs", (_req, res) => {
     latest_ai_runs: db.ai_runs.slice(-10),
     latest_valuation_runs: db.valuation_runs.slice(-10),
   });
+});
+
+mountCollectionRoutes(app, {
+  prisma,
+  variants,
+  patterns,
+  sales,
+  artifacts: artifacts.map((item) => ({
+    model_code: item.model_code || null,
+    listing_url: item.listing_url || null,
+  })),
 });
 
 const port = resolvedPort;

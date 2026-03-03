@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
-import { Tier } from "@gloveiq/shared";
+import { Tier, canAccess } from "@gloveiq/shared";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import type { SearchResult, VariantProfileRecord, GloveProfileRecord } from "./data/search-mocks";
 import { MOCK_SEARCH_RESULTS } from "./data/search-mocks";
@@ -12,6 +12,7 @@ import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
+import CollectionPage from "./components/CollectionPage";
 import { TierGate } from "./components/TierGate";
 import { FeatureKey, featureMinTier, hasFeature } from "./lib/features";
 import { useTier } from "./providers/TierProvider";
@@ -91,6 +92,8 @@ type Route =
   | { name: "search" }
   | { name: "artifacts" }
   | { name: "appraisal" }
+  | { name: "collection" }
+  | { name: "inventory" }
   | { name: "account" }
   | { name: "artifactDetail"; artifactId: string }
   | { name: "variantProfile"; variantId: string }
@@ -113,6 +116,7 @@ function confidenceBandFromScore(score: number): "Low" | "Medium" | "High" {
 function routeToTab(route: Route): MainTab {
   if (route.name === "artifacts" || route.name === "artifactDetail" || route.name === "variantProfile" || route.name === "gloveProfile" || route.name === "brandProfile") return "artifact";
   if (route.name === "appraisal") return "appraisal";
+  if (route.name === "collection" || route.name === "inventory") return "collection";
   if (route.name === "account") return "account";
   return route.name;
 }
@@ -123,6 +127,8 @@ function routeFromPath(pathname: string): Route {
   if (pathname.startsWith("/brands/")) return { name: "brandProfile", brandKey: decodeURIComponent(pathname.replace("/brands/", "")) };
   if (pathname === "/artifacts") return { name: "artifacts" };
   if (pathname === "/appraisal") return { name: "appraisal" };
+  if (pathname === "/collection") return { name: "collection" };
+  if (pathname === "/inventory") return { name: "inventory" };
   if (pathname === "/account") return { name: "account" };
   if (pathname === "/pricing") return { name: "pricing" };
   return { name: "search" };
@@ -134,6 +140,8 @@ function pathFromRoute(route: Route): string {
   if (route.name === "brandProfile") return `/brands/${encodeURIComponent(route.brandKey)}`;
   if (route.name === "artifacts") return "/artifacts";
   if (route.name === "appraisal") return "/appraisal";
+  if (route.name === "collection") return "/collection";
+  if (route.name === "inventory") return "/inventory";
   if (route.name === "account") return "/account";
   if (route.name === "pricing") return "/pricing";
   return "/search";
@@ -5683,6 +5691,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
 }
 
 export default function App() {
+  const { tier } = useTier();
   const [colorMode, setColorMode] = useState<AppThemeMode>(() => {
     if (typeof window === "undefined") return "light";
     return (window.localStorage.getItem("gloveiq-theme-mode") as AppThemeMode) || "light";
@@ -5734,6 +5743,8 @@ export default function App() {
   }, []);
 
   const activeTab = routeToTab(route);
+  const canOpenCollection = canAccess(Tier.COLLECTOR, tier);
+  const collectionLabel = tier === Tier.DEALER ? "My Inventory" : "My Collection";
 
   function onSelectTab(tab: MainTab) {
     if (tab === "artifact") {
@@ -5746,6 +5757,14 @@ export default function App() {
     }
     if (tab === "account") {
       setRoute({ name: "account" });
+      return;
+    }
+    if (tab === "collection") {
+      if (!canOpenCollection) {
+        setRoute({ name: "pricing" });
+        return;
+      }
+      setRoute(tier === Tier.DEALER ? { name: "inventory" } : { name: "collection" });
       return;
     }
     if (tab === "pricing") setRoute({ name: "pricing" });
@@ -5839,6 +5858,8 @@ export default function App() {
               locale={locale}
               activeTab={activeTab}
               canOpenArtifact={true}
+              canOpenCollection={canOpenCollection}
+              collectionLabel={collectionLabel}
               colorMode={colorMode}
               collapsed={leftRailCollapsed}
               onToggleColorMode={() => setColorMode((m) => (m === "light" ? "dark" : "light"))}
@@ -5878,6 +5899,10 @@ export default function App() {
                       />
                     ) : route.name === "appraisal" ? (
                       <AppraisalScreen locale={locale} />
+                    ) : route.name === "collection" || route.name === "inventory" ? (
+                      <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                        <CollectionPage tier={tier} variants={variants} />
+                      </Container>
                     ) : route.name === "account" ? (
                       <AccountScreen locale={locale} />
                     ) : route.name === "artifactDetail" ? (
@@ -5943,7 +5968,14 @@ export default function App() {
         </Box>
       </Box>
 
-      <MobileBottomNav locale={locale} activeTab={activeTab} canOpenArtifact={true} onSelect={onSelectTab} />
+      <MobileBottomNav
+        locale={locale}
+        activeTab={activeTab}
+        canOpenArtifact={true}
+        canOpenCollection={canOpenCollection}
+        collectionLabel={collectionLabel}
+        onSelect={onSelectTab}
+      />
     </ThemeProvider>
   );
 }
