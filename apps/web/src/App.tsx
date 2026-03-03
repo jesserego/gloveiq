@@ -12,7 +12,6 @@ import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
 import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
-import { freeTierMetricsMock } from "./mock/freeTierMetrics";
 import { TierGate } from "./components/TierGate";
 import { FeatureKey, featureMinTier, hasFeature } from "./lib/features";
 import { useTier } from "./providers/TierProvider";
@@ -2035,8 +2034,10 @@ function SearchScreen({
           {homeErr ? <Typography sx={{ mt: 2 }} color="error">{homeErr}</Typography> : null}
         </CardContent></Card>
 
-        {tier === Tier.FREE ? <FreeTierDashboard data={freeTierMetricsMock} /> : null}
+        {tier === Tier.FREE ? <FreeTierDashboard tier={tier} /> : null}
 
+        {tier !== Tier.FREE ? (
+          <>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
           <Card><CardContent>
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Time to Sell</Typography>
@@ -2444,6 +2445,8 @@ function SearchScreen({
             <Box sx={{ width: "100%", height: 220, borderRadius: 1.6, border: "1px solid", borderColor: "divider", backgroundColor: upcomingPreview?.color || "#475569" }} />
           </Box>
         </Dialog>
+          </>
+        ) : null}
       </Stack>
     </Container>
   );
