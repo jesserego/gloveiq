@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Tier } from "@gloveiq/shared";
 import {
   Alert,
@@ -12,28 +12,29 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
+import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import { Button, Card, CardContent } from "../../ui/Primitives";
+import type { Chart as ChartInstance, ChartData, ChartOptions } from "chart.js";
+import { Chart as ReactChart } from "react-chartjs-2";
+import { Card, CardContent, Button } from "../../ui/Primitives";
+import GlobalGloveMarketCard from "../home/GlobalGloveMarketCard";
+import WindowFilterMenu from "../home/WindowFilterMenu";
+import type { HomeWindowKey } from "../../lib/homeMarketUtils";
 import {
-  getHomeContainersForTier,
-  type HomeDashboardContainerDef,
-  type HomeDashboardData,
-} from "../../lib/homeDashboard";
-import { useMockHomeDashboardData } from "../../mock/homeDashboardData";
-
-const palette = {
-  line: "#4F8BFF",
-  lineAlt: "#FF4DE1",
-  lineMid: "#F8E71C",
-  bar: "#6EE7B7",
-  muted: "#94A3B8",
-  grid: alpha("#64748B", 0.2),
-};
+  applyChartJsDefaults,
+  buildChartOptions,
+  hexToRgba,
+  initChartThemeSync,
+  readChartThemeTokens,
+  registerChartInstance,
+  unregisterChartInstance,
+} from "../../lib/chartjsTheme";
+import { ThemedBarChart, ThemedLineChart } from "../charts/ThemedCharts";
+import { FREE_HOME_WINDOW_OPTIONS, useFreeHomeDashboardData, type FreeHomeDashboardData } from "../../mock/freeHomeDashboardData";
 
 function money(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -43,302 +44,510 @@ function money(value: number): string {
   }).format(value);
 }
 
-function ContainerHeader({ title, timeframeLabel, helpText }: Pick<HomeDashboardContainerDef, "title" | "timeframeLabel" | "helpText">) {
+function TrendDelta({ value }: { value: number }) {
+  const color = value > 0 ? "success.main" : value < 0 ? "error.main" : "text.secondary";
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.2, gap: 1 }}>
-      <Stack direction="row" spacing={0.7} alignItems="center" sx={{ minWidth: 0 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 900 }} noWrap>{title}</Typography>
-        <Tooltip title={helpText} arrow>
-          <InfoOutlinedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-        </Tooltip>
-      </Stack>
-      <Chip size="small" label={timeframeLabel} />
+    <Stack direction="row" spacing={0.25} alignItems="center">
+      {value > 0 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+      {value < 0 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+      {value === 0 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+      <Typography variant="caption" sx={{ color, fontWeight: 800 }}>
+        {value > 0 ? "+" : ""}
+        {value.toFixed(1)}%
+      </Typography>
     </Stack>
   );
 }
 
-function Sparkline({ points, color = palette.line }: { points: number[]; color?: string }) {
-  if (!points.length) return null;
-  const w = 180;
-  const h = 52;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const path = points
-    .map((value, idx) => {
-      const x = (idx / Math.max(1, points.length - 1)) * w;
-      const y = max === min ? h / 2 : h - ((value - min) / (max - min)) * h;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
+function PanelShell({
+  title,
+  subtitle,
+  selectedWindow,
+  onWindow,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+  children: React.ReactNode;
+}) {
   return (
-    <Box component="svg" viewBox={`0 0 ${w} ${h}`} sx={{ width: "100%", height: 54 }}>
-      <polyline fill="none" stroke={color} strokeWidth="2.4" points={path} strokeLinecap="round" strokeLinejoin="round" />
-    </Box>
+    <Card sx={{ height: "100%" }}>
+      <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 1.2 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+              {title}
+            </Typography>
+            {subtitle ? (
+              <Typography variant="caption" color="text.secondary">
+                {subtitle}
+              </Typography>
+            ) : null}
+          </Box>
+          <WindowFilterMenu selected={selectedWindow} options={FREE_HOME_WINDOW_OPTIONS} onChange={onWindow} />
+        </Stack>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
-function renderMarketSnapshot(data: HomeDashboardData) {
-  const cards = [
-    { label: "Total gloves sold", value: data.kpis.totalSold30d.value.toLocaleString(), delta: data.kpis.totalSold30d.deltaPct, spark: data.kpis.totalSold30d.spark },
-    { label: "Active listings", value: data.kpis.activeListings.value.toLocaleString(), delta: data.kpis.activeListings.deltaPct, spark: data.kpis.activeListings.spark },
-    { label: "Sell-through", value: `${data.kpis.sellThroughRate.valuePct.toFixed(1)}%`, delta: data.kpis.sellThroughRate.deltaPct, spark: data.kpis.sellThroughRate.spark },
-    { label: "30-day sales count", value: data.kpis.salesCount30d.value.toLocaleString(), delta: data.kpis.salesCount30d.deltaPct, spark: data.kpis.salesCount30d.spark },
+function Sparkline({ points, positive }: { points: number[]; positive: boolean }) {
+  const tokens = readChartThemeTokens();
+  const labels = points.map((_, idx) => `${idx + 1}`);
+  return (
+    <ThemedLineChart
+      data={{
+        labels,
+        datasets: [
+          {
+            data: points,
+            borderColor: positive ? tokens.positive : tokens.negative,
+            backgroundColor: hexToRgba(positive ? tokens.positive : tokens.negative, tokens.isDark ? 0.18 : 0.25),
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 1.8,
+          },
+        ],
+      }}
+      options={{
+        animation: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { display: false, grid: { display: false }, border: { display: false } },
+          y: { display: false, grid: { display: false }, border: { display: false } },
+        },
+      }}
+      height={{ xs: 44, sm: 48, md: 52 }}
+    />
+  );
+}
+
+function MarketSnapshotPanel({
+  data,
+  selectedWindow,
+  onWindow,
+}: {
+  data: FreeHomeDashboardData;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+}) {
+  const rows = [
+    {
+      label: "Total gloves sold",
+      value: data.marketSnapshot.sold.value.toLocaleString(),
+      delta: data.marketSnapshot.sold.deltaPct,
+      spark: data.marketSnapshot.sold.spark,
+    },
+    {
+      label: "Active listings",
+      value: data.marketSnapshot.active.value.toLocaleString(),
+      delta: data.marketSnapshot.active.deltaPct,
+      spark: data.marketSnapshot.active.spark,
+    },
+    {
+      label: "Sell-through rate",
+      value: `${data.marketSnapshot.sellThrough.value.toFixed(1)}%`,
+      delta: data.marketSnapshot.sellThrough.deltaPct,
+      spark: data.marketSnapshot.sellThrough.spark,
+    },
   ];
 
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))", xl: "repeat(4,minmax(0,1fr))" }, gap: 1 }}>
-      {cards.map((card) => (
-        <Box key={card.label} sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.3 }}>
-          <Typography variant="caption" color="text.secondary">{card.label}</Typography>
-          <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mt: 0.4 }}>
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>{card.value}</Typography>
-            <Typography variant="caption" sx={{ color: card.delta >= 0 ? "success.main" : "error.main", fontWeight: 800 }}>
-              {card.delta >= 0 ? "+" : ""}{card.delta}%
+    <PanelShell title="Market Snapshot" subtitle="Last 30 days" selectedWindow={selectedWindow} onWindow={onWindow}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3,minmax(0,1fr))" }, gap: 0.8, flex: 1 }}>
+        {rows.map((row) => (
+          <Box key={row.label} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
+            <Typography variant="caption" color="text.secondary">
+              {row.label}
+            </Typography>
+            <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mt: 0.4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                {row.value}
+              </Typography>
+              <TrendDelta value={row.delta} />
+            </Stack>
+            <Sparkline points={row.spark} positive={row.delta >= 0} />
+          </Box>
+        ))}
+      </Box>
+    </PanelShell>
+  );
+}
+
+function PriceOverviewPanel({
+  data,
+  selectedWindow,
+  onWindow,
+}: {
+  data: FreeHomeDashboardData;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+}) {
+  const tokens = readChartThemeTokens();
+  const range = data.priceOverview.p90 - data.priceOverview.p10;
+
+  return (
+    <PanelShell title="Price Overview" subtitle="Pricing" selectedWindow={selectedWindow} onWindow={onWindow}>
+      <Stack spacing={1} sx={{ flex: 1 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={0.8}>
+          <Box sx={{ flex: 1, p: 1, borderRadius: 1.2, border: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" color="text.secondary">
+              Current median price
+            </Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+              <Typography variant="h5" sx={{ fontWeight: 900 }}>
+                {money(data.priceOverview.currentMedian)}
+              </Typography>
+              <TrendDelta value={data.priceOverview.deltaPct} />
+            </Stack>
+          </Box>
+          <Box sx={{ flex: 1, p: 1, borderRadius: 1.2, border: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" color="text.secondary">
+              Median sale price
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900 }}>
+              {money(data.priceOverview.medianWindow)}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Box sx={{ p: 1, borderRadius: 1.2, border: "1px solid", borderColor: "divider", flex: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            p10 / p90 range
+          </Typography>
+          <ThemedBarChart
+            data={{
+              labels: ["Price range"],
+              datasets: [
+                {
+                  label: "p10",
+                  data: [data.priceOverview.p10],
+                  backgroundColor: hexToRgba(tokens.chart3, tokens.isDark ? 0.7 : 0.8),
+                  borderRadius: 10,
+                  barPercentage: 0.55,
+                },
+                {
+                  label: "Spread",
+                  data: [range],
+                  backgroundColor: hexToRgba(tokens.chart1, tokens.isDark ? 0.38 : 0.45),
+                  borderRadius: 10,
+                  barPercentage: 0.55,
+                },
+              ],
+            }}
+            options={{
+              indexAxis: "y",
+              plugins: {
+                legend: { position: "bottom" },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `${ctx.dataset.label}: ${money(Number(ctx.parsed.x || 0))}`,
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  stacked: true,
+                  ticks: { callback: (value) => `$${value}` },
+                },
+                y: { stacked: true, grid: { display: false } },
+              },
+            }}
+            height={{ xs: 170, sm: 190, md: 220 }}
+          />
+          <Stack direction="row" justifyContent="space-between">
+            <Typography variant="caption" color="text.secondary">
+              p10: {money(data.priceOverview.p10)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              p90: {money(data.priceOverview.p90)}
             </Typography>
           </Stack>
-          <Sparkline points={card.spark} color={card.delta >= 0 ? palette.line : "#ef4444"} />
         </Box>
-      ))}
-    </Box>
+      </Stack>
+    </PanelShell>
   );
 }
 
-function renderPriceOverview(data: HomeDashboardData) {
-  const { median30d, currentMedian, p10, p90 } = data.price;
-  const span = Math.max(1, p90 - p10);
-  const medianPct = ((median30d - p10) / span) * 100;
-  const currentPct = ((currentMedian - p10) / span) * 100;
+function SalesTrendPanel({
+  data,
+  selectedWindow,
+  onWindow,
+}: {
+  data: FreeHomeDashboardData;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+}) {
+  const tokens = readChartThemeTokens();
+  const chartRef = useRef<ChartInstance<"bar"> | null>(null);
+
+  useEffect(() => {
+    registerChartInstance(chartRef.current);
+    return () => unregisterChartInstance(chartRef.current);
+  }, []);
+
+  const chartData: ChartData<"bar"> = {
+    labels: data.salesTrend.series.map((row) => row.label),
+    datasets: [
+      {
+        // Mixed chart in a single panel (bars + line overlays).
+        type: "bar",
+        label: "Sales count",
+        yAxisID: "ySales",
+        data: data.salesTrend.series.map((row) => row.salesCount),
+        backgroundColor: hexToRgba(tokens.chart3, tokens.isDark ? 0.38 : 0.5),
+        borderRadius: 6,
+      },
+      {
+        type: "line",
+        label: "Median price",
+        yAxisID: "yPrice",
+        data: data.salesTrend.series.map((row) => row.medianPrice),
+        borderColor: tokens.chart1,
+        backgroundColor: hexToRgba(tokens.chart1, tokens.isDark ? 0.18 : 0.28),
+        fill: false,
+        borderWidth: 2,
+        tension: 0.3,
+        pointRadius: 0,
+      },
+      {
+        type: "line",
+        label: "p10",
+        yAxisID: "yPrice",
+        data: data.salesTrend.series.map((row) => row.p10),
+        borderColor: hexToRgba(tokens.chart2, 0.45),
+        borderWidth: 1,
+        pointRadius: 0,
+        tension: 0.25,
+        fill: false,
+      },
+      {
+        type: "line",
+        label: "p90 band",
+        yAxisID: "yPrice",
+        data: data.salesTrend.series.map((row) => row.p90),
+        borderColor: hexToRgba(tokens.chart2, 0.45),
+        backgroundColor: hexToRgba(tokens.chart2, tokens.isDark ? 0.2 : 0.3),
+        borderWidth: 1,
+        pointRadius: 0,
+        tension: 0.25,
+        fill: "-1",
+      },
+    ],
+  } as any;
+
+  const chartOptions: ChartOptions<"bar"> = {
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { position: "bottom" },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            if (ctx.dataset.yAxisID === "yPrice") {
+              return `${ctx.dataset.label}: ${money(Number(ctx.parsed.y || 0))}`;
+            }
+            return `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toLocaleString()}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { maxTicksLimit: 8 },
+        grid: { display: false },
+      },
+      ySales: {
+        type: "linear",
+        position: "left",
+        beginAtZero: true,
+      },
+      yPrice: {
+        type: "linear",
+        position: "right",
+        grid: { drawOnChartArea: false },
+        ticks: {
+          callback: (value) => `$${value}`,
+        },
+      },
+    },
+  };
 
   return (
-    <Stack spacing={1.4}>
-      <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-        <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.2, flex: 1 }}>
-          <Typography variant="caption" color="text.secondary">Median sale price (30d)</Typography>
-          <Typography variant="h4" sx={{ fontWeight: 900 }}>{money(median30d)}</Typography>
-        </Box>
-        <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.2, flex: 1 }}>
-          <Typography variant="caption" color="text.secondary">Current median price</Typography>
-          <Typography variant="h4" sx={{ fontWeight: 900 }}>{money(currentMedian)}</Typography>
-        </Box>
-      </Stack>
-
-      <Box sx={{ p: 1.1, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
-        <Typography variant="caption" color="text.secondary">p10 / p90 range</Typography>
-        <Box sx={{ mt: 1, position: "relative", height: 26 }}>
-          <Box sx={{ position: "absolute", inset: "9px 0 auto 0", height: 8, borderRadius: 999, bgcolor: alpha(palette.muted, 0.24) }} />
-          <Box sx={{ position: "absolute", left: `${medianPct}%`, top: 4, width: 2, height: 18, bgcolor: palette.line }} />
-          <Box sx={{ position: "absolute", left: `${currentPct}%`, top: 4, width: 2, height: 18, bgcolor: palette.lineAlt }} />
-        </Box>
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.4 }}>
-          <Typography variant="caption" color="text.secondary">p10 {money(p10)}</Typography>
-          <Typography variant="caption" color="text.secondary">median {money(median30d)}</Typography>
-          <Typography variant="caption" color="text.secondary">current {money(currentMedian)}</Typography>
-          <Typography variant="caption" color="text.secondary">p90 {money(p90)}</Typography>
+    <PanelShell title="Sales Trend" subtitle="Median price + sales count" selectedWindow={selectedWindow} onWindow={onWindow}>
+      <Stack spacing={0.8} sx={{ flex: 1 }}>
+        <Stack direction="row" spacing={1.2}>
+          <Chip size="small" label={`${money(data.salesTrend.windowMedian)} median`} />
+          <Chip size="small" label={`${data.salesTrend.windowSales.toLocaleString()} sales`} />
         </Stack>
-      </Box>
-    </Stack>
-  );
-}
-
-function renderPriceTrend(data: HomeDashboardData) {
-  const w = 920;
-  const h = 240;
-  const values = [
-    ...data.price.series30d.map((point) => point.value),
-    ...data.price.p10Series30d.map((point) => point.value),
-    ...data.price.p90Series30d.map((point) => point.value),
-    ...data.price.medianSeries30d.map((point) => point.value),
-  ];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-
-  const toCoords = (series: Array<{ label: string; value: number }>) =>
-    series
-      .map((point, idx) => {
-        const x = (idx / Math.max(1, series.length - 1)) * w;
-        const y = max === min ? h / 2 : h - ((point.value - min) / (max - min)) * h;
-        return { x, y, label: point.label, value: point.value };
-      });
-
-  const priceCoords = toCoords(data.price.series30d);
-  const medianCoords = toCoords(data.price.medianSeries30d);
-  const p10Coords = toCoords(data.price.p10Series30d);
-  const p90Coords = toCoords(data.price.p90Series30d);
-
-  const line = (coords: Array<{ x: number; y: number }>) => coords.map((point) => `${point.x},${point.y}`).join(" ");
-  const band = `${line(p10Coords)} ${[...p90Coords].reverse().map((point) => `${point.x},${point.y}`).join(" ")}`;
-
-  return (
-    <Box>
-      <Box component="svg" viewBox={`0 0 ${w} ${h}`} sx={{ width: "100%", height: { xs: 220, md: 280 } }}>
-        {[0, 25, 50, 75, 100].map((pct) => {
-          const y = (pct / 100) * h;
-          return <line key={pct} x1={0} x2={w} y1={y} y2={y} stroke={palette.grid} strokeWidth={1} />;
-        })}
-
-        <polygon points={band} fill={alpha(palette.lineAlt, 0.14)} />
-        <polyline fill="none" stroke={palette.lineMid} strokeWidth="2" points={line(medianCoords)} strokeLinecap="round" />
-        <polyline fill="none" stroke={palette.line} strokeWidth="3" points={line(priceCoords)} strokeLinecap="round" />
-
-        {priceCoords.map((point, idx) => (
-          <Tooltip key={`${point.label}_${idx}`} title={`${point.label}: ${money(point.value)}`} arrow>
-            <circle cx={point.x} cy={point.y} r={3.2} fill={palette.line} />
-          </Tooltip>
-        ))}
-      </Box>
-      <Stack direction="row" spacing={1.2} sx={{ mt: 0.6, flexWrap: "wrap" }}>
-        <Stack direction="row" spacing={0.5} alignItems="center"><Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: palette.line }} /><Typography variant="caption" color="text.secondary">Daily median</Typography></Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center"><Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: palette.lineMid }} /><Typography variant="caption" color="text.secondary">30d median line</Typography></Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center"><Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: alpha(palette.lineAlt, 0.3) }} /><Typography variant="caption" color="text.secondary">p10-p90 band</Typography></Stack>
+        <Box sx={{ flex: 1, minHeight: 0, height: { xs: 220, sm: 250, md: 300 } }}>
+          <ReactChart ref={chartRef} type="bar" data={chartData} options={buildChartOptions(chartOptions)} />
+        </Box>
       </Stack>
-    </Box>
+    </PanelShell>
   );
 }
 
-function renderBrandMarketShare(data: HomeDashboardData) {
-  const max = Math.max(1, ...data.brands.map((row) => row.volume));
+function BrandModelInsightsPanel({
+  data,
+  selectedWindow,
+  onWindow,
+}: {
+  data: FreeHomeDashboardData;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+}) {
+  const tokens = readChartThemeTokens();
+
   return (
-    <Stack spacing={0.8}>
-      {data.brands.map((row) => (
-        <Box key={row.brand}>
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2">{row.brand}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{row.volume}</Typography>
-          </Stack>
-          <Box sx={{ mt: 0.35, height: 8, borderRadius: 999, bgcolor: alpha(palette.muted, 0.2), overflow: "hidden" }}>
-            <Box sx={{ width: `${Math.max(8, Math.round((row.volume / max) * 100))}%`, height: "100%", bgcolor: palette.bar }} />
+    <PanelShell title="Brand & Model Insights" subtitle="Top brands, trending, fastest" selectedWindow={selectedWindow} onWindow={onWindow}>
+      <Stack spacing={1} sx={{ flex: 1, minHeight: 0 }}>
+        <ThemedBarChart
+          data={{
+            labels: data.brandModelInsights.brands.map((row) => row.brand),
+            datasets: [
+              {
+                label: "Top brands by volume",
+                data: data.brandModelInsights.brands.map((row) => row.volume),
+                backgroundColor: [tokens.chart1, tokens.chart2, tokens.chart3, tokens.chart4, hexToRgba(tokens.accent, 0.72)],
+                borderRadius: 8,
+              },
+            ],
+          }}
+          options={{
+            indexAxis: "y",
+            plugins: { legend: { display: true, position: "bottom" } },
+            scales: {
+              x: { beginAtZero: true },
+              y: { grid: { display: false } },
+            },
+          }}
+          height={{ xs: 170, sm: 190, md: 210 }}
+        />
+
+        <Divider />
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 0.8, flex: 1, minHeight: 0 }}>
+          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.2, p: 1, minHeight: 0, overflow: "auto" }}>
+            <Typography variant="caption" color="text.secondary">Trending models (30-day % change)</Typography>
+            <Stack spacing={0.6} sx={{ mt: 0.8 }}>
+              {data.brandModelInsights.trending.map((row) => (
+                <Stack key={row.model} direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" noWrap sx={{ maxWidth: "70%" }}>{row.model}</Typography>
+                  <TrendDelta value={row.trendPct} />
+                </Stack>
+              ))}
+            </Stack>
+          </Box>
+
+          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.2, p: 1, minHeight: 0, overflow: "auto" }}>
+            <Typography variant="caption" color="text.secondary">Fastest selling models (avg days to sell)</Typography>
+            <Stack spacing={0.6} sx={{ mt: 0.8 }}>
+              {data.brandModelInsights.fastest.map((row) => (
+                <Stack key={row.model} direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" noWrap sx={{ maxWidth: "70%" }}>{row.model}</Typography>
+                  <Chip size="small" label={`${row.avgDaysToSell.toFixed(1)}d`} />
+                </Stack>
+              ))}
+            </Stack>
           </Box>
         </Box>
-      ))}
-    </Stack>
-  );
-}
-
-function renderModelMomentum(data: HomeDashboardData) {
-  return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>Model</TableCell>
-          <TableCell align="right">Trend %</TableCell>
-          <TableCell align="right">Avg Days to Sell</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {data.models.map((row) => (
-          <TableRow key={row.model}>
-            <TableCell>{row.model}</TableCell>
-            <TableCell align="right" sx={{ color: row.trendPct30d >= 0 ? "success.main" : "error.main", fontWeight: 700 }}>
-              {row.trendPct30d >= 0 ? "+" : ""}{row.trendPct30d.toFixed(1)}%
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: 700 }}>{row.avgDaysToSell.toFixed(1)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function renderRegionalMarket(data: HomeDashboardData) {
-  const max = Math.max(1, ...data.regions.map((row) => row.medianPrice));
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 1, alignItems: "end", minHeight: 140 }}>
-      {data.regions.map((row) => (
-        <Stack key={row.region} alignItems="center" spacing={0.55}>
-          <Typography variant="caption" color="text.secondary">{money(row.medianPrice)}</Typography>
-          <Box sx={{ width: "70%", minWidth: 28, height: `${Math.max(18, Math.round((row.medianPrice / max) * 100))}px`, bgcolor: palette.line, borderRadius: 0.8 }} />
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.region}</Typography>
-        </Stack>
-      ))}
-    </Box>
-  );
-}
-
-function renderPublicListings(data: HomeDashboardData) {
-  return (
-    <>
-      <Stack direction="row" spacing={0.6} sx={{ mb: 0.8 }}>
-        <Chip size="small" color="warning" label="Not normalized" />
       </Stack>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Title</TableCell>
-            <TableCell align="right">Price</TableCell>
-            <TableCell>Source</TableCell>
-            <TableCell>Condition</TableCell>
-            <TableCell>Date</TableCell>
-            <TableCell align="right">Link</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {data.listings.map((row) => (
-            <TableRow key={`${row.title}_${row.date}`}>
-              <TableCell sx={{ maxWidth: 280 }}>
-                <Typography variant="body2" noWrap>{row.title}</Typography>
-              </TableCell>
-              <TableCell align="right">{money(row.price)}</TableCell>
-              <TableCell>{row.source}</TableCell>
-              <TableCell>{row.condition}</TableCell>
-              <TableCell>{row.date}</TableCell>
-              <TableCell align="right">
-                <Button color="inherit" size="small" endIcon={<OpenInNewIcon fontSize="inherit" />} onClick={() => window.open(row.url, "_blank", "noopener,noreferrer")}>
-                  Open
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </>
+    </PanelShell>
   );
 }
 
-function ContainerLoading({ title, timeframeLabel, helpText }: Pick<HomeDashboardContainerDef, "title" | "timeframeLabel" | "helpText">) {
+function ListingsPanel({
+  data,
+  selectedWindow,
+  onWindow,
+}: {
+  data: FreeHomeDashboardData;
+  selectedWindow: HomeWindowKey;
+  onWindow: (windowKey: HomeWindowKey) => void;
+}) {
   return (
-    <Card><CardContent>
-      <ContainerHeader title={title} timeframeLabel={timeframeLabel} helpText={helpText} />
-      <Skeleton variant="rounded" height={140} />
-    </CardContent></Card>
+    <PanelShell
+      title="Listings (Public / Unnormalized Condition)"
+      subtitle="Evidence table"
+      selectedWindow={selectedWindow}
+      onWindow={onWindow}
+    >
+      <Box sx={{ flex: 1, minHeight: { xs: 280, md: 320 }, overflow: "auto" }}>
+        <Table size="small" stickyHeader>
+          <TableHead>
+            <TableRow>
+              <TableCell>Title</TableCell>
+              <TableCell align="right">Price</TableCell>
+              <TableCell>Source</TableCell>
+              <TableCell>Country</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell align="right">Link</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {data.listings.map((row) => (
+              <TableRow key={`${row.title}_${row.date}`}>
+                <TableCell sx={{ maxWidth: 360 }}>
+                  <Typography variant="body2" noWrap>{row.title}</Typography>
+                </TableCell>
+                <TableCell align="right">{money(row.price)}</TableCell>
+                <TableCell>{row.source}</TableCell>
+                <TableCell>{row.country}</TableCell>
+                <TableCell>{row.date}</TableCell>
+                <TableCell align="right">
+                  <Button
+                    color="inherit"
+                    size="small"
+                    endIcon={<OpenInNewIcon fontSize="inherit" />}
+                    onClick={() => window.open(row.url, "_blank", "noopener,noreferrer")}
+                  >
+                    Open
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Divider sx={{ my: 0.8 }} />
+      <Typography variant="caption" color="text.secondary">View more listings</Typography>
+    </PanelShell>
   );
 }
 
-function renderContainerBody(container: HomeDashboardContainerDef, data: HomeDashboardData) {
-  if (container.id === "market_snapshot") return renderMarketSnapshot(data);
-  if (container.id === "price_overview") return renderPriceOverview(data);
-  if (container.id === "price_trend") return renderPriceTrend(data);
-  if (container.id === "brand_market_share") return renderBrandMarketShare(data);
-  if (container.id === "model_momentum") return renderModelMomentum(data);
-  if (container.id === "regional_market") return renderRegionalMarket(data);
-  return renderPublicListings(data);
-}
-
-function spanFor(containerId: HomeDashboardContainerDef["id"]) {
-  if (containerId === "market_snapshot" || containerId === "price_trend" || containerId === "public_listings") {
-    return { xs: "1 / -1", lg: "1 / -1" };
-  }
-  return { xs: "1 / -1", lg: "span 6" };
+function LoadingPanel({ height = 260 }: { height?: number }) {
+  return (
+    <Card>
+      <CardContent>
+        <Skeleton variant="text" width={220} height={28} />
+        <Skeleton variant="rounded" height={height} />
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function FreeTierDashboard({ tier }: { tier: Tier }) {
-  const { data, isLoading, error, reload } = useMockHomeDashboardData();
-  const containers = getHomeContainersForTier(tier);
+  const [windowKey, setWindowKey] = useState<HomeWindowKey>("1mo");
+  const { data, isLoading, error, reload } = useFreeHomeDashboardData(windowKey);
 
-  if (!containers.length) {
-    return (
-      <Card><CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Home Dashboard</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
-          No containers available for this tier yet.
-        </Typography>
-      </CardContent></Card>
-    );
+  useEffect(() => {
+    applyChartJsDefaults();
+    initChartThemeSync();
+  }, []);
+
+  if (tier !== Tier.FREE) {
+    return null;
   }
 
   return (
-    <Stack spacing={1.25}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Home Dashboard</Typography>
+    <Stack spacing={1.3}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+        Home Dashboard
+      </Typography>
 
       {error ? (
         <Alert severity="error" action={<Button color="inherit" onClick={reload}>Retry</Button>}>
@@ -346,29 +555,39 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
         </Alert>
       ) : null}
 
-      {!error && !isLoading && !data ? (
-        <Card><CardContent>
-          <Typography variant="body2" color="text.secondary">No dashboard data available.</Typography>
-        </CardContent></Card>
-      ) : null}
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(12,minmax(0,1fr))" }, gap: 1.2 }}>
+        <Box sx={{ gridColumn: "1 / -1" }}>
+          {isLoading || !data ? (
+            <LoadingPanel height={360} />
+          ) : (
+            <GlobalGloveMarketCard
+              rows={data.global.countries}
+              totalValue={data.global.totalValue}
+              totalCount={data.global.totalCount}
+              selectedWindow={windowKey}
+              windowOptions={FREE_HOME_WINDOW_OPTIONS}
+              onSelectWindow={setWindowKey}
+            />
+          )}
+        </Box>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(12,minmax(0,1fr))" }, gap: 1.25 }}>
-        {containers.map((container) => (
-          <Box key={container.id} sx={{ gridColumn: spanFor(container.id) }}>
-            {isLoading || !data ? (
-              <ContainerLoading title={container.title} timeframeLabel={container.timeframeLabel} helpText={container.helpText} />
-            ) : (
-              <Card><CardContent>
-                <ContainerHeader title={container.title} timeframeLabel={container.timeframeLabel} helpText={container.helpText} />
-                {renderContainerBody(container, data)}
-                <Divider sx={{ mt: 1.1 }} />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.8, display: "block" }}>
-                  Source key: {container.dataQueryKey}
-                </Typography>
-              </CardContent></Card>
-            )}
-          </Box>
-        ))}
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 5" }, minHeight: { xs: 300, md: 320 } }}>
+          {isLoading || !data ? <LoadingPanel height={290} /> : <MarketSnapshotPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        </Box>
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 7" }, minHeight: { xs: 320, md: 340 } }}>
+          {isLoading || !data ? <LoadingPanel height={300} /> : <PriceOverviewPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        </Box>
+
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 7" }, minHeight: { xs: 320, md: 350 } }}>
+          {isLoading || !data ? <LoadingPanel height={310} /> : <SalesTrendPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        </Box>
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 5" }, minHeight: { xs: 340, md: 350 } }}>
+          {isLoading || !data ? <LoadingPanel height={310} /> : <BrandModelInsightsPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        </Box>
+
+        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 320, md: 380 } }}>
+          {isLoading || !data ? <LoadingPanel height={340} /> : <ListingsPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        </Box>
       </Box>
     </Stack>
   );

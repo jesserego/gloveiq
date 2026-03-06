@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from "react";
-import { Box, Chip, IconButton, Menu, MenuItem, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
 import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
-import TuneIcon from "@mui/icons-material/Tune";
 import { alpha } from "@mui/material/styles";
 import { Card, CardContent } from "../../ui/Primitives";
 import { hexToRgba, readChartThemeTokens } from "../../lib/chartjsTheme";
 import { compactCurrency, quantizeScale, type HomeWindowKey } from "../../lib/homeMarketUtils";
+import WindowFilterMenu from "./WindowFilterMenu";
 
 export type GlobalCountryRow = {
   country: string;
@@ -52,7 +52,6 @@ export default function GlobalGloveMarketCard({
   onSelectWindow: (key: HomeWindowKey) => void;
 }) {
   const tokens = readChartThemeTokens();
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [hovered, setHovered] = useState<{ row: GlobalCountryRow; x: number; y: number } | null>(null);
 
   const byCountry = useMemo(() => {
@@ -82,27 +81,12 @@ export default function GlobalGloveMarketCard({
           <Typography variant="h5" sx={{ fontWeight: 900 }}>{compactCurrency(totalValue)}</Typography>
           <Typography variant="body2" color="text.secondary">{totalCount.toLocaleString()} tracked sales in selected window</Typography>
         </Box>
-        <Tooltip title="Filter time window" arrow>
-          <IconButton size="small" onClick={(event) => setAnchorEl(event.currentTarget)}>
-            <TuneIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <WindowFilterMenu
+          selected={selectedWindow}
+          options={windowOptions}
+          onChange={onSelectWindow}
+        />
       </Stack>
-
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {windowOptions.map((option) => (
-          <MenuItem
-            key={option.key}
-            selected={selectedWindow === option.key}
-            onClick={() => {
-              onSelectWindow(option.key);
-              setAnchorEl(null);
-            }}
-          >
-            {option.label}
-          </MenuItem>
-        ))}
-      </Menu>
 
       <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(4,minmax(0,1fr))" }, gap: 0.7 }}>
         {rows.map((row) => (
