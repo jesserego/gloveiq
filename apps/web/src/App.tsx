@@ -13,9 +13,13 @@ import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
 import CollectionPage from "./components/CollectionPage";
+import { ThemedBarChart, ThemedLineChart } from "./components/charts/ThemedCharts";
+import GlobalGloveMarketCard from "./components/home/GlobalGloveMarketCard";
 import { TierGate } from "./components/TierGate";
 import { FeatureKey, featureMinTier, hasFeature } from "./lib/features";
 import { useTier } from "./providers/TierProvider";
+import { applyChartJsDefaults, hexToRgba, initChartThemeSync, readChartThemeTokens } from "./lib/chartjsTheme";
+import { HOME_WINDOW_OPTIONS, percentChange, type HomeWindowKey } from "./lib/homeMarketUtils";
 
 import {
   Accordion,
@@ -66,9 +70,6 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import TuneIcon from "@mui/icons-material/Tune";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
-import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
-import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
 const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
@@ -467,6 +468,7 @@ function OriginMap({ madeIn }: { madeIn?: string | null }) {
 }
 
 function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; timeToSellDays?: number }> }) {
+  const chartTokens = readChartThemeTokens();
   const [windowDays, setWindowDays] = useState<5 | 30 | 60 | 90 | 120>(30);
   const dayOptions: Array<5 | 30 | 60 | 90 | 120> = [5, 30, 60, 90, 120];
 
@@ -498,8 +500,7 @@ function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; tim
 
   const miniBars = useMemo(() => {
     const sample = filteredRows.slice(0, 12).reverse();
-    const max = Math.max(1, ...sample.map((row) => Number(row.price || 0)));
-    return sample.map((row) => ({ label: row.date, value: Math.round((Number(row.price || 0) / max) * 100) }));
+    return sample.map((row) => ({ label: row.date, value: Number(row.price || 0) }));
   }, [filteredRows]);
 
   return (
@@ -534,21 +535,34 @@ function SalesHistory({ rows }: { rows: Array<{ date: string; price: number; tim
             ))}
           </Stack>
         </Stack>
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(12,minmax(0,1fr))", alignItems: "end", gap: 0.35, height: 54 }}>
-          {miniBars.map((bar, idx) => (
-            <Box
-              key={`${bar.label}-${idx}`}
-              title={`${bar.label}: ${bar.value}%`}
-              sx={{
-                borderRadius: 0.6,
-                minHeight: 6,
-                height: `${Math.max(10, bar.value)}%`,
-                backgroundColor: alpha("#0A84FF", 0.75),
-              }}
-            />
-          ))}
-          {!miniBars.length ? <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>No chart data.</Typography> : null}
-        </Box>
+        {miniBars.length ? (
+          <ThemedLineChart
+            data={{
+              labels: miniBars.map((bar) => bar.label),
+              datasets: [
+                {
+                  label: "Price trend",
+                  data: miniBars.map((bar) => bar.value),
+                  borderColor: chartTokens.chart1,
+                  backgroundColor: hexToRgba(chartTokens.chart1, chartTokens.isDark ? 0.2 : 0.3),
+                  fill: true,
+                  tension: 0.34,
+                  pointRadius: 2,
+                  pointHoverRadius: 3,
+                  borderWidth: 2,
+                },
+              ],
+            }}
+            options={{
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { maxTicksLimit: 6 } },
+                y: { ticks: { callback: (value) => `$${value}` } },
+              },
+            }}
+            height={{ xs: 180, sm: 210, md: 230 }}
+          />
+        ) : <Typography variant="caption" color="text.secondary">No chart data.</Typography>}
       </Stack>
       <Divider sx={{ my: 1.2 }} />
       <Stack spacing={0.8}>
@@ -1420,9 +1434,7 @@ function SearchScreen({
   const [homeBrandDetailOpen, setHomeBrandDetailOpen] = useState<BrandHierarchyNode | null>(null);
   const [homePatternPreview, setHomePatternPreview] = useState<{ title: string; color: string } | null>(null);
   const [upcomingPreview, setUpcomingPreview] = useState<{ title: string; color: string } | null>(null);
-  const [homeGlobalWindow, setHomeGlobalWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
-  const [homeUsWindow, setHomeUsWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
-  const [homeJapanWindow, setHomeJapanWindow] = useState<"1mo" | "3mo" | "6mo" | "1yr" | "ytd">("1mo");
+  const [homeGlobalWindow, setHomeGlobalWindow] = useState<HomeWindowKey>("1mo");
   const [homeBrandSearchInput, setHomeBrandSearchInput] = useState("");
   const [homeBrandPage, setHomeBrandPage] = useState(1);
   type SoldWindowKey = "1mo" | "3mo" | "6mo" | "1yr" | "5yr" | "ytd";
@@ -1691,42 +1703,6 @@ function SearchScreen({
     };
   }, []);
 
-  const homeMonthlySales = useMemo(() => {
-    const inGlobalEbayMarkets = (sale: SaleRecord) => {
-      const source = String(sale.source || "").toLowerCase();
-      const url = String(sale.source_url || "").toLowerCase();
-      if (!(source.includes("ebay") || url.includes("ebay."))) return false;
-      const marketHints = [
-        "ebay_us", "ebay_jp", "ebay_uk", "ebay_de", "ebay_au", "ebay_ca", "ebay_fr", "ebay_it", "ebay_es",
-        "ebay us", "ebay japan", "ebay united kingdom", "ebay germany", "ebay australia", "ebay canada", "ebay france", "ebay italy", "ebay spain",
-      ];
-      if (marketHints.some((hint) => source.includes(hint))) return true;
-      const domains = [
-        "ebay.com/",
-        "ebay.co.jp",
-        "ebay.co.uk",
-        "ebay.de",
-        "ebay.com.au",
-        "ebay.ca",
-        "ebay.fr",
-        "ebay.it",
-        "ebay.es",
-      ];
-      return domains.some((domain) => url.includes(domain));
-    };
-    const now = new Date();
-    const labels: string[] = [];
-    const values: number[] = [];
-    const scopedSales = homeSalesRows.filter(inGlobalEbayMarkets);
-    for (let i = 5; i >= 0; i -= 1) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      labels.push(month);
-      values.push(scopedSales.filter((s) => String(s.sale_date).startsWith(month)).length);
-    }
-    return { labels, values };
-  }, [homeSalesRows]);
-
   const homeRecentLibraryListings = useMemo(() => {
     return homeArtifactRows
       .filter((row) => {
@@ -1775,28 +1751,8 @@ function SearchScreen({
     return result;
   }, [homeSalesRows]);
 
-  const homeWindowOptions = [
-    { key: "1mo" as const, label: "1mo", ms: 30 * 24 * 60 * 60 * 1000 },
-    { key: "3mo" as const, label: "3mo", ms: 90 * 24 * 60 * 60 * 1000 },
-    { key: "6mo" as const, label: "6mo", ms: 180 * 24 * 60 * 60 * 1000 },
-    { key: "1yr" as const, label: "1yr", ms: 365 * 24 * 60 * 60 * 1000 },
-    { key: "ytd" as const, label: "YTD", ms: 0 },
-  ];
-  const homeFilterButtonSx = (selected: boolean) => ({
-    ...FIGMA_OPEN_BUTTON_SX,
-    minWidth: 44,
-    px: 0.9,
-    border: "1px solid",
-    borderColor: selected ? "primary.main" : "divider",
-    color: selected ? "primary.main" : "text.secondary",
-    bgcolor: selected ? alpha("#0A84FF", 0.16) : "transparent",
-    "&:hover": {
-      borderColor: selected ? "primary.main" : alpha("#0A84FF", 0.32),
-      bgcolor: selected ? alpha("#0A84FF", 0.22) : alpha("#0A84FF", 0.08),
-      color: selected ? "primary.main" : "text.primary",
-    },
-  });
-  const salesInPreviousWindow = (salesRows: SaleRecord[], windowKey: "1mo" | "3mo" | "6mo" | "1yr" | "ytd") => {
+  const homeWindowOptions = HOME_WINDOW_OPTIONS;
+  const salesInPreviousWindow = (salesRows: SaleRecord[], windowKey: HomeWindowKey) => {
     const now = new Date();
     const nowTs = now.getTime();
     const ytdStart = new Date(now.getFullYear(), 0, 1).getTime();
@@ -1804,6 +1760,16 @@ function SearchScreen({
       .map((sale) => ({ ...sale, ts: new Date(sale.sale_date).getTime() }))
       .filter((sale) => Number.isFinite(sale.ts))
       .filter((sale) => {
+        if (windowKey === "all") {
+          const dated = salesRows
+            .map((row) => ({ ...row, ts: new Date(row.sale_date).getTime() }))
+            .filter((row) => Number.isFinite(row.ts));
+          const minTs = dated.reduce((min, row) => Math.min(min, row.ts), nowTs);
+          const span = Math.max(24 * 60 * 60 * 1000, nowTs - minTs);
+          const prevEnd = minTs;
+          const prevStart = minTs - span;
+          return sale.ts >= prevStart && sale.ts < prevEnd;
+        }
         if (windowKey === "ytd") {
           const elapsed = nowTs - ytdStart;
           const prevStart = new Date(now.getFullYear() - 1, 0, 1).getTime();
@@ -1816,7 +1782,7 @@ function SearchScreen({
         return sale.ts >= start && sale.ts < end;
       });
   };
-  const filterSalesByWindow = (salesRows: SaleRecord[], windowKey: "1mo" | "3mo" | "6mo" | "1yr" | "ytd") => {
+  const filterSalesByWindow = (salesRows: SaleRecord[], windowKey: HomeWindowKey) => {
     const now = new Date();
     const nowTs = now.getTime();
     const ytdStart = new Date(now.getFullYear(), 0, 1).getTime();
@@ -1824,13 +1790,16 @@ function SearchScreen({
     return salesRows
       .map((sale) => ({ ...sale, ts: new Date(sale.sale_date).getTime() }))
       .filter((sale) => Number.isFinite(sale.ts))
-      .filter((sale) => selected.key === "ytd" ? sale.ts >= ytdStart : sale.ts >= nowTs - selected.ms);
+      .filter((sale) => {
+        if (selected.key === "all") return true;
+        return selected.key === "ytd" ? sale.ts >= ytdStart : sale.ts >= nowTs - selected.ms;
+      });
   };
 
-  const detectEbayCountry = (sale: SaleRecord): "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain" | null => {
+  const detectEbayCountry = (sale: SaleRecord): "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain" | "Brazil" | "Argentina" | "Colombia" | null => {
     const source = String(sale.source || "").toLowerCase();
     const url = String(sale.source_url || "").toLowerCase();
-    const checks: Array<{ country: "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"; hits: string[] }> = [
+    const checks: Array<{ country: "US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain" | "Brazil" | "Argentina" | "Colombia"; hits: string[] }> = [
       { country: "US", hits: ["ebay_us", "ebay us", "ebay.com/"] },
       { country: "Japan", hits: ["ebay_jp", "ebay japan", "ebay.co.jp", "ebay.jp"] },
       { country: "United Kingdom", hits: ["ebay_uk", "ebay uk", "ebay united kingdom", "ebay.co.uk"] },
@@ -1840,6 +1809,9 @@ function SearchScreen({
       { country: "France", hits: ["ebay_fr", "ebay france", "ebay.fr"] },
       { country: "Italy", hits: ["ebay_it", "ebay italy", "ebay.it"] },
       { country: "Spain", hits: ["ebay_es", "ebay spain", "ebay.es"] },
+      { country: "Brazil", hits: ["ebay_br", "ebay brazil", "ebay.com.br"] },
+      { country: "Argentina", hits: ["ebay_ar", "ebay argentina", ".ar/ebay"] },
+      { country: "Colombia", hits: ["ebay_co", "ebay colombia", ".co/ebay"] },
     ];
     for (const check of checks) {
       if (check.hits.some((hit) => source.includes(hit) || url.includes(hit))) return check.country;
@@ -1855,7 +1827,7 @@ function SearchScreen({
   }, [homeSalesRows, homeGlobalWindow]);
 
   const homeGlobalByCountry = useMemo(() => {
-    const countries: Array<"US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain"> = ["US", "Japan", "United Kingdom", "Germany", "Australia", "Canada", "France", "Italy", "Spain"];
+    const countries: Array<"US" | "Japan" | "United Kingdom" | "Germany" | "Australia" | "Canada" | "France" | "Italy" | "Spain" | "Brazil" | "Argentina" | "Colombia"> = ["US", "Japan", "United Kingdom", "Germany", "Australia", "Canada", "France", "Italy", "Spain", "Brazil", "Argentina", "Colombia"];
     const dummyByCountry: Record<(typeof countries)[number], { count: number; value: number }> = {
       US: { count: 148, value: 57340 },
       Japan: { count: 121, value: 49220 },
@@ -1866,6 +1838,9 @@ function SearchScreen({
       France: { count: 31, value: 10960 },
       Italy: { count: 28, value: 9840 },
       Spain: { count: 24, value: 8620 },
+      Brazil: { count: 33, value: 12240 },
+      Argentina: { count: 19, value: 6880 },
+      Colombia: { count: 22, value: 7410 },
     };
     const useDummy = homeGlobalWindowedSales.length === 0;
     return countries.map((country) => {
@@ -1873,12 +1848,11 @@ function SearchScreen({
       const previousRows = homeGlobalPreviousWindowedSales.filter((sale) => detectEbayCountry(sale) === country);
       const value = salesRows.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0);
       const previousValueRaw = previousRows.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0);
-      const previousValue = previousValueRaw > 0 ? previousValueRaw : 1;
-      const changePctRaw = ((value - previousValueRaw) / previousValue) * 100;
+      const changePctRaw = percentChange(value, previousValueRaw);
       const changePct = Number.isFinite(changePctRaw) ? Math.round(changePctRaw) : 0;
       if (useDummy || salesRows.length === 0) {
         const dummy = dummyByCountry[country];
-        const dummyTrend = country === "US" || country === "Germany" || country === "Australia" ? 8 : country === "Japan" || country === "Canada" ? -4 : 2;
+        const dummyTrend = country === "US" || country === "Germany" || country === "Australia" || country === "Brazil" ? 8 : country === "Japan" || country === "Canada" || country === "Argentina" ? -4 : 2;
         return { country, count: dummy.count, value: dummy.value, is_dummy: true, change_pct: dummyTrend };
       }
       return { country, count: salesRows.length, value, is_dummy: false, change_pct: changePct };
@@ -1899,56 +1873,7 @@ function SearchScreen({
     };
   }, [homeGlobalByCountry, homeGlobalWindowedSales]);
 
-  const homeRegionalSales = useMemo(() => {
-    const variantOriginById = new Map<string, string>();
-    for (const variant of homeVariantRows) {
-      variantOriginById.set(variant.variant_id, String(variant.made_in || "").toLowerCase());
-    }
-    const isJapan = (origin: string) => origin.includes("japan") || origin === "jp";
-    const isUS = (origin: string) => origin.includes("usa") || origin.includes("united states") || origin === "us";
-    const isEbay = (sale: SaleRecord) => {
-      const source = String(sale.source || "").toLowerCase();
-      const url = String(sale.source_url || "").toLowerCase();
-      return source.includes("ebay") || url.includes("ebay.");
-    };
-    const isEbayJapan = (sale: SaleRecord) => {
-      const source = String(sale.source || "").toLowerCase();
-      const url = String(sale.source_url || "").toLowerCase();
-      return source.includes("ebay_jp") || source.includes("ebay japan") || url.includes("ebay.co.jp") || url.includes("ebay.jp");
-    };
-    const isEbayUS = (sale: SaleRecord) => {
-      const source = String(sale.source || "").toLowerCase();
-      const url = String(sale.source_url || "").toLowerCase();
-      return source.includes("ebay_us") || source.includes("ebay us") || url.includes("ebay.com");
-    };
-
-    let usCount = 0;
-    let usValue = 0;
-    let japanCount = 0;
-    let japanValue = 0;
-
-    for (const sale of filterSalesByWindow(homeSalesRows, homeUsWindow)) {
-      if (!isEbay(sale)) continue;
-      const origin = variantOriginById.get(sale.variant_id) || "";
-      if (isEbayUS(sale) || isUS(origin)) {
-        usCount += 1;
-        usValue += Number(sale.price_usd || 0);
-      }
-    }
-    for (const sale of filterSalesByWindow(homeSalesRows, homeJapanWindow)) {
-      if (!isEbay(sale)) continue;
-      const origin = variantOriginById.get(sale.variant_id) || "";
-      if (isEbayJapan(sale) || isJapan(origin)) {
-        japanCount += 1;
-        japanValue += Number(sale.price_usd || 0);
-      }
-    }
-
-    return {
-      us: { count: usCount, value: usValue, avg: usCount ? usValue / usCount : 0 },
-      japan: { count: japanCount, value: japanValue, avg: japanCount ? japanValue / japanCount : 0 },
-    };
-  }, [homeSalesRows, homeVariantRows, homeUsWindow, homeJapanWindow]);
+  
   const homeSeededBrands = useMemo(() => {
     const base = brands.length > 0 ? brands : FULL_BRAND_SEEDS;
     const byKey = new Map<string, BrandConfig>();
@@ -2013,8 +1938,9 @@ function SearchScreen({
   const homeBrandPageSize = 9;
   const homeBrandPageCount = Math.max(1, Math.ceil(homeBrandFiltered.length / homeBrandPageSize));
   const homeVisibleBrands = homeBrandFiltered.slice((homeBrandPage - 1) * homeBrandPageSize, homeBrandPage * homeBrandPageSize);
-  const canViewJapanMarketPanel = hasFeature(FeatureKey.JAPAN_MARKET_PANEL, tier);
   const canViewBrandSeedsPanel = hasFeature(FeatureKey.BRAND_SEEDS_PANEL, tier);
+  const chartTokens = readChartThemeTokens();
+  const homeTimeToSellMax = Math.max(1, ...homeTimeToSellWindows.map((bucket) => bucket.count));
 
   useEffect(() => {
     setHomeBrandPage(1);
@@ -2046,27 +1972,46 @@ function SearchScreen({
 
         {tier !== Tier.FREE ? (
           <>
+        <GlobalGloveMarketCard
+          rows={homeGlobalByCountry}
+          totalValue={homeGlobalMarket.value}
+          totalCount={homeGlobalMarket.count}
+          selectedWindow={homeGlobalWindow}
+          windowOptions={homeWindowOptions.map((option) => ({ key: option.key, label: option.label }))}
+          onSelectWindow={setHomeGlobalWindow}
+        />
+
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 1.5 }}>
           <Card><CardContent>
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Time to Sell</Typography>
             <Divider sx={{ my: 1.4 }} />
-            <Stack spacing={1}>
-              {homeTimeToSellWindows.map((bucket) => {
-                const max = Math.max(1, ...homeTimeToSellWindows.map((b) => b.count));
-                const widthPct = Math.max(8, Math.round((bucket.count / max) * 100));
-                return (
-                  <Box key={bucket.label}>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption">{bucket.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">{bucket.count}</Typography>
-                    </Stack>
-                    <Box sx={{ mt: 0.4, height: 8, borderRadius: 999, bgcolor: "action.hover", overflow: "hidden" }}>
-                      <Box sx={{ width: `${widthPct}%`, height: "100%", bgcolor: "primary.main" }} />
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Stack>
+            <ThemedBarChart
+              data={{
+                labels: homeTimeToSellWindows.map((bucket) => bucket.label),
+                datasets: [
+                  {
+                    label: "Count",
+                    data: homeTimeToSellWindows.map((bucket) => bucket.count),
+                    backgroundColor: homeTimeToSellWindows.map((bucket) =>
+                      hexToRgba(
+                        bucket.count === homeTimeToSellMax ? chartTokens.chart1 : chartTokens.chart3,
+                        chartTokens.isDark ? 0.72 : 0.8,
+                      ),
+                    ),
+                    borderRadius: 10,
+                  },
+                ],
+              }}
+              options={{
+                indexAxis: "y",
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { beginAtZero: true },
+                  y: { grid: { display: false } },
+                },
+              }}
+              height={{ xs: 220, sm: 250, md: 280 }}
+            />
           </CardContent></Card>
 
           <Card><CardContent>
@@ -2083,66 +2028,6 @@ function SearchScreen({
                 </Stack>
               ))}
               {homeRecentLibraryListings.length === 0 ? <Typography variant="body2" color="text.secondary">No library listings yet.</Typography> : null}
-            </Stack>
-          </CardContent></Card>
-
-          <Card><CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Global Glove Market (All Sales)</Typography>
-              <Stack direction="row" spacing={0.45}>
-                {homeWindowOptions.map((option) => (
-                  <Button
-                    key={option.key}
-                    color="inherit"
-                    sx={homeFilterButtonSx(homeGlobalWindow === option.key)}
-                    onClick={() => setHomeGlobalWindow(option.key)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </Stack>
-            </Stack>
-            <Divider sx={{ my: 1.4 }} />
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeGlobalMarket.value)}</Typography>
-            <Typography variant="body2" color="text.secondary">{homeGlobalMarket.count} tracked sales in selected window</Typography>
-            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,minmax(0,1fr))" }, gap: 0.7 }}>
-              {homeGlobalByCountry.map((row) => (
-                <Box key={row.country} sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {row.country}
-                    {row.is_dummy ? " • demo" : ""}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(row.value)}</Typography>
-                  <Stack direction="row" spacing={0.45} alignItems="center" justifyContent="space-between">
-                    <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
-                    <Stack direction="row" spacing={0.25} alignItems="center">
-                      {row.change_pct > 1 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: "success.main" }} /> : null}
-                      {row.change_pct < -1 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: "error.main" }} /> : null}
-                      {Math.abs(row.change_pct) <= 1 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: "text.secondary" }} /> : null}
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: row.change_pct > 1 ? "success.main" : row.change_pct < -1 ? "error.main" : "text.secondary",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {row.change_pct > 0 ? "+" : ""}{row.change_pct}%
-                      </Typography>
-                    </Stack>
-                  </Stack>
-                </Box>
-              ))}
-            </Box>
-            <Stack direction="row" spacing={0.6} sx={{ mt: 1.25, alignItems: "flex-end", height: 96 }}>
-              {homeMonthlySales.values.map((value, idx) => {
-                const max = Math.max(1, ...homeMonthlySales.values);
-                const h = Math.max(8, Math.round((value / max) * 100));
-                return (
-                  <Tooltip key={homeMonthlySales.labels[idx]} title={`${homeMonthlySales.labels[idx]} • ${value} sales`}>
-                    <Box sx={{ flex: 1, height: `${h}%`, borderRadius: 0.9, bgcolor: alpha("#0A84FF", 0.75) }} />
-                  </Tooltip>
-                );
-              })}
             </Stack>
           </CardContent></Card>
 
@@ -2174,83 +2059,6 @@ function SearchScreen({
               </Stack>
             </CardContent></Card>
           </TierGate>
-        </Box>
-
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
-          <Card><CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>US Market Sales</Typography>
-              <Stack direction="row" spacing={0.4}>
-                {homeWindowOptions.map((option) => (
-                  <Button
-                    key={`us-${option.key}`}
-                    color="inherit"
-                    sx={{ ...homeFilterButtonSx(homeUsWindow === option.key), minWidth: 42, px: 0.8 }}
-                    onClick={() => setHomeUsWindow(option.key)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </Stack>
-            </Stack>
-            <Divider sx={{ my: 1.2 }} />
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.us.value)}</Typography>
-            <Typography variant="body2" color="text.secondary">{homeRegionalSales.us.count} eBay US sales in selected window</Typography>
-            <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Avg sale</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.us.avg)}</Typography>
-              </Box>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Share</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                  {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.us.count / homeGlobalMarket.count) * 100)}%` : "0%"}
-                </Typography>
-              </Box>
-              <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                <Typography variant="caption" color="text.secondary">Sales</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.us.count}</Typography>
-              </Box>
-            </Box>
-          </CardContent></Card>
-          {canViewJapanMarketPanel ? (
-            <Card><CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 0.8 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Japan Market Sales</Typography>
-                <Stack direction="row" spacing={0.4}>
-                  {homeWindowOptions.map((option) => (
-                    <Button
-                      key={`jp-${option.key}`}
-                      color="inherit"
-                      sx={{ ...homeFilterButtonSx(homeJapanWindow === option.key), minWidth: 42, px: 0.8 }}
-                      onClick={() => setHomeJapanWindow(option.key)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </Stack>
-              </Stack>
-              <Divider sx={{ my: 1.2 }} />
-              <Typography variant="h5" sx={{ fontWeight: 900 }}>{money(homeRegionalSales.japan.value)}</Typography>
-              <Typography variant="body2" color="text.secondary">{homeRegionalSales.japan.count} eBay Japan sales in selected window</Typography>
-              <Box sx={{ mt: 1.1, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.7 }}>
-                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                  <Typography variant="caption" color="text.secondary">Avg sale</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(homeRegionalSales.japan.avg)}</Typography>
-                </Box>
-                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                  <Typography variant="caption" color="text.secondary">Share</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                    {homeGlobalMarket.count ? `${Math.round((homeRegionalSales.japan.count / homeGlobalMarket.count) * 100)}%` : "0%"}
-                  </Typography>
-                </Box>
-                <Box sx={{ p: 0.8, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-                  <Typography variant="caption" color="text.secondary">Sales</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{homeRegionalSales.japan.count}</Typography>
-                </Box>
-              </Box>
-            </CardContent></Card>
-          ) : null}
         </Box>
 
         {canViewBrandSeedsPanel ? (
@@ -5720,6 +5528,10 @@ export default function App() {
   useEffect(() => { api.artifacts(undefined, { photoMode: "hero" }).then(setGloves).catch(() => setGloves([])); }, []);
   useEffect(() => {
     window.localStorage.setItem("gloveiq-theme-mode", colorMode);
+    document.documentElement.setAttribute("data-theme", colorMode);
+    initChartThemeSync();
+    applyChartJsDefaults();
+    window.dispatchEvent(new CustomEvent("themechange", { detail: { mode: colorMode } }));
   }, [colorMode]);
   useEffect(() => {
     window.localStorage.setItem("gloveiq-left-rail-collapsed", leftRailCollapsed ? "1" : "0");
