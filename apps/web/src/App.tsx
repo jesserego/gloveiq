@@ -13,6 +13,7 @@ import GloveSearchBar from "./components/GloveSearchBar";
 import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
 import CollectionPage from "./components/CollectionPage";
+import DashboardHeader from "./components/dashboard/DashboardHeader";
 import { ThemedBarChart, ThemedLineChart } from "./components/charts/ThemedCharts";
 import GlobalGloveMarketCard from "./components/home/GlobalGloveMarketCard";
 import { TierGate } from "./components/TierGate";
@@ -5980,6 +5981,14 @@ export default function App() {
             />
 
             <Box sx={{ minHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {route.name === "search" ? (
+                <DashboardHeader
+                  tier={tier}
+                  onGoHome={() => setRoute({ name: "search" })}
+                  onOpenPricing={() => setRoute({ name: "pricing" })}
+                  onOpenAccount={() => setRoute({ name: "account" })}
+                />
+              ) : null}
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
