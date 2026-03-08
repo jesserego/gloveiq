@@ -2003,24 +2003,8 @@ function SearchScreen({
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
-        <Card><CardContent>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }} justifyContent="space-between">
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{t(locale, "tab.search")}</Typography>
-              <Typography variant="body2" color="text.secondary">Market dashboard and catalog pulse.</Typography>
-            </Box>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-              <Chip label={`Sales ${homeSalesRows.length}`} />
-              <Chip label={`Cataloged ${homeArtifactRows.length}`} />
-              <Chip label={`Variants ${homeVariantRows.length}`} />
-            </Stack>
-          </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: "wrap" }}>
-            {homeSeededBrands.slice(0, 12).map((brand) => <Chip key={brand.brand_key} size="small" label={brand.display_name} />)}
-          </Stack>
-          {homeLoading ? <LinearProgress sx={{ mt: 2 }} /> : null}
-          {homeErr ? <Typography sx={{ mt: 2 }} color="error">{homeErr}</Typography> : null}
-        </CardContent></Card>
+        {homeLoading ? <LinearProgress /> : null}
+        {homeErr ? <Typography color="error">{homeErr}</Typography> : null}
 
         <FreeTierDashboard tier={tier} />
 
