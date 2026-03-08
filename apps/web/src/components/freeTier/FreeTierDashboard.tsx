@@ -22,7 +22,6 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import type { Chart as ChartInstance, ChartData, ChartOptions } from "chart.js";
 import { Chart as ReactChart } from "react-chartjs-2";
 import { Card, CardContent, Button } from "../../ui/Primitives";
-import GlobalGloveMarketCard from "../home/GlobalGloveMarketCard";
 import WindowFilterMenu from "../home/WindowFilterMenu";
 import type { HomeWindowKey } from "../../lib/homeMarketUtils";
 import {
@@ -289,7 +288,7 @@ function PriceOverviewPanel({
               Current Price
             </Typography>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.25 }}>
-              <Typography variant="h3" sx={{ fontWeight: 900, color: tokens.positive }}>
+              <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1, color: tokens.positive }}>
                 {money(data.priceOverview.currentMedian)}
               </Typography>
               <TrendDelta value={data.priceOverview.deltaPct} />
@@ -306,7 +305,7 @@ function PriceOverviewPanel({
               Median (30d)
             </Typography>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.25 }}>
-              <Typography variant="h3" sx={{ fontWeight: 900 }}>
+              <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
                 {money(data.priceOverview.medianWindow)}
               </Typography>
               <TrendDelta value={Math.max(0.2, data.priceOverview.deltaPct - 0.7)} />
@@ -322,7 +321,7 @@ function PriceOverviewPanel({
             <Typography variant="caption" color="text.secondary">
               Price Range
             </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 900, mt: 0.25 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1, mt: 0.25 }}>
               {money(data.priceOverview.p10)} - {money(data.priceOverview.p90)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -1020,21 +1019,6 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
       ) : null}
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(12,minmax(0,1fr))" }, gap: { xs: 1.15, md: 0.9 } }}>
-        <Box sx={{ gridColumn: "1 / -1" }}>
-          {isLoading || !data ? (
-            <LoadingPanel height={360} />
-          ) : (
-            <GlobalGloveMarketCard
-              rows={data.global.countries}
-              totalValue={data.global.totalValue}
-              totalCount={data.global.totalCount}
-              selectedWindow={windowKey}
-              windowOptions={FREE_HOME_WINDOW_OPTIONS}
-              onSelectWindow={setWindowKey}
-            />
-          )}
-        </Box>
-
         <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 300, md: 250 } }}>
           {isLoading || !data ? <LoadingPanel height={250} /> : <MarketSnapshotPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
