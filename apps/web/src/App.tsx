@@ -2022,7 +2022,7 @@ function SearchScreen({
 
         <FreeTierDashboard tier={tier} />
 
-        {tier !== Tier.FREE ? (
+        {false && tier !== Tier.FREE ? (
           <>
         <GlobalGloveMarketCard
           rows={homeGlobalByCountry}
@@ -2222,20 +2222,20 @@ function SearchScreen({
               <Stack spacing={2}>
                 <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.2}>
                   <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900 }}>{homeBrandDetailOpen.brand.display_name}</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 900 }}>{homeBrandDetailOpen!.brand.display_name}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {homeBrandDetailOpen.details.company} • {homeBrandDetailOpen.details.contact}
+                      {homeBrandDetailOpen!.details.company} • {homeBrandDetailOpen!.details.contact}
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={1}>
-                    <Chip size="small" label={`${homeBrandDetailOpen.families.length} families`} />
-                    <Chip size="small" label={homeBrandDetailOpen.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only"} />
+                    <Chip size="small" label={`${homeBrandDetailOpen!.families.length} families`} />
+                    <Chip size="small" label={homeBrandDetailOpen!.brand.supports_variant_ai ? "Variant AI ready" : "Rule-only"} />
                     <Button onClick={() => setHomeBrandDetailOpen(null)}>Close</Button>
                   </Stack>
                 </Stack>
                 <Divider />
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
-                  {homeBrandDetailOpen.families.map((familyNode) => (
+                  {homeBrandDetailOpen!.families.map((familyNode) => (
                     <Card key={familyNode.family.family_id}>
                       <CardContent>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -2253,14 +2253,14 @@ function SearchScreen({
                                 <Box
                                   role="button"
                                   tabIndex={0}
-                                  onClick={() => setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`) })}
+                                  onClick={() => setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen!.brand.brand_key}_${pattern.pattern_id}`) })}
                                   onKeyDown={(event) => {
                                     if (event.key === "Enter" || event.key === " ") {
                                       event.preventDefault();
-                                      setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`) });
+                                      setHomePatternPreview({ title: `${familyNode.family.display_name} • ${pattern.pattern_code}`, color: placeholderSolidFromKey(`${homeBrandDetailOpen!.brand.brand_key}_${pattern.pattern_id}`) });
                                     }
                                   }}
-                                  sx={{ width: 56, height: 56, borderRadius: 1.2, border: "1px solid", borderColor: "divider", backgroundColor: placeholderSolidFromKey(`${homeBrandDetailOpen.brand.brand_key}_${pattern.pattern_id}`), cursor: "zoom-in", flexShrink: 0 }}
+                                  sx={{ width: 56, height: 56, borderRadius: 1.2, border: "1px solid", borderColor: "divider", backgroundColor: placeholderSolidFromKey(`${homeBrandDetailOpen!.brand.brand_key}_${pattern.pattern_id}`), cursor: "zoom-in", flexShrink: 0 }}
                                 />
                                 <Box sx={{ minWidth: 0 }}>
                                   <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
@@ -2274,7 +2274,7 @@ function SearchScreen({
                               <Box sx={{ mt: 0.8, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 0.7 }}>
                                 <Typography variant="caption" color="text.secondary">Size: <Typography component="span" variant="caption" color="text.primary">{pattern.canonical_size_in ? `${pattern.canonical_size_in}"` : "Unknown"}</Typography></Typography>
                                 <Typography variant="caption" color="text.secondary">Position: <Typography component="span" variant="caption" color="text.primary">{pattern.canonical_position || "Unknown"}</Typography></Typography>
-                                <Typography variant="caption" color="text.secondary">Available colors: <Typography component="span" variant="caption" color="text.primary">{colorOptionsForBrand(homeBrandDetailOpen.brand.display_name)}</Typography></Typography>
+                                <Typography variant="caption" color="text.secondary">Available colors: <Typography component="span" variant="caption" color="text.primary">{colorOptionsForBrand(homeBrandDetailOpen!.brand.display_name)}</Typography></Typography>
                                 <Typography variant="caption" color="text.secondary">Leather: <Typography component="span" variant="caption" color="text.primary">{leatherTypeForPattern(pattern)}</Typography></Typography>
                                 <Typography variant="caption" color="text.secondary">RH/LH options: <Typography component="span" variant="caption" color="text.primary">RHT and LHT</Typography></Typography>
                                 <Typography variant="caption" color="text.secondary">Fitment: <Typography component="span" variant="caption" color="text.primary">{fitmentInfoForPattern(pattern)}</Typography></Typography>
