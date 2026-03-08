@@ -5738,9 +5738,33 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
 
 function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: () => void; }) {
   const plans = [
-    { name: "Collector", price: "$9/mo", bullets: ["Track 50 artifacts", "Range-only valuations", "Basic verification queue"] },
-    { name: "Pro", price: "$19/mo", bullets: ["Estimate + range when eligible", "Advanced reports", "Priority verification queue"] },
-    { name: "Dealer", price: "$39/mo", bullets: ["Bulk intake", "Team seats", "API and export tooling"] },
+    {
+      name: "Collector",
+      price: "$9/mo",
+      bullets: [
+        "Build a clean personal glove portfolio with ownership tracking",
+        "Spot fair market value fast with pricing ranges and trend context",
+        "Stay ahead of the market with alerts on movers and new comps",
+      ],
+    },
+    {
+      name: "Pro",
+      price: "$19/mo",
+      bullets: [
+        "Get deeper valuation confidence with estimate + range analysis",
+        "Compare cross-brand and condition-adjusted comps in one workflow",
+        "Prioritize high-value opportunities with advanced analytics signals",
+      ],
+    },
+    {
+      name: "Dealer",
+      price: "$39/mo",
+      bullets: [
+        "Run inventory like a desk with margin and aging visibility per SKU",
+        "Scale faster with bulk workflows, team collaboration, and exports",
+        "Automate strategy with API access, repricing signals, and benchmarks",
+      ],
+    },
   ];
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
