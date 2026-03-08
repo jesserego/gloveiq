@@ -94,9 +94,9 @@ export function SidebarNav({
         p: collapsed ? 1 : 2,
         gap: collapsed ? 1.1 : 1.5,
         background: isDark
-          ? "linear-gradient(180deg, rgba(28,28,30,0.92), rgba(18,18,20,0.88))"
-          : "linear-gradient(180deg, rgba(255,255,255,0.90), rgba(242,242,247,0.88))",
-        backdropFilter: "blur(22px) saturate(130%)",
+          ? "linear-gradient(180deg, rgba(8,14,26,0.94), rgba(9,17,30,0.9))"
+          : "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9))",
+        backdropFilter: "blur(10px) saturate(118%)",
         borderRight: `1px solid ${theme.palette.divider}`,
         color: "text.primary",
         transition: `padding ${IOS_RAIL_EASE}, gap ${IOS_RAIL_EASE}`,
@@ -145,7 +145,7 @@ export function SidebarNav({
                 opacity: disabled ? 0.5 : 1,
                 transition: `all ${IOS_RAIL_EASE}`,
                 "&:hover": {
-                  backgroundColor: disabled ? "transparent" : isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
+                  backgroundColor: disabled ? "transparent" : isDark ? "rgba(74,222,128,0.10)" : "rgba(34,197,94,0.08)",
                 },
               }}
             >
@@ -203,7 +203,7 @@ export function SidebarNav({
                 cursor: "pointer",
                 transition: `all ${IOS_RAIL_EASE}`,
                 "&:hover": {
-                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(60,60,67,0.08)",
+                  backgroundColor: isDark ? "rgba(74,222,128,0.10)" : "rgba(34,197,94,0.08)",
                 },
               }}
             >
@@ -354,7 +354,7 @@ export function ShellTopBar({
         px: { xs: 1.25, md: 2.25 },
         borderBottom: `1px solid ${theme.palette.divider}`,
         backgroundColor: isDark ? "rgba(28,28,30,0.86)" : "rgba(255,255,255,0.86)",
-        backdropFilter: "blur(16px) saturate(160%)",
+        backdropFilter: "blur(8px) saturate(120%)",
         position: "sticky",
         top: 0,
         zIndex: 10,
@@ -420,7 +420,7 @@ export function ShellTopBar({
           <Select
             value={locale}
             onChange={(e) => setLocale(e.target.value as Locale)}
-            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: "#FFFFFF", "& .MuiSelect-select": { py: 0.8 } }}
+            sx={{ minWidth: 72, borderRadius: 999, backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.55 : 0.95), "& .MuiSelect-select": { py: 0.8 } }}
           >
             <MenuItem value="en">EN</MenuItem>
             <MenuItem value="ja">JA</MenuItem>

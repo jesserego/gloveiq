@@ -5,27 +5,27 @@ export type AppThemeMode = "light" | "dark";
 
 export function buildAppTheme(mode: AppThemeMode) {
   const isDark = mode === "dark";
-  const surface = isDark ? alpha("#1C1C1E", 0.74) : alpha("#FFFFFF", 0.8);
-  const elevated = isDark ? alpha("#2C2C2E", 0.82) : alpha("#FFFFFF", 0.92);
-  const border = isDark ? alpha("#FFFFFF", 0.16) : alpha("#3C3C43", 0.18);
-  const fill = isDark ? alpha("#636366", 0.34) : alpha("#787880", 0.16);
+  const surface = isDark ? alpha("#0B1220", 0.86) : alpha("#FFFFFF", 0.95);
+  const elevated = isDark ? alpha("#111C30", 0.9) : alpha("#F8FAFC", 0.98);
+  const border = isDark ? alpha("#C9D3E0", 0.16) : alpha("#0F172A", 0.1);
+  const fill = isDark ? alpha("#334155", 0.5) : alpha("#CBD5E1", 0.38);
 
   return createTheme({
     palette: {
       mode,
-      primary: { main: "#0A84FF", dark: "#0060DF" },
-      secondary: { main: "#5AC8FA" },
-      success: { main: "#30D158" },
-      warning: { main: "#FF9F0A" },
-      error: { main: "#FF453A" },
-      info: { main: "#64D2FF" },
+      primary: { main: "#22C55E", dark: "#16A34A" },
+      secondary: { main: "#38BDF8" },
+      success: { main: "#22C55E" },
+      warning: { main: "#F59E0B" },
+      error: { main: "#EF4444" },
+      info: { main: "#38BDF8" },
       divider: border,
       background: isDark
-        ? { default: "#000000", paper: surface }
-        : { default: "#F2F2F7", paper: surface },
+        ? { default: "#070B14", paper: surface }
+        : { default: "#F1F5F9", paper: surface },
       text: isDark
-        ? { primary: "#F2F2F7", secondary: "rgba(235,235,245,0.72)" }
-        : { primary: "#1C1C1E", secondary: "rgba(60,60,67,0.72)" },
+        ? { primary: "#E2E8F0", secondary: "rgba(203,213,225,0.76)" }
+        : { primary: "#0F172A", secondary: "rgba(51,65,85,0.78)" },
     },
     shape: { borderRadius: 8 },
     typography: {
@@ -49,11 +49,37 @@ export function buildAppTheme(mode: AppThemeMode) {
             WebkitFontSmoothing: "antialiased",
             MozOsxFontSmoothing: "grayscale",
           },
+          ":root, [data-theme='light']": {
+            "--color-bg-card": "#ffffff",
+            "--color-border": "#a1a1aa",
+            "--color-text-primary": "#1c1c1e",
+            "--color-text-secondary": "#52525b",
+            "--color-accent": "#22c55e",
+            "--color-positive": "#16a34a",
+            "--color-negative": "#ef4444",
+            "--color-chart-1": "#22c55e",
+            "--color-chart-2": "#38bdf8",
+            "--color-chart-3": "#6366f1",
+            "--color-chart-4": "#f59e0b",
+          } as any,
+          "[data-theme='dark']": {
+            "--color-bg-card": "#0f172a",
+            "--color-border": "#334155",
+            "--color-text-primary": "#e2e8f0",
+            "--color-text-secondary": "#94a3b8",
+            "--color-accent": "#22c55e",
+            "--color-positive": "#22c55e",
+            "--color-negative": "#ef4444",
+            "--color-chart-1": "#4ade80",
+            "--color-chart-2": "#38bdf8",
+            "--color-chart-3": "#818cf8",
+            "--color-chart-4": "#fbbf24",
+          } as any,
           body: {
             margin: 0,
             background: isDark
-              ? "radial-gradient(960px 520px at 8% -8%, rgba(10,132,255,.24), transparent 62%), radial-gradient(900px 520px at 92% -12%, rgba(94,92,230,.16), transparent 60%), linear-gradient(180deg,#000000,#101113)"
-              : "radial-gradient(980px 540px at 8% -8%, rgba(10,132,255,.12), transparent 62%), radial-gradient(900px 540px at 90% -12%, rgba(94,92,230,.09), transparent 60%), linear-gradient(180deg,#F2F2F7,#EDEEF3)",
+              ? "radial-gradient(1000px 560px at 8% -10%, rgba(34,197,94,.2), transparent 65%), radial-gradient(920px 540px at 92% -14%, rgba(56,189,248,.12), transparent 62%), linear-gradient(180deg,#070B14,#0B1220)"
+              : "radial-gradient(980px 540px at 8% -10%, rgba(34,197,94,.12), transparent 64%), radial-gradient(920px 540px at 92% -14%, rgba(56,189,248,.08), transparent 60%), linear-gradient(180deg,#F8FAFC,#EEF2F7)",
           },
         },
       },
@@ -63,7 +89,7 @@ export function buildAppTheme(mode: AppThemeMode) {
             backgroundImage: "none",
             backgroundColor: surface,
             border: `1px solid ${border}`,
-            backdropFilter: "blur(22px) saturate(135%)",
+            backdropFilter: "blur(10px) saturate(120%)",
           },
         },
       },
@@ -72,9 +98,9 @@ export function buildAppTheme(mode: AppThemeMode) {
           root: {
             border: `1px solid ${border}`,
             backgroundColor: elevated,
-            backdropFilter: "blur(22px) saturate(130%)",
-            boxShadow: isDark ? "0 20px 42px rgba(0,0,0,0.45)" : "0 10px 28px rgba(15,23,42,0.10)",
-            borderRadius: 8,
+            backdropFilter: "blur(10px) saturate(118%)",
+            boxShadow: isDark ? "0 10px 24px rgba(2,6,23,0.38)" : "0 6px 18px rgba(15,23,42,0.08)",
+            borderRadius: 10,
           },
         },
       },
@@ -110,12 +136,12 @@ export function buildAppTheme(mode: AppThemeMode) {
             letterSpacing: "0.01em",
           },
           contained: {
-            background: "linear-gradient(180deg, #0A84FF, #0073F0)",
-            border: "1px solid rgba(0,95,204,.44)",
+            background: "linear-gradient(180deg, #22C55E, #16A34A)",
+            border: "1px solid rgba(21,128,61,.55)",
             color: "#FFFFFF",
-            boxShadow: isDark ? "0 8px 18px rgba(10,132,255,0.28)" : "0 6px 16px rgba(10,132,255,0.22)",
+            boxShadow: isDark ? "0 8px 16px rgba(34,197,94,0.28)" : "0 6px 14px rgba(22,163,74,0.2)",
             "&:hover": {
-              background: "#0073F0",
+              background: "#16A34A",
             },
           },
           outlined: {
@@ -133,10 +159,10 @@ export function buildAppTheme(mode: AppThemeMode) {
               borderColor: border,
             },
             "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: alpha("#0A84FF", 0.6),
+              borderColor: alpha("#22C55E", 0.6),
             },
             "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#0A84FF",
+              borderColor: "#22C55E",
               borderWidth: 1.5,
             },
           },
@@ -183,10 +209,10 @@ export function buildAppTheme(mode: AppThemeMode) {
       MuiDialog: {
         styleOverrides: {
           paper: {
-            borderRadius: 20,
+            borderRadius: 14,
             border: `1px solid ${border}`,
             backgroundColor: elevated,
-            backdropFilter: "blur(26px) saturate(135%)",
+            backdropFilter: "blur(10px) saturate(120%)",
           },
         },
       },
