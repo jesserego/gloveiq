@@ -17,10 +17,14 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { Button, Card, CardContent } from "../ui/Primitives";
+import { ThemedLineChart } from "./charts/ThemedCharts";
+import { hexToRgba, readChartThemeTokens } from "../lib/chartjsTheme";
+import glovePlaceholderImage from "../assets/baseball-glove-placeholder.svg";
 import {
   api,
   type CollectionItem,
@@ -60,7 +64,62 @@ const defaultForm: AddFormState = {
   location: "",
 };
 
+function buildDummyCollection(status: CollectionStatus): CollectionItem[] {
+  const base = status === "OWNED" ? "OWN" : "WANT";
+  return Array.from({ length: 10 }).map((_, idx) => {
+    const i = idx + 1;
+    const current = 18000 + i * 1400;
+    const acq = status === "OWNED" ? 15000 + i * 1100 : null;
+    return {
+      id: `dummy_${base.toLowerCase()}_${i}`,
+      status,
+      quantity: status === "OWNED" ? (i % 3 === 0 ? 2 : 1) : 1,
+      condition: status === "OWNED" ? (i % 2 === 0 ? "Used" : "New") : "Unknown",
+      normalizedCondition: null,
+      acquisitionPriceCents: acq,
+      acquisitionDate: status === "OWNED" ? `2025-0${(i % 9) + 1}-15` : null,
+      targetPriceCents: status === "WANT" ? 15000 + i * 900 : null,
+      notes: status === "WANT" ? `Priority ${i % 3 === 0 ? "High" : "Normal"}` : `Collection item ${i}`,
+      sku: status === "OWNED" ? `SKU-${1000 + i}` : null,
+      location: status === "OWNED" ? `Shelf ${((i - 1) % 4) + 1}` : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      variant: {
+        variantId: `var_dummy_${i}`,
+        brand: ["Rawlings", "Wilson", "Mizuno", "Zett", "44 Pro"][i % 5],
+        model: ["PRO204", "A2000 1786", "Haga IF", "ProStatus", "C2"][i % 5],
+        pattern: ["11.5 IF", "11.75 IF", "12 OF", "11.25 IF", "12.25 OF"][i % 5],
+        sizeIn: [11.5, 11.75, 12, 11.25, 12.25][i % 5],
+        throwHand: i % 2 === 0 ? "RHT" : "LHT",
+        title: `${["Rawlings", "Wilson", "Mizuno", "Zett", "44 Pro"][i % 5]} ${["PRO204", "A2000 1786", "Haga IF", "ProStatus", "C2"][i % 5]}`,
+        year: 2020 + (i % 6),
+        web: ["I-Web", "H-Web", "Trapeze", "Single Post", "Closed"][i % 5],
+      },
+      market: {
+        currentMedianCents: current,
+        ma7Cents: current - 500,
+        ma30Cents: current - 1200,
+        ma90Cents: current - 1700,
+        p10Cents: current - 6000,
+        p90Cents: current + 9000,
+        salesCount30d: 12 + i * 2,
+        activeListingsCount: 20 + i,
+        positionValueCents: current * (status === "OWNED" && i % 3 === 0 ? 2 : 1),
+        pnlCents: acq == null ? null : current - acq,
+        lastUpdatedAt: new Date().toISOString(),
+      },
+    };
+  });
+}
+
+function cardPhotoTint(seed: string) {
+  const palette = ["#22C55E", "#38BDF8", "#6366F1", "#F59E0B", "#EF4444"];
+  const hash = seed.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return palette[hash % palette.length];
+}
+
 export default function CollectionPage({ tier, variants }: { tier: Tier; variants: VariantRecord[] }) {
+  const chartTokens = readChartThemeTokens();
   const isDealer = tier === Tier.DEALER;
   const canUseCollection = canAccess(Tier.COLLECTOR, tier);
   const canUseProMetrics = canAccess(Tier.PRO, tier);
@@ -108,6 +167,11 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
       return brandOk && conditionOk && valueOk;
     });
   }, [rows, brandFilter, conditionFilter, maxValueFilter]);
+
+  const displayRows = useMemo(() => {
+    if (filteredRows.length > 0) return filteredRows;
+    return buildDummyCollection(tab);
+  }, [filteredRows, tab]);
 
   const brandOptions = useMemo(
     () => Array.from(new Set(rows.map((row) => row.variant?.brand).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)),
@@ -288,7 +352,7 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
       <Card><CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{tab === "OWNED" ? "Owned Items" : "Wantlist Items"}</Typography>
-          <Typography variant="caption" color="text.secondary">{filteredRows.length} items</Typography>
+          <Typography variant="caption" color="text.secondary">{displayRows.length} items</Typography>
         </Stack>
         <Divider sx={{ my: 1 }} />
 
@@ -297,10 +361,25 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
           <Typography variant="body2" color="text.secondary">Empty. Search and add your first glove.</Typography>
         ) : null}
 
-        <Box sx={{ display: "grid", gap: 0.8 }}>
-          {filteredRows.map((row) => (
+        <Box sx={{ display: "grid", gap: 0.9, gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))", xl: "repeat(3,minmax(0,1fr))" } }}>
+          {displayRows.map((row) => (
             <Box key={row.id} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between">
+              <Box
+                sx={{
+                  position: "relative",
+                  height: 118,
+                  borderRadius: 1,
+                  overflow: "hidden",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  mb: 0.9,
+                  backgroundColor: (theme) => alpha(cardPhotoTint(`${row.variant?.brand || ""}_${row.id}`), theme.palette.mode === "dark" ? 0.22 : 0.14),
+                }}
+              >
+                <Box component="img" src={glovePlaceholderImage} alt={`${row.variant?.title || "Glove"} photo`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.94 }} />
+                <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 30%, rgba(2,6,23,0.46) 100%)" }} />
+              </Box>
+              <Stack spacing={1} justifyContent="space-between" sx={{ minHeight: 210 }}>
                 <Stack spacing={0.2} sx={{ minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{row.variant?.title || row.variant?.variantId || "Unknown variant"}</Typography>
                   <Typography variant="caption" color="text.secondary" noWrap>
@@ -314,29 +393,29 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
                   </Stack>
                 </Stack>
 
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} alignItems={{ md: "center" }}>
-                  <Box>
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.8 }}>
+                  <Box sx={{ minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary">Acq.</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.acquisitionPriceCents)}</Typography>
                   </Box>
-                  <Box>
+                  <Box sx={{ minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary">Current</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.market.currentMedianCents)}</Typography>
                   </Box>
-                  <Box>
+                  <Box sx={{ gridColumn: "1 / -1", minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary">MA7 / MA30 / MA90</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>
                       {moneyFromCents(row.market.ma7Cents)} / {moneyFromCents(row.market.ma30Cents)} / {moneyFromCents(row.market.ma90Cents)}
                     </Typography>
                   </Box>
-                  <Box>
+                  <Box sx={{ minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary">P/L</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.market.pnlCents)}</Typography>
                   </Box>
-                  <Stack direction="row" spacing={0.6}>
+                </Box>
+                <Stack direction="row" spacing={0.6}>
                     <Button color="inherit" onClick={() => setDetailOpen(row)}>Detail</Button>
                     <Button color="inherit" onClick={() => onDelete(row.id)}>Delete</Button>
-                  </Stack>
                 </Stack>
               </Stack>
             </Box>
@@ -471,12 +550,37 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
               </Typography>
               <Box sx={{ p: 1, border: "1px dashed", borderColor: "divider", borderRadius: 1.1 }}>
                 <Typography variant="caption" color="text.secondary">Price chart (30d + MA overlays)</Typography>
-                <Box sx={{ mt: 0.7, height: 66, display: "grid", gridTemplateColumns: "repeat(30,minmax(0,1fr))", gap: 0.25, alignItems: "end" }}>
-                  {Array.from({ length: 30 }).map((_, idx) => {
-                    const v = 30 + Math.round(Math.sin(idx / 4) * 22) + (idx % 5) * 2;
-                    return <Box key={idx} sx={{ height: `${Math.max(8, v)}%`, borderRadius: 0.4, bgcolor: idx % 5 === 0 ? "secondary.main" : "primary.main", opacity: 0.82 }} />;
-                  })}
-                </Box>
+                <ThemedLineChart
+                  data={{
+                    labels: Array.from({ length: 30 }).map((_, idx) => `D${idx + 1}`),
+                    datasets: [
+                      {
+                        label: "Price",
+                        data: Array.from({ length: 30 }).map((_, idx) => 200 + Math.round(Math.sin(idx / 4) * 16) + (idx % 7) * 3),
+                        borderColor: chartTokens.chart1,
+                        backgroundColor: hexToRgba(chartTokens.chart1, chartTokens.isDark ? 0.18 : 0.25),
+                        fill: true,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.32,
+                      },
+                      {
+                        label: "MA30",
+                        data: Array.from({ length: 30 }).map(() => (detailOpen.market.ma30Cents || 0) / 100),
+                        borderColor: chartTokens.chart4,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.2,
+                      },
+                    ],
+                  }}
+                  options={{
+                    plugins: { legend: { position: "bottom" } },
+                    scales: { y: { ticks: { callback: (value) => `$${value}` } } },
+                  }}
+                  height={{ xs: 180, sm: 220, md: 260 }}
+                />
               </Box>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                 <Box sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.1, flex: 1 }}>
