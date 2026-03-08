@@ -26,7 +26,6 @@ import DatasetRoundedIcon from "@mui/icons-material/DatasetRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
-import gloveIqLogo from "../../assets/GloveIQ.logo.png";
 
 type DropdownOption = {
   label: string;
@@ -300,12 +299,10 @@ export function ProfileMenu({ onOpenAccount }: { onOpenAccount: () => void }) {
 
 export default function DashboardHeader({
   tier,
-  onGoHome,
   onOpenPricing,
   onOpenAccount,
 }: {
   tier: Tier;
-  onGoHome: () => void;
   onOpenPricing: () => void;
   onOpenAccount: () => void;
 }) {
@@ -366,21 +363,12 @@ export default function DashboardHeader({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr auto", md: "auto minmax(260px,1fr) auto" },
+            gridTemplateColumns: { xs: "1fr auto", md: "minmax(300px,1fr) auto" },
             alignItems: "center",
             gap: { xs: 1, md: 1.25 },
           }}
         >
-          <Button
-            color="inherit"
-            onClick={onGoHome}
-            startIcon={<Box component="img" src={gloveIqLogo} alt="GloveIQ" sx={{ width: 18, height: 18, borderRadius: 1 }} />}
-            sx={{ justifySelf: "start", px: 1.1, py: 0.7, minWidth: 0, borderRadius: 2, fontWeight: 800, fontSize: 14, textTransform: "none" }}
-          >
-            GloveIQ
-          </Button>
-
-          <Box sx={{ gridColumn: { xs: "1 / -1", md: "2 / 3" }, minWidth: 0 }}>
+          <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
             <SearchInput value={search} onChange={setSearch} onSubmit={() => undefined} inputRef={inputRef} />
           </Box>
 

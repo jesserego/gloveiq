@@ -5984,7 +5984,6 @@ export default function App() {
               {route.name === "search" ? (
                 <DashboardHeader
                   tier={tier}
-                  onGoHome={() => setRoute({ name: "search" })}
                   onOpenPricing={() => setRoute({ name: "pricing" })}
                   onOpenAccount={() => setRoute({ name: "account" })}
                 />
