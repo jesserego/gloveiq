@@ -984,7 +984,6 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
   const [windowKey, setWindowKey] = useState<HomeWindowKey>("1mo");
   const { data, isLoading, error, reload } = useFreeHomeDashboardData(windowKey);
   const tierRank = TIER_RANK[tier];
-  const currentTierBadge = TIER_BADGE[tier];
   const tierContainers = useMemo(
     () => [...TIER_DASHBOARD_CONTAINERS].sort((a, b) => a.order - b.order),
     [],
@@ -1012,10 +1011,7 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
         Home Dashboard
       </Typography>
-      <Stack direction="row" spacing={0.7} alignItems="center">
-        <Chip size="small" label={`Tier: ${currentTierBadge.label}`} sx={{ bgcolor: alpha(currentTierBadge.color, 0.18), borderColor: alpha(currentTierBadge.color, 0.58) }} />
-        {tier === Tier.FREE ? <Alert severity="info" sx={{ py: 0 }}>Unlock deep market analytics with Collector.</Alert> : null}
-      </Stack>
+      {tier === Tier.FREE ? <Alert severity="info" sx={{ py: 0 }}>Unlock deep market analytics with Collector.</Alert> : null}
 
       {error ? (
         <Alert severity="error" action={<Button color="inherit" onClick={reload}>Retry</Button>}>

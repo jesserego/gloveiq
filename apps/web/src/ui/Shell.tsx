@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Box,
+  Chip,
   Divider,
   FormControl,
   IconButton,
@@ -31,6 +32,7 @@ import { Button } from "./Primitives";
 import gloveIqLogo from "../assets/GloveIQ.logo.png";
 import type { AppThemeMode } from "./theme";
 import TierSwitch from "../components/TierSwitch";
+import { Tier } from "@gloveiq/shared";
 
 const BRAND_LOGO_BLUE_FILTER = "hue-rotate(205deg) saturate(185%) brightness(0.95)";
 
@@ -44,6 +46,7 @@ export function SidebarNav({
   canOpenArtifact,
   canOpenCollection,
   collectionLabel,
+  tier,
   colorMode,
   collapsed,
   onToggleColorMode,
@@ -55,6 +58,7 @@ export function SidebarNav({
   canOpenArtifact: boolean;
   canOpenCollection: boolean;
   collectionLabel: string;
+  tier: Tier;
   colorMode: AppThemeMode;
   collapsed: boolean;
   onToggleColorMode: () => void;
@@ -63,6 +67,13 @@ export function SidebarNav({
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const tierTag = tier === Tier.FREE
+    ? { label: "FREE", color: "#94A3B8" }
+    : tier === Tier.COLLECTOR
+      ? { label: "COLLECTOR", color: "#3B82F6" }
+      : tier === Tier.PRO
+        ? { label: "PRO", color: "#A855F7" }
+        : { label: "DEALER", color: "#F59E0B" };
   const items = [
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
@@ -211,7 +222,23 @@ export function SidebarNav({
                   }}
                 >
                   {!collapsed ? (
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }} noWrap>{item.label}</Typography>
+                      {item.tab === "account" ? (
+                        <Chip
+                          size="small"
+                          label={tierTag.label}
+                          sx={{
+                            height: 18,
+                            borderRadius: 999,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            bgcolor: alpha(tierTag.color, 0.2),
+                            borderColor: alpha(tierTag.color, 0.55),
+                          }}
+                        />
+                      ) : null}
+                    </Stack>
                   ) : null}
                   {!collapsed ? (
                     <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.2 }} noWrap>{item.subtitle}</Typography>

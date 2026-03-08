@@ -5971,6 +5971,7 @@ export default function App() {
               canOpenArtifact={true}
               canOpenCollection={canOpenCollection}
               collectionLabel={collectionLabel}
+              tier={tier}
               colorMode={colorMode}
               collapsed={leftRailCollapsed}
               onToggleColorMode={() => setColorMode((m) => (m === "light" ? "dark" : "light"))}
