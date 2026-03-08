@@ -105,7 +105,7 @@ function PanelShell({
 }) {
   return (
     <Card sx={{ height: "100%", ...cardSx }}>
-      <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 1.2 }}>
+      <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: { xs: 1.2, md: 1 } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
@@ -689,7 +689,7 @@ function LockedTierContainer({
       selectedWindow={selectedWindow}
       onWindow={onWindow}
     >
-      <Box sx={{ position: "relative", flex: 1, minHeight: 250, border: "1px solid", borderColor: "divider", borderRadius: 1.4, overflow: "hidden" }}>
+      <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 250, md: 220 }, border: "1px solid", borderColor: "divider", borderRadius: 1.4, overflow: "hidden" }}>
         <Box sx={{ p: 1.1, filter: "blur(2.5px)", opacity: 0.65 }}>
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.8 }}>
             {[1, 2, 3].map((idx) => (
@@ -1008,7 +1008,7 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
   };
 
   return (
-    <Stack spacing={1.3}>
+    <Stack spacing={{ xs: 1.2, md: 1 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
         Home Dashboard
       </Typography>
@@ -1023,7 +1023,7 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
         </Alert>
       ) : null}
 
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(12,minmax(0,1fr))" }, gap: 1.2 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(12,minmax(0,1fr))" }, gap: { xs: 1.15, md: 0.9 } }}>
         <Box sx={{ gridColumn: "1 / -1" }}>
           {isLoading || !data ? (
             <LoadingPanel height={360} />
@@ -1039,31 +1039,31 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
           )}
         </Box>
 
-        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 300, md: 290 } }}>
-          {isLoading || !data ? <LoadingPanel height={290} /> : <MarketSnapshotPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 300, md: 250 } }}>
+          {isLoading || !data ? <LoadingPanel height={250} /> : <MarketSnapshotPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
 
-        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 320, md: 360 } }}>
-          {isLoading || !data ? <LoadingPanel height={300} /> : <PriceOverviewPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 320, md: 320 } }}>
+          {isLoading || !data ? <LoadingPanel height={280} /> : <PriceOverviewPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
 
-        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 7" }, minHeight: { xs: 320, md: 350 } }}>
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 7" }, minHeight: { xs: 320, md: 310 } }}>
           {isLoading || !data ? <LoadingPanel height={310} /> : <SalesTrendPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} tier={tier} />}
         </Box>
-        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 5" }, minHeight: { xs: 340, md: 350 } }}>
+        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 5" }, minHeight: { xs: 340, md: 310 } }}>
           {isLoading || !data ? <LoadingPanel height={310} /> : <BrandModelInsightsPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
 
-        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 320, md: 380 } }}>
-          {isLoading || !data ? <LoadingPanel height={340} /> : <ListingsPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
+        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 320, md: 335 } }}>
+          {isLoading || !data ? <LoadingPanel height={300} /> : <ListingsPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
 
         {tierContainers.map((container: TierDashboardContainerConfig) => {
           const unlocked = tierRank >= TIER_RANK[container.unlockTier];
           return (
-            <Box key={container.container_id} sx={{ gridColumn: "1 / -1", minHeight: { xs: 330, md: 360 } }}>
+            <Box key={container.container_id} sx={{ gridColumn: "1 / -1", minHeight: { xs: 330, md: 305 } }}>
               {isLoading || !data ? (
-                <LoadingPanel height={330} />
+                <LoadingPanel height={290} />
               ) : unlocked ? (
                 renderUnlockedContainer(container.container_id)
               ) : (
