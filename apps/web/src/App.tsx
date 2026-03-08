@@ -14,6 +14,8 @@ import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
 import CollectionPage from "./components/CollectionPage";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
+import CommandPalette from "./components/dashboard/CommandPalette";
+import { useCommandPalette, type CommandResult } from "./components/dashboard/useCommandPalette";
 import { ThemedBarChart, ThemedLineChart } from "./components/charts/ThemedCharts";
 import GlobalGloveMarketCard from "./components/home/GlobalGloveMarketCard";
 import { TierGate } from "./components/TierGate";
@@ -5883,6 +5885,114 @@ export default function App() {
     else setRoute({ name: "search" });
   }
 
+  const variantsById = useMemo(() => {
+    const out = new Map<string, VariantRecord>();
+    for (const row of variants) out.set(row.variant_id, row);
+    return out;
+  }, [variants]);
+
+  const commandResults = useMemo<CommandResult[]>(() => {
+    const modelResults = variants.slice(0, 64).map((variant) => ({
+      id: `model:${variant.variant_id}`,
+      type: "model" as const,
+      title: `${variant.brand_key} ${variant.model_code || variant.display_name}`.trim(),
+      subtitle: `Variant • ${variant.variant_id}`,
+      keywords: [variant.brand_key, variant.model_code || "", variant.display_name, variant.variant_id],
+      onSelect: () => setRoute({ name: "variantProfile", variantId: variant.variant_id }),
+    }));
+
+    const brandResults = brands.slice(0, 28).map((brand) => ({
+      id: `brand:${brand.brand_key}`,
+      type: "brand" as const,
+      title: brand.display_name,
+      subtitle: `${brand.brand_key} • Brand overview`,
+      keywords: [brand.display_name, brand.brand_key, "brand"],
+      onSelect: () => setRoute({ name: "brandProfile", brandKey: brand.brand_key }),
+    }));
+
+    const listingResults = sales.slice(0, 48).map((sale) => {
+      const linkedVariant = variantsById.get(sale.variant_id);
+      const modelName = linkedVariant?.model_code || linkedVariant?.display_name || sale.variant_id;
+      return {
+        id: `listing:${sale.sale_id}`,
+        type: "listing" as const,
+        title: `${sale.brand_key} ${modelName} — ${money(sale.price_usd)}`,
+        subtitle: `${sale.source} • ${sale.sale_date}`,
+        keywords: [sale.brand_key, modelName, sale.source, String(sale.price_usd), "listing", "sold"],
+        onSelect: () => {
+          if (linkedVariant) setRoute({ name: "variantProfile", variantId: linkedVariant.variant_id });
+          else setRoute({ name: "artifacts" });
+        },
+      };
+    });
+
+    const collectionLocked = !canOpenCollection;
+    const collectionTitle = tier === Tier.DEALER ? "My Inventory" : "My Collection";
+    const collectionSubtitle = collectionLocked
+      ? "Locked on Free tier"
+      : tier === Tier.DEALER
+        ? "Dealer inventory workspace"
+        : "Owned and wantlist workspace";
+
+    const navigationResults: CommandResult[] = [
+      { id: "nav:home", type: "navigation", title: "Home", subtitle: "Dashboard overview", keywords: ["home", "dashboard"], onSelect: () => setRoute({ name: "search" }) },
+      { id: "nav:search", type: "navigation", title: "Search", subtitle: "Catalog results and filters", keywords: ["search", "catalog"], onSelect: () => setRoute({ name: "artifacts" }) },
+      {
+        id: "nav:collection",
+        type: "navigation",
+        title: collectionTitle,
+        subtitle: collectionSubtitle,
+        keywords: ["collection", "inventory", "owned", "wantlist"],
+        locked: collectionLocked,
+        onSelect: () => {
+          if (collectionLocked) setRoute({ name: "pricing" });
+          else setRoute(tier === Tier.DEALER ? { name: "inventory" } : { name: "collection" });
+        },
+      },
+      { id: "nav:pricing", type: "navigation", title: "Pricing / Tiers", subtitle: "Plans and tier features", keywords: ["pricing", "tiers", "upgrade"], onSelect: () => setRoute({ name: "pricing" }) },
+      { id: "nav:settings", type: "navigation", title: "Settings", subtitle: "Profile and account settings", keywords: ["settings", "profile", "account"], onSelect: () => setRoute({ name: "account" }) },
+    ];
+
+    const actionResults: CommandResult[] = [
+      {
+        id: "action:toggle-theme",
+        type: "action",
+        title: colorMode === "dark" ? "Toggle Light Mode" : "Toggle Dark Mode",
+        subtitle: "Switch dashboard theme",
+        keywords: ["dark mode", "light mode", "theme"],
+        onSelect: () => setColorMode((mode) => (mode === "light" ? "dark" : "light")),
+      },
+      {
+        id: "action:change-tier",
+        type: "action",
+        title: "Change Tier",
+        subtitle: "Open pricing and tier controls",
+        keywords: ["tier", "upgrade", "plan"],
+        onSelect: () => setRoute({ name: "pricing" }),
+      },
+      {
+        id: "action:notifications",
+        type: "action",
+        title: "Open Notifications",
+        subtitle: "View alerts in account area",
+        keywords: ["notifications", "alerts", "signals"],
+        onSelect: () => setRoute({ name: "account" }),
+      },
+      {
+        id: "action:latest-listings",
+        type: "action",
+        title: "View Latest Listings",
+        subtitle: "Jump to listings and market table",
+        keywords: ["latest", "listings", "market"],
+        onSelect: () => setRoute({ name: "artifacts" }),
+      },
+    ];
+
+    return [...modelResults, ...brandResults, ...listingResults, ...navigationResults, ...actionResults];
+  }, [variants, brands, sales, variantsById, canOpenCollection, tier, colorMode]);
+
+  const commandPalette = useCommandPalette(commandResults);
+
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
@@ -5986,6 +6096,7 @@ export default function App() {
                   tier={tier}
                   onOpenPricing={() => setRoute({ name: "pricing" })}
                   onOpenAccount={() => setRoute({ name: "account" })}
+                  onOpenCommandPalette={commandPalette.open}
                 />
               ) : null}
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
@@ -6095,6 +6206,17 @@ export default function App() {
         canOpenCollection={canOpenCollection}
         collectionLabel={collectionLabel}
         onSelect={onSelectTab}
+      />
+      <CommandPalette
+        open={commandPalette.isOpen}
+        query={commandPalette.query}
+        onQuery={commandPalette.setQuery}
+        groupedResults={commandPalette.groupedResults}
+        selectedIndex={commandPalette.selectedIndex}
+        onSelectIndex={commandPalette.setSelectedIndex}
+        onMove={commandPalette.moveSelection}
+        onRun={commandPalette.runSelected}
+        onClose={commandPalette.close}
       />
     </ThemeProvider>
   );

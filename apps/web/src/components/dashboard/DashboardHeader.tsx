@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -41,15 +41,11 @@ const tierStyles: Record<Tier, { label: string; color: string }> = {
 };
 
 export function SearchInput({
-  value,
-  onChange,
-  onSubmit,
-  inputRef,
+  onActivate,
+  shortcutLabel,
 }: {
-  value: string;
-  onChange: (next: string) => void;
-  onSubmit?: () => void;
-  inputRef?: React.Ref<HTMLInputElement>;
+  onActivate: () => void;
+  shortcutLabel: string;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -76,11 +72,15 @@ export function SearchInput({
       <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
       <Box
         component="input"
-        value={value}
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
-        ref={inputRef}
+        value=""
+        readOnly
+        onFocus={onActivate}
+        onClick={onActivate}
         onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
-          if (event.key === "Enter") onSubmit?.();
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onActivate();
+          }
         }}
         placeholder="Search gloves, models, brands..."
         aria-label="Search gloves, models, brands"
@@ -109,7 +109,7 @@ export function SearchInput({
           lineHeight: 1,
         }}
       >
-        /
+        {shortcutLabel}
       </Box>
     </Box>
   );
@@ -301,19 +301,20 @@ export default function DashboardHeader({
   tier,
   onOpenPricing,
   onOpenAccount,
+  onOpenCommandPalette,
 }: {
   tier: Tier;
   onOpenPricing: () => void;
   onOpenAccount: () => void;
+  onOpenCommandPalette: () => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isCompact = useMediaQuery(theme.breakpoints.down("lg"));
-  const [search, setSearch] = useState("");
   const [actionsValue, setActionsValue] = useState("all-data");
   const [projectValue, setProjectValue] = useState("global-market");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const shortcutLabel = typeof navigator !== "undefined" && /(Mac|iPhone|iPad)/i.test(navigator.platform) ? "⌘K" : "Ctrl+K";
 
   const actionOptions = useMemo<DropdownOption[]>(() => [
     { group: "View", label: "All Data", value: "all-data" },
@@ -331,18 +332,6 @@ export default function DashboardHeader({
     { label: "Dealer Inventory", value: "dealer-inventory" },
     { label: "JP Market", value: "jp-market" },
   ], []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "/") return;
-      const target = event.target as HTMLElement | null;
-      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
-      event.preventDefault();
-      inputRef.current?.focus();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
 
   return (
     <>
@@ -369,7 +358,7 @@ export default function DashboardHeader({
           }}
         >
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
-            <SearchInput value={search} onChange={setSearch} onSubmit={() => undefined} inputRef={inputRef} />
+            <SearchInput onActivate={onOpenCommandPalette} shortcutLabel={shortcutLabel} />
           </Box>
 
           <Stack direction="row" spacing={0.8} alignItems="center" justifySelf="end">
