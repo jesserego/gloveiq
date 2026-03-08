@@ -59,9 +59,9 @@ export function SearchInput({
         borderRadius: 2.5,
         px: 1.5,
         py: 1,
-        border: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.18 : 0.16)}`,
-        backgroundColor: isDark ? "rgba(15,23,42,0.40)" : "rgba(255,255,255,0.80)",
-        boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 18px rgba(2,6,23,0.22)" : "inset 0 1px 0 rgba(255,255,255,0.8)",
+        border: `1px solid ${theme.palette.divider}`,
+        backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.52 : 0.9),
+        boxShadow: isDark ? "0 4px 12px rgba(2,6,23,0.2)" : "0 2px 10px rgba(2,6,23,0.08)",
         transition: "box-shadow 180ms ease, border-color 180ms ease",
         "&:focus-within": {
           borderColor: alpha(theme.palette.primary.main, 0.72),
@@ -101,8 +101,8 @@ export function SearchInput({
           borderRadius: 1,
           px: 0.75,
           py: 0.25,
-          border: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.2 : 0.18)}`,
-          bgcolor: isDark ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.06)",
+          border: `1px solid ${theme.palette.divider}`,
+          bgcolor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.7),
           color: "text.secondary",
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           fontSize: 11,
@@ -147,8 +147,8 @@ export function HeaderDropdown({
             px: compact ? 1 : 1.25,
             py: 0.7,
             borderRadius: 2.5,
-            border: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.2 : 0.15)}`,
-            bgcolor: isDark ? "rgba(15,23,42,0.42)" : "rgba(255,255,255,0.78)",
+            border: `1px solid ${theme.palette.divider}`,
+            bgcolor: alpha(theme.palette.background.paper, isDark ? 0.5 : 0.88),
             textTransform: "none",
             fontSize: 12,
             fontWeight: 700,
@@ -176,8 +176,7 @@ export function HeaderDropdown({
             mt: 0.5,
             borderRadius: 2,
             border: `1px solid ${theme.palette.divider}`,
-            bgcolor: isDark ? "rgba(22,28,40,0.96)" : "rgba(255,255,255,0.95)",
-            backdropFilter: "blur(12px)",
+            bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 0.98),
             minWidth: 220,
           },
         }}
@@ -342,11 +341,9 @@ export default function DashboardHeader({
           zIndex: 12,
           px: { xs: 1.5, sm: 2, md: 2.5 },
           py: { xs: 1, md: 1.25 },
-          borderBottom: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.12 : 0.2)}`,
-          background: isDark
-            ? "linear-gradient(180deg, rgba(7,11,22,0.88), rgba(10,15,29,0.78))"
-            : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,248,252,0.88))",
-          backdropFilter: "blur(18px) saturate(140%)",
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          background: alpha(theme.palette.background.default, isDark ? 0.78 : 0.92),
+          backdropFilter: "blur(8px) saturate(120%)",
         }}
       >
         <Box

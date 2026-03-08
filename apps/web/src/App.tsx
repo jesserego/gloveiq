@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
 import { Tier, canAccess } from "@gloveiq/shared";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
@@ -89,7 +89,6 @@ import TuneIcon from "@mui/icons-material/Tune";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import glovePlaceholderImage from "./assets/baseball-glove-placeholder.svg";
 
-const NAV_SPRING = { type: "spring", stiffness: 520, damping: 40, mass: 0.9 } as const;
 const FIGMA_TAG_BASE_SX = {
   height: 24,
   borderRadius: "999px",
@@ -6015,7 +6014,7 @@ export default function App() {
             left: -130,
             borderRadius: "50%",
             background: "radial-gradient(circle at 30% 30%, rgba(10,132,255,0.36), rgba(10,132,255,0.02) 70%)",
-            filter: "blur(42px)",
+            filter: "blur(26px)",
           }}
         />
         <Box
@@ -6027,7 +6026,7 @@ export default function App() {
             top: -210,
             borderRadius: "50%",
             background: "radial-gradient(circle at 60% 40%, rgba(94,92,230,0.32), rgba(94,92,230,0.02) 74%)",
-            filter: "blur(56px)",
+            filter: "blur(34px)",
           }}
         />
         <Box
@@ -6041,7 +6040,7 @@ export default function App() {
             background: colorMode === "dark"
               ? "radial-gradient(circle at 50% 50%, rgba(48,209,88,0.20), rgba(48,209,88,0.01) 70%)"
               : "radial-gradient(circle at 50% 50%, rgba(255,159,10,0.16), rgba(255,159,10,0.01) 72%)",
-            filter: "blur(52px)",
+            filter: "blur(28px)",
           }}
         />
         <Box
@@ -6064,7 +6063,6 @@ export default function App() {
             border: "none",
             boxShadow: "none",
             backgroundColor: "transparent",
-            backdropFilter: "blur(2px)",
           }}
         >
           <Box
@@ -6100,99 +6098,91 @@ export default function App() {
                 />
               ) : null}
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div
-                    key={route.name === "artifactDetail" ? route.artifactId : route.name}
-                    initial={{ x: 14, opacity: 0.6 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: -10, opacity: 0.6 }}
-                    transition={NAV_SPRING}
-                  >
-                    {route.name === "search" ? (
-                      <SearchScreen
-                        locale={locale}
-                        brands={brands}
-                        families={families}
-                        patterns={patterns}
-                        onOpenArtifact={(id) => {
-                          setLastArtifactId(id);
-                          setRoute({ name: "artifactDetail", artifactId: id });
-                        }}
-                        onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
-                      />
-                    ) : route.name === "artifacts" ? (
-                      <SearchResultsPage
-                        variants={variants}
-                        gloves={gloves}
-                        sales={sales}
-                        onNavigate={(next) => setRoute(next)}
-                        onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
-                      />
-                    ) : route.name === "appraisal" ? (
-                      <AppraisalScreen locale={locale} />
-                    ) : route.name === "collection" || route.name === "inventory" ? (
-                      <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
-                        <CollectionPage tier={tier} variants={variants} />
-                      </Container>
-                    ) : route.name === "account" ? (
-                      <AccountScreen locale={locale} />
-                    ) : route.name === "artifactDetail" ? (
-                      artifact ? (
-                        <ArtifactDetail locale={locale} artifact={artifact} />
-                      ) : (
-                        <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
-                          <Card><CardContent>
-                            <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
-                            <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
-                          </CardContent></Card>
-                        </Container>
-                      )
-                    ) : route.name === "variantProfile" ? (
-                      (() => {
-                        const found = variants.find((v) => v.variant_id === route.variantId);
-                        if (!found) {
-                          return (
-                            <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
-                              <Card><CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>Variant not found</Typography>
-                                <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
-                              </CardContent></Card>
-                            </Container>
-                          );
-                        }
-                        const related = gloves.filter((g) => String(g.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
-                        return <VariantProfilePage variant={found} relatedGloves={related} sales={sales} onBack={() => setRoute({ name: "artifacts" })} />;
-                      })()
-                    ) : route.name === "gloveProfile" ? (
-                      (() => {
-                        const found = gloves.find((g) => g.id === route.gloveId);
-                        if (!found) {
-                          return (
-                            <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
-                              <Card><CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>Glove not found</Typography>
-                                <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
-                              </CardContent></Card>
-                            </Container>
-                          );
-                        }
-                        const related = variants.filter((v) => String(v.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
-                        return <GloveProfilePage glove={found} relatedVariants={related} sales={sales} onBack={() => setRoute({ name: "artifacts" })} />;
-                      })()
-                    ) : route.name === "brandProfile" ? (
-                      <BrandProfilePage
-                        brandKey={route.brandKey}
-                        brands={brands}
-                        families={families}
-                        patterns={patterns}
-                        onBack={() => setRoute({ name: "search" })}
-                      />
+                <Box key={route.name === "artifactDetail" ? route.artifactId : route.name}>
+                  {route.name === "search" ? (
+                    <SearchScreen
+                      locale={locale}
+                      brands={brands}
+                      families={families}
+                      patterns={patterns}
+                      onOpenArtifact={(id) => {
+                        setLastArtifactId(id);
+                        setRoute({ name: "artifactDetail", artifactId: id });
+                      }}
+                      onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
+                    />
+                  ) : route.name === "artifacts" ? (
+                    <SearchResultsPage
+                      variants={variants}
+                      gloves={gloves}
+                      sales={sales}
+                      onNavigate={(next) => setRoute(next)}
+                      onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
+                    />
+                  ) : route.name === "appraisal" ? (
+                    <AppraisalScreen locale={locale} />
+                  ) : route.name === "collection" || route.name === "inventory" ? (
+                    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                      <CollectionPage tier={tier} variants={variants} />
+                    </Container>
+                  ) : route.name === "account" ? (
+                    <AccountScreen locale={locale} />
+                  ) : route.name === "artifactDetail" ? (
+                    artifact ? (
+                      <ArtifactDetail locale={locale} artifact={artifact} />
                     ) : (
-                      <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
-                    )}
-                  </motion.div>
-                </AnimatePresence>
+                      <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                        <Card><CardContent>
+                          <Typography sx={{ fontWeight: 900 }}>Loading artifact…</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Make sure API is running at http://localhost:8787</Typography>
+                          <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                        </CardContent></Card>
+                      </Container>
+                    )
+                  ) : route.name === "variantProfile" ? (
+                    (() => {
+                      const found = variants.find((v) => v.variant_id === route.variantId);
+                      if (!found) {
+                        return (
+                          <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                            <Card><CardContent>
+                              <Typography sx={{ fontWeight: 900 }}>Variant not found</Typography>
+                              <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                            </CardContent></Card>
+                          </Container>
+                        );
+                      }
+                      const related = gloves.filter((g) => String(g.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                      return <VariantProfilePage variant={found} relatedGloves={related} sales={sales} onBack={() => setRoute({ name: "artifacts" })} />;
+                    })()
+                  ) : route.name === "gloveProfile" ? (
+                    (() => {
+                      const found = gloves.find((g) => g.id === route.gloveId);
+                      if (!found) {
+                        return (
+                          <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+                            <Card><CardContent>
+                              <Typography sx={{ fontWeight: 900 }}>Glove not found</Typography>
+                              <Button sx={{ mt: 2 }} onClick={() => setRoute({ name: "search" })}>Back to Search</Button>
+                            </CardContent></Card>
+                          </Container>
+                        );
+                      }
+                      const related = variants.filter((v) => String(v.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === String(found.model_code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                      return <GloveProfilePage glove={found} relatedVariants={related} sales={sales} onBack={() => setRoute({ name: "artifacts" })} />;
+                    })()
+                  ) : route.name === "brandProfile" ? (
+                    <BrandProfilePage
+                      brandKey={route.brandKey}
+                      brands={brands}
+                      families={families}
+                      patterns={patterns}
+                      onBack={() => setRoute({ name: "search" })}
+                    />
+                  ) : (
+                    <PricingScreen locale={locale} onStartFree={() => setRoute({ name: "search" })} />
+                  )}
+                </Box>
               </Box>
             </Box>
           </Box>

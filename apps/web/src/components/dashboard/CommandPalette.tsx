@@ -85,25 +85,22 @@ export default function CommandPalette({
           width: { xs: "calc(100vw - 20px)", sm: 560, md: 640 },
           maxHeight: "78vh",
           borderRadius: 3,
-          border: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.18 : 0.16)}`,
-          background: isDark
-            ? "linear-gradient(180deg, rgba(9,13,22,0.95), rgba(13,20,34,0.92))"
-            : "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(246,250,255,0.93))",
+          border: `1px solid ${theme.palette.divider}`,
+          background: alpha(theme.palette.background.paper, isDark ? 0.96 : 0.98),
           boxShadow: isDark ? "0 22px 70px rgba(2,6,23,0.72)" : "0 18px 58px rgba(2,6,23,0.2)",
-          backdropFilter: "blur(20px) saturate(140%)",
+          backdropFilter: "blur(8px) saturate(120%)",
           overflow: "hidden",
         },
       }}
       slotProps={{
         backdrop: {
           sx: {
-            backgroundColor: "rgba(3, 7, 18, 0.68)",
-            backdropFilter: "blur(4px)",
+            backgroundColor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.52),
           },
         },
       }}
     >
-      <Box sx={{ p: 1.5, borderBottom: `1px solid ${alpha(theme.palette.common.white, isDark ? 0.12 : 0.16)}` }}>
+      <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <SearchRoundedIcon sx={{ color: "text.secondary", fontSize: 20 }} />
           <Box

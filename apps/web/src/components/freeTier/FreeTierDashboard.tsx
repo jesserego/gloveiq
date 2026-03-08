@@ -93,6 +93,7 @@ function PanelShell({
   subtitle,
   selectedWindow,
   onWindow,
+  showWindowFilter = true,
   children,
   cardSx,
 }: {
@@ -100,6 +101,7 @@ function PanelShell({
   subtitle?: string;
   selectedWindow: HomeWindowKey;
   onWindow: (windowKey: HomeWindowKey) => void;
+  showWindowFilter?: boolean;
   children: React.ReactNode;
   cardSx?: object;
 }) {
@@ -117,7 +119,7 @@ function PanelShell({
               </Typography>
             ) : null}
           </Box>
-          <WindowFilterMenu selected={selectedWindow} options={FREE_HOME_WINDOW_OPTIONS} onChange={onWindow} />
+          {showWindowFilter ? <WindowFilterMenu selected={selectedWindow} options={FREE_HOME_WINDOW_OPTIONS} onChange={onWindow} /> : null}
         </Stack>
         {children}
       </CardContent>
@@ -675,10 +677,12 @@ function LockedTierContainer({
   container,
   selectedWindow,
   onWindow,
+  compact = false,
 }: {
   container: TierDashboardContainerConfig;
   selectedWindow: HomeWindowKey;
   onWindow: (windowKey: HomeWindowKey) => void;
+  compact?: boolean;
 }) {
   const tokens = readChartThemeTokens();
   const unlock = TIER_BADGE[container.unlockTier];
@@ -688,9 +692,10 @@ function LockedTierContainer({
       subtitle={container.description}
       selectedWindow={selectedWindow}
       onWindow={onWindow}
+      showWindowFilter={!compact}
     >
-      <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 250, md: 220 }, border: "1px solid", borderColor: "divider", borderRadius: 1.4, overflow: "hidden" }}>
-        <Box sx={{ p: 1.1, filter: "blur(2.5px)", opacity: 0.65 }}>
+      <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 230, md: compact ? 150 : 220 }, border: "1px solid", borderColor: "divider", borderRadius: 1.4, overflow: "hidden" }}>
+        <Box sx={{ p: compact ? 0.9 : 1.1, filter: compact ? "blur(1.6px)" : "blur(2px)", opacity: 0.68 }}>
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.8 }}>
             {[1, 2, 3].map((idx) => (
               <Box key={idx} sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
@@ -699,7 +704,7 @@ function LockedTierContainer({
               </Box>
             ))}
           </Box>
-          <Box sx={{ mt: 1.1, height: 130, borderRadius: 1.2, border: "1px dashed", borderColor: "divider", background: alpha(tokens.chart1, tokens.isDark ? 0.11 : 0.18) }} />
+          <Box sx={{ mt: 1.1, height: compact ? 70 : 130, borderRadius: 1.2, border: "1px dashed", borderColor: "divider", background: alpha(tokens.chart1, tokens.isDark ? 0.11 : 0.18) }} />
         </Box>
         <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", bgcolor: alpha(tokens.bgCard, tokens.isDark ? 0.46 : 0.55) }}>
           <Stack spacing={0.9} alignItems="center">
@@ -1008,11 +1013,6 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
 
   return (
     <Stack spacing={{ xs: 1.2, md: 1 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-        Home Dashboard
-      </Typography>
-      {tier === Tier.FREE ? <Alert severity="info" sx={{ py: 0 }}>Unlock deep market analytics with Collector.</Alert> : null}
-
       {error ? (
         <Alert severity="error" action={<Button color="inherit" onClick={reload}>Retry</Button>}>
           Failed to load dashboard data: {error}
@@ -1057,13 +1057,19 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
         {tierContainers.map((container: TierDashboardContainerConfig) => {
           const unlocked = tierRank >= TIER_RANK[container.unlockTier];
           return (
-            <Box key={container.container_id} sx={{ gridColumn: "1 / -1", minHeight: { xs: 330, md: 305 } }}>
+            <Box
+              key={container.container_id}
+              sx={{
+                gridColumn: unlocked ? "1 / -1" : { xs: "1 / -1", md: "span 4" },
+                minHeight: unlocked ? { xs: 330, md: 305 } : { xs: 250, md: 230 },
+              }}
+            >
               {isLoading || !data ? (
                 <LoadingPanel height={290} />
               ) : unlocked ? (
                 renderUnlockedContainer(container.container_id)
               ) : (
-                <LockedTierContainer container={container} selectedWindow={windowKey} onWindow={setWindowKey} />
+                <LockedTierContainer container={container} selectedWindow={windowKey} onWindow={setWindowKey} compact />
               )}
             </Box>
           );
