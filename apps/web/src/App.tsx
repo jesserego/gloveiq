@@ -5741,29 +5741,35 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
     {
       name: "Collector",
       price: "$9/mo",
+      summary: "For serious collectors tracking value and momentum.",
       bullets: [
-        "Build a clean personal glove portfolio with ownership tracking",
-        "Spot fair market value fast with pricing ranges and trend context",
-        "Stay ahead of the market with alerts on movers and new comps",
+        "Track your collection in one place",
+        "See fair-value ranges fast",
+        "Get alerts on market movers",
       ],
+      accent: "#22C55E",
     },
     {
       name: "Pro",
       price: "$19/mo",
+      summary: "For power users making faster buy/sell decisions.",
       bullets: [
-        "Get deeper valuation confidence with estimate + range analysis",
-        "Compare cross-brand and condition-adjusted comps in one workflow",
-        "Prioritize high-value opportunities with advanced analytics signals",
+        "Use estimate + range confidence",
+        "Compare condition-adjusted comps",
+        "Spot high-value opportunities first",
       ],
+      accent: "#38BDF8",
     },
     {
       name: "Dealer",
       price: "$39/mo",
+      summary: "For inventory teams operating at scale.",
       bullets: [
-        "Run inventory like a desk with margin and aging visibility per SKU",
-        "Scale faster with bulk workflows, team collaboration, and exports",
-        "Automate strategy with API access, repricing signals, and benchmarks",
+        "Track margin and aging by SKU",
+        "Scale with bulk tools and team seats",
+        "Automate with API and repricing",
       ],
+      accent: "#F59E0B",
     },
   ];
   return (
@@ -5781,13 +5787,21 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
                 border: "1px solid",
                 borderColor: "divider",
                 boxShadow: "0px 4px 12px rgba(0,0,0,0.10)",
+                position: "relative",
+                overflow: "hidden",
               }}
             ><CardContent>
+              <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${p.accent}, transparent)` }} />
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{p.name}</Typography>
               <Typography variant="h4" sx={{ fontWeight: 900, mt: 1 }}>{p.price}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>{p.summary}</Typography>
               <Divider sx={{ my: 2 }} />
               <Stack spacing={1}>
-                {p.bullets.map((b) => <Typography key={b} variant="body2">• {b}</Typography>)}
+                {p.bullets.map((b) => (
+                  <Box key={b} sx={{ p: 0.9, borderRadius: 1.2, border: "1px solid", borderColor: "divider", backgroundColor: (theme) => alpha(p.accent, theme.palette.mode === "dark" ? 0.12 : 0.08) }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{b}</Typography>
+                  </Box>
+                ))}
               </Stack>
               <Button
                 sx={{
