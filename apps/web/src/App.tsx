@@ -5742,6 +5742,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
       name: "Collector",
       price: "$9/mo",
       summary: "For serious collectors tracking value and momentum.",
+      includesFrom: null,
       bullets: [
         "Track your collection in one place",
         "See fair-value ranges fast",
@@ -5753,6 +5754,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
       name: "Pro",
       price: "$19/mo",
       summary: "For power users making faster buy/sell decisions.",
+      includesFrom: "Collector",
       bullets: [
         "Use estimate + range confidence",
         "Compare condition-adjusted comps",
@@ -5764,6 +5766,7 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
       name: "Dealer",
       price: "$39/mo",
       summary: "For inventory teams operating at scale.",
+      includesFrom: "Pro",
       bullets: [
         "Track margin and aging by SKU",
         "Scale with bulk tools and team seats",
@@ -5795,6 +5798,37 @@ function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: (
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{p.name}</Typography>
               <Typography variant="h4" sx={{ fontWeight: 900, mt: 1 }}>{p.price}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>{p.summary}</Typography>
+              {p.includesFrom ? (
+                <Box
+                  sx={{
+                    mt: 1,
+                    p: 0.8,
+                    borderRadius: 1.1,
+                    border: "1px dashed",
+                    borderColor: "divider",
+                    backgroundColor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.08 : 0.04),
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 0.2 }}>
+                    Includes everything in {p.includesFrom}
+                  </Typography>
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    mt: 1,
+                    p: 0.8,
+                    borderRadius: 1.1,
+                    border: "1px dashed",
+                    borderColor: "divider",
+                    backgroundColor: (theme) => alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.08 : 0.04),
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 0.2 }}>
+                    Foundation tier
+                  </Typography>
+                </Box>
+              )}
               <Divider sx={{ my: 2 }} />
               <Stack spacing={1}>
                 {p.bullets.map((b) => (
