@@ -134,6 +134,8 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
   const [maxValueFilter, setMaxValueFilter] = useState("ALL");
   const [addOpen, setAddOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState<CollectionItem | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState<CollectionItem | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [form, setForm] = useState<AddFormState>(defaultForm);
   const [variantSearch, setVariantSearch] = useState("");
   const [job, setJob] = useState<CollectionImportJob | null>(null);
@@ -361,61 +363,77 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
           <Typography variant="body2" color="text.secondary">Empty. Search and add your first glove.</Typography>
         ) : null}
 
-        <Box sx={{ display: "grid", gap: 0.9, gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))", xl: "repeat(3,minmax(0,1fr))" } }}>
+        <Box sx={{ display: "grid", gap: 0.8 }}>
           {displayRows.map((row) => (
             <Box key={row.id} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2 }}>
-              <Box
-                sx={{
-                  position: "relative",
-                  height: 118,
-                  borderRadius: 1,
-                  overflow: "hidden",
-                  border: "1px solid",
-                  borderColor: "divider",
-                  mb: 0.9,
-                  backgroundColor: (theme) => alpha(cardPhotoTint(`${row.variant?.brand || ""}_${row.id}`), theme.palette.mode === "dark" ? 0.22 : 0.14),
-                }}
-              >
-                <Box component="img" src={glovePlaceholderImage} alt={`${row.variant?.title || "Glove"} photo`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.94 }} />
-                <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 30%, rgba(2,6,23,0.46) 100%)" }} />
-              </Box>
-              <Stack spacing={1} justifyContent="space-between" sx={{ minHeight: 210 }}>
-                <Stack spacing={0.2} sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{row.variant?.title || row.variant?.variantId || "Unknown variant"}</Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {row.variant?.brand || "Unknown"} • {row.variant?.model || "n/a"} • {row.variant?.pattern || "n/a"} • {row.variant?.sizeIn || "?"}" • {row.variant?.throwHand || "?"}
-                  </Typography>
-                  <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
-                    <Chip size="small" label={`Cond: ${row.condition || row.normalizedCondition || "Unknown"}`} />
-                    <Chip size="small" label={`Qty: ${row.quantity}`} />
-                    {isDealer && row.sku ? <Chip size="small" label={`SKU: ${row.sku}`} /> : null}
-                    {isDealer && row.location ? <Chip size="small" label={`Loc: ${row.location}`} /> : null}
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between">
+                <Stack direction="row" spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setGalleryOpen(row);
+                      setGalleryIndex(0);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setGalleryOpen(row);
+                        setGalleryIndex(0);
+                      }
+                    }}
+                    sx={{
+                      position: "relative",
+                      width: 96,
+                      minWidth: 96,
+                      height: 72,
+                      borderRadius: 1,
+                      overflow: "hidden",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      cursor: "pointer",
+                      backgroundColor: (theme) => alpha(cardPhotoTint(`${row.variant?.brand || ""}_${row.id}`), theme.palette.mode === "dark" ? 0.22 : 0.14),
+                    }}
+                  >
+                    <Box component="img" src={glovePlaceholderImage} alt={`${row.variant?.title || "Glove"} thumbnail`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.94 }} />
+                    <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(2,6,23,0.42) 100%)" }} />
+                  </Box>
+                  <Stack spacing={0.2} sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{row.variant?.title || row.variant?.variantId || "Unknown variant"}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap>
+                      {row.variant?.brand || "Unknown"} • {row.variant?.model || "n/a"} • {row.variant?.pattern || "n/a"} • {row.variant?.sizeIn || "?"}" • {row.variant?.throwHand || "?"}
+                    </Typography>
+                    <Stack direction="row" spacing={0.7} sx={{ flexWrap: "wrap" }}>
+                      <Chip size="small" label={`Cond: ${row.condition || row.normalizedCondition || "Unknown"}`} />
+                      <Chip size="small" label={`Qty: ${row.quantity}`} />
+                      {isDealer && row.sku ? <Chip size="small" label={`SKU: ${row.sku}`} /> : null}
+                      {isDealer && row.location ? <Chip size="small" label={`Loc: ${row.location}`} /> : null}
+                    </Stack>
                   </Stack>
                 </Stack>
-
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.8 }}>
-                  <Box sx={{ minWidth: 0 }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} alignItems={{ md: "center" }}>
+                  <Box>
                     <Typography variant="caption" color="text.secondary">Acq.</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.acquisitionPriceCents)}</Typography>
                   </Box>
-                  <Box sx={{ minWidth: 0 }}>
+                  <Box>
                     <Typography variant="caption" color="text.secondary">Current</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.market.currentMedianCents)}</Typography>
                   </Box>
-                  <Box sx={{ gridColumn: "1 / -1", minWidth: 0 }}>
+                  <Box>
                     <Typography variant="caption" color="text.secondary">MA7 / MA30 / MA90</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>
+                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
                       {moneyFromCents(row.market.ma7Cents)} / {moneyFromCents(row.market.ma30Cents)} / {moneyFromCents(row.market.ma90Cents)}
                     </Typography>
                   </Box>
-                  <Box sx={{ minWidth: 0 }}>
+                  <Box>
                     <Typography variant="caption" color="text.secondary">P/L</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>{moneyFromCents(row.market.pnlCents)}</Typography>
                   </Box>
-                </Box>
-                <Stack direction="row" spacing={0.6}>
+                  <Stack direction="row" spacing={0.6}>
                     <Button color="inherit" onClick={() => setDetailOpen(row)}>Detail</Button>
                     <Button color="inherit" onClick={() => onDelete(row.id)}>Delete</Button>
+                  </Stack>
                 </Stack>
               </Stack>
             </Box>
@@ -611,6 +629,59 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
                 </Stack>
               ) : null}
             </Stack>
+          ) : null}
+        </Box>
+      </Dialog>
+
+      <Dialog open={Boolean(galleryOpen)} onClose={() => setGalleryOpen(null)} fullWidth maxWidth="md">
+        <Box sx={{ p: 1.4 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{galleryOpen?.variant?.title || "Item Gallery"}</Typography>
+            <Button color="inherit" onClick={() => setGalleryOpen(null)}>Close</Button>
+          </Stack>
+          <Divider sx={{ my: 1 }} />
+          {galleryOpen ? (
+            <>
+              {(() => {
+                const tint = cardPhotoTint(`${galleryOpen.variant?.brand || ""}_${galleryOpen.id}`);
+                const images = [0, 1, 2].map((idx) => ({ id: `${galleryOpen.id}_${idx}`, src: glovePlaceholderImage, tint: alpha(tint, 0.16 + idx * 0.05) }));
+                return (
+                  <Stack spacing={1}>
+                    <Box sx={{ height: { xs: 220, md: 320 }, borderRadius: 1.2, border: "1px solid", borderColor: "divider", overflow: "hidden", bgcolor: images[galleryIndex]?.tint || alpha(tint, 0.2) }}>
+                      <Box component="img" src={images[galleryIndex]?.src || glovePlaceholderImage} alt={`${galleryOpen.variant?.title || "Item"} gallery image`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    </Box>
+                    <Stack direction="row" spacing={0.8}>
+                      {images.map((image, idx) => (
+                        <Box
+                          key={image.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setGalleryIndex(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setGalleryIndex(idx);
+                            }
+                          }}
+                          sx={{
+                            width: 88,
+                            height: 66,
+                            borderRadius: 1,
+                            overflow: "hidden",
+                            border: "2px solid",
+                            borderColor: idx === galleryIndex ? "primary.main" : "divider",
+                            cursor: "pointer",
+                            bgcolor: image.tint,
+                          }}
+                        >
+                          <Box component="img" src={image.src} alt={`Thumbnail ${idx + 1}`} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Stack>
+                );
+              })()}
+            </>
           ) : null}
         </Box>
       </Dialog>
