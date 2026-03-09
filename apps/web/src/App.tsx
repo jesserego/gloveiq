@@ -3,14 +3,12 @@ import { motion } from "framer-motion";
 import { api, type CompRecord, type FamilyRecord, type PatternRecord, type SaleRecord, type VariantRecord } from "./lib/api";
 import { Tier, canAccess } from "@gloveiq/shared";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
-import type { SearchResult, VariantProfileRecord, GloveProfileRecord } from "./data/search-mocks";
+import type { SearchResult } from "./data/search-mocks";
 import { MOCK_SEARCH_RESULTS } from "./data/search-mocks";
 import { Locale, t } from "./i18n/strings";
 import { Card, CardContent, Button, Input } from "./ui/Primitives";
 import { buildAppTheme, type AppThemeMode } from "./ui/theme";
 import { MainTab, MobileBottomNav, SidebarNav } from "./ui/Shell";
-import GloveSearchBar from "./components/GloveSearchBar";
-import IQModeDrawer from "./components/IQModeDrawer";
 import FreeTierDashboard from "./components/freeTier/FreeTierDashboard";
 import CollectionPage from "./components/CollectionPage";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
@@ -281,14 +279,6 @@ function brandInfoForKey(brandKey: string, displayName: string) {
     if (BRAND_COMPANY_INFO[key]) return BRAND_COMPANY_INFO[key];
   }
   return { company: displayName, contact: "Contact unavailable" };
-}
-
-function inferSearchIntent(query: string): "listing" | "catalog" {
-  const q = query.trim().toLowerCase();
-  if (!q) return "catalog";
-  if (q.startsWith("http://") || q.startsWith("https://")) return "listing";
-  if (q.includes("sideline") || q.includes("ebay") || q.includes("justballgloves") || q.includes("jbg")) return "listing";
-  return "catalog";
 }
 
 function regionFromOrigin(origin: string | null | undefined): string {
@@ -785,13 +775,8 @@ function SearchResultsPage({
   onNavigate: (route: Route) => void;
   onOpenBrandProfile: (brandKey: string) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [iqOpen, setIqOpen] = useState(false);
-  const [iqSeedQuery, setIqSeedQuery] = useState("");
-  const [searchIntent, setSearchIntent] = useState<"listing" | "catalog">("catalog");
-  const [selectedManufacturer, setSelectedManufacturer] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("");
   const [resultsPage, setResultsPage] = useState(1);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
@@ -803,15 +788,6 @@ function SearchResultsPage({
   const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [selectedWebs, setSelectedWebs] = useState<string[]>([]);
   const [selectedPrices, setSelectedPrices] = useState<string[]>([]);
-
-  const manufacturers = useMemo(
-    () => FULL_BRAND_SEEDS.map((brand) => brand.display_name).sort((a, b) => a.localeCompare(b)),
-    [],
-  );
-  const regions = useMemo(
-    () => ["Africa", "Americas", "South-East Asia", "Europe", "Eastern Mediterranean", "Western Pacific"],
-    [],
-  );
 
   type SearchResultRow = SearchResult & {
     meta: {
@@ -978,8 +954,6 @@ function SearchResultsPage({
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       const whole = `${r.title} ${r.subtitle} ${r.chips.join(" ")}`.toLowerCase();
-      const manufacturerMatches = !selectedManufacturer || r.meta.brand.toLowerCase() === selectedManufacturer.toLowerCase();
-      const regionMatches = !selectedRegion || r.meta.region === selectedRegion;
       const sportMatches = selectedSports.length === 0 || selectedSports.includes(r.meta.sport);
       const brandMatches = selectedBrands.length === 0 || selectedBrands.includes(r.meta.brand);
       const conditionMatches = selectedConditions.length === 0 || selectedConditions.includes(r.meta.condition);
@@ -989,67 +963,25 @@ function SearchResultsPage({
       const seriesMatches = selectedSeries.length === 0 || selectedSeries.includes(r.meta.series);
       const webMatches = selectedWebs.length === 0 || selectedWebs.includes(r.meta.web);
       const priceMatches = selectedPrices.length === 0 || selectedPrices.includes(r.meta.priceBucket);
-      if (!manufacturerMatches) return false;
-      if (!regionMatches || !sportMatches || !brandMatches || !conditionMatches || !handMatches || !positionMatches || !sizeMatches || !seriesMatches || !webMatches || !priceMatches) return false;
+      if (!sportMatches || !brandMatches || !conditionMatches || !handMatches || !positionMatches || !sizeMatches || !seriesMatches || !webMatches || !priceMatches) return false;
       if (!q) return true;
       return whole.includes(q);
     });
-  }, [query, rows, selectedManufacturer, selectedRegion, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
+  }, [query, rows, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
 
   useEffect(() => {
     setResultsPage(1);
-  }, [query, selectedManufacturer, selectedRegion, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
+  }, [query, selectedSports, selectedBrands, selectedConditions, selectedHands, selectedPositions, selectedSizes, selectedSeries, selectedWebs, selectedPrices]);
 
   const resultsPageSize = 15;
   const pageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
   const pagedRows = filtered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize);
 
-  const selectedVariant = useMemo<VariantProfileRecord | null>(() => {
-    const selected = variants.find((v) => v.variant_id === selectedId) || variants[0];
-    if (!selected) return null;
-    return {
-      id: selected.variant_id,
-      title: selected.display_name,
-      subtitle: `${selected.brand_key} • ${selected.variant_id}`,
-      brand: selected.brand_key,
-      model: selected.model_code || "Unknown",
-      pattern: selected.pattern_id || "Unknown",
-      hand: selected.variant_label || "Unknown",
-      size: "Unknown",
-      web: selected.web || "Unknown",
-      throwSide: "UNK",
-      year: selected.year,
-    };
-  }, [selectedId, variants]);
-
-  function handleSearch(nextQuery: string) {
-    const normalized = nextQuery.trim();
-    setQuery(nextQuery);
-    setSearchIntent(inferSearchIntent(normalized));
-  }
-
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
         <Box>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <GloveSearchBar
-                value={query}
-                onChange={setQuery}
-                onSearch={handleSearch}
-                onIQMode={(seed) => {
-                  setIqSeedQuery(seed);
-                  setIqOpen(true);
-                }}
-                manufacturers={manufacturers}
-                selectedManufacturer={selectedManufacturer}
-                onSelectManufacturer={setSelectedManufacturer}
-                regions={regions}
-                selectedRegion={selectedRegion}
-                onSelectRegion={setSelectedRegion}
-              />
-            </Box>
+          <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ width: "100%" }}>
             <Tooltip title="Filter result attributes">
               <IconButton aria-label="Filter results" onClick={(evt) => setFilterAnchor(evt.currentTarget)}>
                 <TuneIcon />
@@ -1164,13 +1096,6 @@ function SearchResultsPage({
           ) : null}
         </Box>
       </Stack>
-      <IQModeDrawer
-        open={iqOpen}
-        onClose={() => setIqOpen(false)}
-        seedQuery={iqSeedQuery}
-        topMatch={selectedVariant?.title}
-        alternates={selectedVariant ? [selectedVariant.subtitle, selectedVariant.model, selectedVariant.pattern] : undefined}
-      />
     </Container>
   );
 }
@@ -6047,6 +5972,10 @@ export default function App() {
   }, [variants, brands, sales, variantsById, canOpenCollection, tier, colorMode]);
 
   const commandPalette = useCommandPalette(commandResults);
+  const openPaletteWithQuery = (query: string) => {
+    commandPalette.setQuery(query);
+    commandPalette.open();
+  };
 
   return (
     <ThemeProvider theme={appTheme}>
@@ -6150,6 +6079,10 @@ export default function App() {
                 onOpenPricing={() => setRoute({ name: "pricing" })}
                 onOpenAccount={() => setRoute({ name: "account" })}
                 onOpenCommandPalette={commandPalette.open}
+                onOpenGlobe={() => openPaletteWithQuery("region")}
+                onOpenBaseball={() => openPaletteWithQuery("brand")}
+                onOpenIQMode={() => openPaletteWithQuery("iq mode")}
+                onOpenFilters={() => openPaletteWithQuery("filters")}
               />
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
                 <Box key={route.name === "artifactDetail" ? route.artifactId : route.name}>

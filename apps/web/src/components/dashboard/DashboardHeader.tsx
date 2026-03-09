@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Avatar,
   Badge,
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  ListSubheader,
   Menu,
   MenuItem,
   Stack,
@@ -22,16 +21,11 @@ import { alpha } from "@mui/material/styles";
 import { Tier } from "@gloveiq/shared";
 import SearchIcon from "@mui/icons-material/Search";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
-import DatasetRoundedIcon from "@mui/icons-material/DatasetRounded";
-import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import ArrowOutwardRoundedIcon from "@mui/icons-material/ArrowOutwardRounded";
-
-type DropdownOption = {
-  label: string;
-  value: string;
-  group?: string;
-};
+import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
+import PublicIcon from "@mui/icons-material/Public";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 
 const tierStyles: Record<Tier, { label: string; color: string }> = {
   [Tier.FREE]: { label: "FREE", color: "#94A3B8" },
@@ -112,95 +106,6 @@ export function SearchInput({
         {shortcutLabel}
       </Box>
     </Box>
-  );
-}
-
-export function HeaderDropdown({
-  label,
-  icon,
-  value,
-  options,
-  onChange,
-  compact,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  value: string;
-  options: DropdownOption[];
-  onChange: (next: string) => void;
-  compact?: boolean;
-}) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
-  const open = Boolean(anchorEl);
-
-  return (
-    <>
-      <Tooltip title={compact ? label : ""}>
-        <Button
-          color="inherit"
-          onClick={(event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)}
-          sx={{
-            minWidth: compact ? 38 : "auto",
-            px: compact ? 1 : 1.25,
-            py: 0.7,
-            borderRadius: 2.5,
-            border: `1px solid ${theme.palette.divider}`,
-            bgcolor: alpha(theme.palette.background.paper, isDark ? 0.5 : 0.88),
-            textTransform: "none",
-            fontSize: 12,
-            fontWeight: 700,
-            color: "text.primary",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 0.7,
-            "&:hover": {
-              borderColor: alpha(theme.palette.primary.main, 0.45),
-              bgcolor: isDark ? "rgba(10,132,255,0.17)" : "rgba(10,132,255,0.10)",
-            },
-          }}
-        >
-          {icon}
-          {!compact ? <span>{selectedLabel}</span> : null}
-          {!compact ? <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16, opacity: 0.8 }} /> : null}
-        </Button>
-      </Tooltip>
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={() => setAnchorEl(null)}
-        PaperProps={{
-          sx: {
-            mt: 0.5,
-            borderRadius: 2,
-            border: `1px solid ${theme.palette.divider}`,
-            bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 0.98),
-            minWidth: 220,
-          },
-        }}
-      >
-        {options.map((option, index) => {
-          const prevGroup = index > 0 ? options[index - 1]?.group : undefined;
-          const showGroup = option.group && option.group !== prevGroup;
-          return (
-            <React.Fragment key={option.value}>
-              {showGroup ? <ListSubheader sx={{ lineHeight: "28px", fontWeight: 700 }}>{option.group}</ListSubheader> : null}
-              <MenuItem
-                selected={option.value === value}
-                onClick={() => {
-                  onChange(option.value);
-                  setAnchorEl(null);
-                }}
-              >
-                {option.label}
-              </MenuItem>
-            </React.Fragment>
-          );
-        })}
-      </Menu>
-    </>
   );
 }
 
@@ -301,36 +206,25 @@ export default function DashboardHeader({
   onOpenPricing,
   onOpenAccount,
   onOpenCommandPalette,
+  onOpenGlobe,
+  onOpenBaseball,
+  onOpenIQMode,
+  onOpenFilters,
 }: {
   tier: Tier;
   onOpenPricing: () => void;
   onOpenAccount: () => void;
   onOpenCommandPalette: () => void;
+  onOpenGlobe: () => void;
+  onOpenBaseball: () => void;
+  onOpenIQMode: () => void;
+  onOpenFilters: () => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const isCompact = useMediaQuery(theme.breakpoints.down("lg"));
-  const [actionsValue, setActionsValue] = useState("all-data");
-  const [projectValue, setProjectValue] = useState("global-market");
+  const isCompact = useMediaQuery(theme.breakpoints.down("md"));
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const shortcutLabel = typeof navigator !== "undefined" && /(Mac|iPhone|iPad)/i.test(navigator.platform) ? "⌘K" : "Ctrl+K";
-
-  const actionOptions = useMemo<DropdownOption[]>(() => [
-    { group: "View", label: "All Data", value: "all-data" },
-    { group: "View", label: "My Collection", value: "my-collection" },
-    { group: "View", label: "Market Only", value: "market-only" },
-    { group: "View", label: "Dealer Inventory", value: "dealer-inventory" },
-    { group: "Sort", label: "Highest Value", value: "highest-value" },
-    { group: "Sort", label: "Most Active", value: "most-active" },
-    { group: "Sort", label: "Trending", value: "trending" },
-  ], []);
-
-  const projectOptions = useMemo<DropdownOption[]>(() => [
-    { label: "Global Market", value: "global-market" },
-    { label: "My Collection", value: "my-collection" },
-    { label: "Dealer Inventory", value: "dealer-inventory" },
-    { label: "JP Market", value: "jp-market" },
-  ], []);
 
   return (
     <>
@@ -359,26 +253,40 @@ export default function DashboardHeader({
           </Box>
 
           <Stack direction="row" spacing={0.8} alignItems="center" justifySelf="end">
-            <Box sx={{ display: { xs: "none", sm: "inline-flex" } }}>
-              <HeaderDropdown
-                label="Actions"
-                icon={<TuneRoundedIcon sx={{ fontSize: 16 }} />}
-                value={actionsValue}
-                options={actionOptions}
-                onChange={setActionsValue}
-                compact={isCompact}
-              />
-            </Box>
-            <Box sx={{ display: { xs: "none", md: "inline-flex" } }}>
-              <HeaderDropdown
-                label="Project"
-                icon={<DatasetRoundedIcon sx={{ fontSize: 16 }} />}
-                value={projectValue}
-                options={projectOptions}
-                onChange={setProjectValue}
-                compact={isCompact}
-              />
-            </Box>
+            <Tooltip title="Region">
+              <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+                <PublicIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Brands">
+              <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+                <SportsBaseballIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Button
+              color="inherit"
+              onClick={onOpenIQMode}
+              startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />}
+              sx={{
+                display: { xs: "none", sm: "inline-flex" },
+                borderRadius: 999,
+                px: 1.2,
+                py: 0.65,
+                border: "1px solid",
+                borderColor: "divider",
+                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9),
+                fontSize: 12,
+                fontWeight: 700,
+                minWidth: isCompact ? 0 : 96,
+              }}
+            >
+              IQ Mode
+            </Button>
+            <Tooltip title="Filters">
+              <IconButton aria-label="Filters" onClick={onOpenFilters} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+                <TuneRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Box sx={{ display: { xs: "none", md: "inline-flex" } }}>
               <TierBadge tier={tier} onClick={() => setUpgradeOpen(true)} />
             </Box>
