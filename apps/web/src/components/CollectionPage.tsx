@@ -7,8 +7,11 @@ import {
   Dialog,
   Divider,
   FormControl,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
+  Popover,
   Select,
   Stack,
   Tab,
@@ -21,6 +24,8 @@ import { alpha } from "@mui/material/styles";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import SearchIcon from "@mui/icons-material/Search";
+import TuneIcon from "@mui/icons-material/Tune";
 import { Button, Card, CardContent } from "../ui/Primitives";
 import { ThemedLineChart } from "./charts/ThemedCharts";
 import { hexToRgba, readChartThemeTokens } from "../lib/chartjsTheme";
@@ -132,6 +137,8 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
   const [brandFilter, setBrandFilter] = useState("ALL");
   const [conditionFilter, setConditionFilter] = useState("ALL");
   const [maxValueFilter, setMaxValueFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filtersAnchorEl, setFiltersAnchorEl] = useState<HTMLElement | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState<CollectionItem | null>(null);
   const [galleryOpen, setGalleryOpen] = useState<CollectionItem | null>(null);
@@ -161,14 +168,25 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
   }, [canUseCollection, tab, tier]);
 
   const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return rows.filter((row) => {
       const brandOk = brandFilter === "ALL" || row.variant?.brand === brandFilter;
       const conditionOk = conditionFilter === "ALL" || (row.condition || "Unknown") === conditionFilter;
       const value = row.market.currentMedianCents || 0;
       const valueOk = maxValueFilter === "ALL" || value <= Number(maxValueFilter);
-      return brandOk && conditionOk && valueOk;
+      const queryOk = !q || [
+        row.variant?.title || "",
+        row.variant?.variantId || "",
+        row.variant?.brand || "",
+        row.variant?.model || "",
+        row.variant?.pattern || "",
+        row.notes || "",
+        row.sku || "",
+        row.location || "",
+      ].join(" ").toLowerCase().includes(q);
+      return brandOk && conditionOk && valueOk && queryOk;
     });
-  }, [rows, brandFilter, conditionFilter, maxValueFilter]);
+  }, [rows, brandFilter, conditionFilter, maxValueFilter, searchQuery]);
 
   const displayRows = useMemo(() => {
     if (filteredRows.length > 0) return filteredRows;
@@ -315,38 +333,94 @@ export default function CollectionPage({ tier, variants }: { tier: Tier; variant
           </Stack>
         </Stack>
 
-        <Tabs value={tab} onChange={(_e, value) => setTab(value)} sx={{ mt: 1 }}>
-          <Tab label="Owned" value="OWNED" />
-          <Tab label="Wantlist" value="WANT" />
-        </Tabs>
-
-        <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1 }}>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Brand</InputLabel>
-            <Select value={brandFilter} label="Brand" onChange={(e) => setBrandFilter(String(e.target.value))}>
-              <MenuItem value="ALL">All brands</MenuItem>
-              {brandOptions.map((brand) => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Condition</InputLabel>
-            <Select value={conditionFilter} label="Condition" onChange={(e) => setConditionFilter(String(e.target.value))}>
-              <MenuItem value="ALL">All conditions</MenuItem>
-              {conditionOptions.map((condition) => <MenuItem key={condition} value={condition}>{condition}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 170 }}>
-            <InputLabel>Max value</InputLabel>
-            <Select value={maxValueFilter} label="Max value" onChange={(e) => setMaxValueFilter(String(e.target.value))}>
-              <MenuItem value="ALL">Any value</MenuItem>
-              <MenuItem value="15000">{"<= $150"}</MenuItem>
-              <MenuItem value="30000">{"<= $300"}</MenuItem>
-              <MenuItem value="50000">{"<= $500"}</MenuItem>
-              <MenuItem value="100000">{"<= $1,000"}</MenuItem>
-            </Select>
-          </FormControl>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1 }} alignItems={{ md: "center" }} justifyContent="space-between">
+          <Tabs
+            value={tab}
+            onChange={(_e, value) => setTab(value)}
+            sx={{
+              minHeight: 36,
+              "& .MuiTab-root": { minHeight: 36, py: 0.5, fontWeight: 700 },
+            }}
+          >
+            <Tab label="Owned" value="OWNED" />
+            <Tab label="Wantlist" value="WANT" />
+          </Tabs>
+          <Stack direction="row" spacing={0.8} sx={{ width: { xs: "100%", md: 380 } }}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder={`Search ${tab === "OWNED" ? "owned items" : "wantlist"}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <IconButton
+              aria-label="Open filters"
+              onClick={(e) => setFiltersAnchorEl(e.currentTarget)}
+              sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}
+            >
+              <TuneIcon fontSize="small" />
+            </IconButton>
+          </Stack>
         </Stack>
       </CardContent></Card>
+
+      <Popover
+        open={Boolean(filtersAnchorEl)}
+        anchorEl={filtersAnchorEl}
+        onClose={() => setFiltersAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Box sx={{ p: 1.1, minWidth: 260 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.8 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Filters</Typography>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setBrandFilter("ALL");
+                setConditionFilter("ALL");
+                setMaxValueFilter("ALL");
+              }}
+            >
+              Reset
+            </Button>
+          </Stack>
+          <Stack spacing={0.8}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Brand</InputLabel>
+              <Select value={brandFilter} label="Brand" onChange={(e) => setBrandFilter(String(e.target.value))}>
+                <MenuItem value="ALL">All brands</MenuItem>
+                {brandOptions.map((brand) => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Condition</InputLabel>
+              <Select value={conditionFilter} label="Condition" onChange={(e) => setConditionFilter(String(e.target.value))}>
+                <MenuItem value="ALL">All conditions</MenuItem>
+                {conditionOptions.map((condition) => <MenuItem key={condition} value={condition}>{condition}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Max value</InputLabel>
+              <Select value={maxValueFilter} label="Max value" onChange={(e) => setMaxValueFilter(String(e.target.value))}>
+                <MenuItem value="ALL">Any value</MenuItem>
+                <MenuItem value="15000">{"<= $150"}</MenuItem>
+                <MenuItem value="30000">{"<= $300"}</MenuItem>
+                <MenuItem value="50000">{"<= $500"}</MenuItem>
+                <MenuItem value="100000">{"<= $1,000"}</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </Box>
+      </Popover>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {uploadError ? <Alert severity="warning">{uploadError}</Alert> : null}
