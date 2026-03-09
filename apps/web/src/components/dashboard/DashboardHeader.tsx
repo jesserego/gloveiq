@@ -14,7 +14,6 @@ import {
   Stack,
   Tooltip,
   Typography,
-  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -37,9 +36,15 @@ const tierStyles: Record<Tier, { label: string; color: string }> = {
 export function SearchInput({
   onActivate,
   shortcutLabel,
+  onOpenGlobe,
+  onOpenBaseball,
+  onOpenIQMode,
 }: {
   onActivate: () => void;
   shortcutLabel: string;
+  onOpenGlobe: () => void;
+  onOpenBaseball: () => void;
+  onOpenIQMode: () => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -89,6 +94,36 @@ export function SearchInput({
           "&::placeholder": { color: "text.secondary", opacity: 0.95 },
         }}
       />
+      <Tooltip title="Region">
+        <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+          <PublicIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Brands">
+        <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+          <SportsBaseballIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+      <Button
+        color="inherit"
+        onClick={onOpenIQMode}
+        startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}
+        sx={{
+          display: { xs: "none", sm: "inline-flex" },
+          borderRadius: 999,
+          px: 1,
+          py: 0.5,
+          border: "1px solid",
+          borderColor: "divider",
+          bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9),
+          fontSize: 11,
+          fontWeight: 700,
+          minWidth: 0,
+          whiteSpace: "nowrap",
+        }}
+      >
+        IQ Mode
+      </Button>
       <Box
         sx={{
           flexShrink: 0,
@@ -222,7 +257,6 @@ export default function DashboardHeader({
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const isCompact = useMediaQuery(theme.breakpoints.down("md"));
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const shortcutLabel = typeof navigator !== "undefined" && /(Mac|iPhone|iPad)/i.test(navigator.platform) ? "⌘K" : "Ctrl+K";
 
@@ -249,39 +283,16 @@ export default function DashboardHeader({
           }}
         >
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
-            <SearchInput onActivate={onOpenCommandPalette} shortcutLabel={shortcutLabel} />
+            <SearchInput
+              onActivate={onOpenCommandPalette}
+              shortcutLabel={shortcutLabel}
+              onOpenGlobe={onOpenGlobe}
+              onOpenBaseball={onOpenBaseball}
+              onOpenIQMode={onOpenIQMode}
+            />
           </Box>
 
           <Stack direction="row" spacing={0.8} alignItems="center" justifySelf="end">
-            <Tooltip title="Region">
-              <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
-                <PublicIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Brands">
-              <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
-                <SportsBaseballIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Button
-              color="inherit"
-              onClick={onOpenIQMode}
-              startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />}
-              sx={{
-                display: { xs: "none", sm: "inline-flex" },
-                borderRadius: 999,
-                px: 1.2,
-                py: 0.65,
-                border: "1px solid",
-                borderColor: "divider",
-                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9),
-                fontSize: 12,
-                fontWeight: 700,
-                minWidth: isCompact ? 0 : 96,
-              }}
-            >
-              IQ Mode
-            </Button>
             <Tooltip title="Filters">
               <IconButton aria-label="Filters" onClick={onOpenFilters} sx={{ border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
                 <TuneRoundedIcon fontSize="small" />

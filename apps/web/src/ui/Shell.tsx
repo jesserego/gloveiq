@@ -304,14 +304,6 @@ export function SidebarNav({
       <Box sx={{ mt: "auto" }} />
 
       {!collapsed ? (
-        <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)", color: "text.secondary", fontSize: 12, lineHeight: 1.35 }}>
-          <Typography component="span" sx={{ color: "text.primary", fontWeight: 700 }}>Prototype mode</Typography>
-          <br />
-          Visual foundation aligned to the origin-style desktop shell and Liquid Glass patterns.
-        </Box>
-      ) : null}
-
-      {!collapsed ? (
         <Box sx={{ p: 1.2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, backgroundColor: isDark ? "rgba(44,44,46,0.62)" : "rgba(255,255,255,0.74)" }}>
           <TierSwitch compact />
         </Box>
