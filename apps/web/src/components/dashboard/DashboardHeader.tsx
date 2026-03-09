@@ -35,13 +35,11 @@ const tierStyles: Record<Tier, { label: string; color: string }> = {
 
 export function SearchInput({
   onActivate,
-  shortcutLabel,
   onOpenGlobe,
   onOpenBaseball,
   onOpenIQMode,
 }: {
   onActivate: () => void;
-  shortcutLabel: string;
   onOpenGlobe: () => void;
   onOpenBaseball: () => void;
   onOpenIQMode: () => void;
@@ -54,9 +52,9 @@ export function SearchInput({
       sx={{
         display: "flex",
         alignItems: "center",
-        gap: 1,
+        gap: 0.7,
         borderRadius: 2.5,
-        px: 1.5,
+        px: 1.15,
         py: 1,
         border: `1px solid ${theme.palette.divider}`,
         backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.52 : 0.9),
@@ -73,7 +71,6 @@ export function SearchInput({
         component="input"
         value=""
         readOnly
-        onFocus={onActivate}
         onClick={onActivate}
         onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -89,7 +86,7 @@ export function SearchInput({
           background: "transparent",
           color: "text.primary",
           fontSize: 14,
-          width: "100%",
+          flex: 1,
           minWidth: 0,
           "&::placeholder": { color: "text.secondary", opacity: 0.95 },
         }}
@@ -111,14 +108,15 @@ export function SearchInput({
         sx={{
           display: { xs: "none", sm: "inline-flex" },
           borderRadius: 999,
-          px: 1,
+          px: 1.15,
           py: 0.5,
           border: "1px solid",
           borderColor: "divider",
           bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9),
           fontSize: 11,
           fontWeight: 700,
-          minWidth: 0,
+          minWidth: 84,
+          flexShrink: 0,
           whiteSpace: "nowrap",
         }}
       >
@@ -136,9 +134,10 @@ export function SearchInput({
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           fontSize: 11,
           lineHeight: 1,
+          whiteSpace: "nowrap",
         }}
       >
-        {shortcutLabel}
+        Return
       </Box>
     </Box>
   );
@@ -258,7 +257,6 @@ export default function DashboardHeader({
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const shortcutLabel = typeof navigator !== "undefined" && /(Mac|iPhone|iPad)/i.test(navigator.platform) ? "⌘K" : "Ctrl+K";
 
   return (
     <>
@@ -285,7 +283,6 @@ export default function DashboardHeader({
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
             <SearchInput
               onActivate={onOpenCommandPalette}
-              shortcutLabel={shortcutLabel}
               onOpenGlobe={onOpenGlobe}
               onOpenBaseball={onOpenBaseball}
               onOpenIQMode={onOpenIQMode}
