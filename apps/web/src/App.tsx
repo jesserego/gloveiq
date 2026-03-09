@@ -6145,14 +6145,12 @@ export default function App() {
             />
 
             <Box sx={{ minHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              {route.name === "search" ? (
-                <DashboardHeader
-                  tier={tier}
-                  onOpenPricing={() => setRoute({ name: "pricing" })}
-                  onOpenAccount={() => setRoute({ name: "account" })}
-                  onOpenCommandPalette={commandPalette.open}
-                />
-              ) : null}
+              <DashboardHeader
+                tier={tier}
+                onOpenPricing={() => setRoute({ name: "pricing" })}
+                onOpenAccount={() => setRoute({ name: "account" })}
+                onOpenCommandPalette={commandPalette.open}
+              />
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
                 <Box key={route.name === "artifactDetail" ? route.artifactId : route.name}>
                   {route.name === "search" ? (
