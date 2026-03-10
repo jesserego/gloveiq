@@ -469,16 +469,22 @@ function ConditionPriceImpact({ conditionScore }: { conditionScore: number | nul
 
 function OriginMap({ madeIn }: { madeIn?: string | null }) {
   const chartTokens = readChartThemeTokens();
-  const origin = String(madeIn || "Japan");
-  const hubs: Array<{ label: string; x: number; y: number; value: number }> = [
-    { label: "Japan", x: 840, y: 205, value: 96 },
-    { label: "USA", x: 245, y: 198, value: 72 },
-    { label: "Philippines", x: 770, y: 274, value: 48 },
-    { label: "Korea", x: 815, y: 194, value: 38 },
-    { label: "Mexico", x: 190, y: 255, value: 28 },
+  const origin = String(madeIn || "Japan").trim();
+  const originAlias: Array<{ key: string; query: string; label: string }> = [
+    { key: "united states", query: "United States", label: "USA" },
+    { key: "usa", query: "United States", label: "USA" },
+    { key: "u.s.", query: "United States", label: "USA" },
+    { key: "japan", query: "Japan", label: "Japan" },
+    { key: "korea", query: "South Korea", label: "Korea" },
+    { key: "philippines", query: "Philippines", label: "Philippines" },
+    { key: "mexico", query: "Mexico", label: "Mexico" },
   ];
-
-  const focusLabel = hubs.find((hub) => origin.toLowerCase().includes(hub.label.toLowerCase()))?.label || "Japan";
+  const normalizedOrigin = origin.toLowerCase();
+  const selected = originAlias.find((row) => normalizedOrigin.includes(row.key));
+  const mapQuery = selected?.query || origin || "Japan";
+  const mapLabel = selected?.label || origin || "Japan";
+  const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=4&output=embed`;
+  const mapOpenUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
 
   return (
     <Card><CardContent>
@@ -486,31 +492,32 @@ function OriginMap({ madeIn }: { madeIn?: string | null }) {
       <Divider sx={{ my: 1.2 }} />
       <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.4, minHeight: 220, bgcolor: alpha(chartTokens.bgCard, chartTokens.isDark ? 0.68 : 0.8) }}>
         <Box
-          component="svg"
-          viewBox="0 0 1000 420"
-          sx={{ width: "100%", height: 200, display: "block", borderRadius: 1.2 }}
-        >
-          <rect x="0" y="0" width="1000" height="420" fill={alpha(chartTokens.chart1, chartTokens.isDark ? 0.12 : 0.08)} />
-          <path d="M78 165 L204 130 L278 150 L304 192 L262 242 L208 262 L144 252 L105 222 Z" fill={alpha(chartTokens.border, 0.34)} />
-          <path d="M308 104 L402 102 L508 140 L542 184 L486 226 L414 218 L336 186 Z" fill={alpha(chartTokens.border, 0.32)} />
-          <path d="M404 232 L468 272 L452 342 L398 366 L332 326 L334 262 Z" fill={alpha(chartTokens.border, 0.28)} />
-          <path d="M548 114 L642 104 L742 132 L804 178 L768 232 L704 252 L626 226 L568 184 Z" fill={alpha(chartTokens.border, 0.34)} />
-          <path d="M736 262 L822 284 L882 338 L848 372 L772 354 L724 312 Z" fill={alpha(chartTokens.border, 0.3)} />
-          {hubs.map((hub) => {
-            const isFocus = hub.label === focusLabel;
-            const r = Math.max(7, Math.min(16, hub.value / 8));
-            return (
-              <g key={hub.label}>
-                <circle cx={hub.x} cy={hub.y} r={r * 1.9} fill={alpha(isFocus ? chartTokens.positive : chartTokens.chart1, 0.14)} />
-                <circle cx={hub.x} cy={hub.y} r={r} fill={isFocus ? chartTokens.positive : chartTokens.chart1} />
-                <text x={hub.x + 10} y={hub.y - 8} fill={chartTokens.textSecondary} fontSize="12">{hub.label}</text>
-              </g>
-            );
-          })}
-        </Box>
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.6 }}>
+          component="iframe"
+          title={`Manufacture origin map: ${mapLabel}`}
+          src={mapEmbedUrl}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          sx={{
+            width: "100%",
+            height: 220,
+            border: "1px solid",
+            borderColor: alpha(chartTokens.border, chartTokens.isDark ? 0.42 : 0.3),
+            borderRadius: 1.2,
+            display: "block",
+            bgcolor: "background.paper",
+          }}
+        />
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={0.6} sx={{ mt: 0.7 }}>
           <Typography variant="caption" color="text.secondary">Detected origin: {origin}</Typography>
-          <Typography variant="caption" color="text.secondary">Bubble size = production volume (demo)</Typography>
+          <Button
+            size="small"
+            color="inherit"
+            endIcon={<OpenInNewIcon fontSize="small" />}
+            sx={{ alignSelf: { xs: "flex-start", sm: "auto" } }}
+            onClick={() => window.open(mapOpenUrl, "_blank", "noopener,noreferrer")}
+          >
+            Open in Google Maps
+          </Button>
         </Stack>
       </Box>
     </CardContent></Card>
