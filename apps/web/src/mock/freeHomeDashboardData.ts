@@ -222,39 +222,25 @@ export type FreeHomeDashboardLoadState = {
 };
 
 export function useFreeHomeDashboardData(windowKey: HomeWindowKey): FreeHomeDashboardLoadState {
-  const [data, setData] = useState<FreeHomeDashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<FreeHomeDashboardData | null>(() => buildData(windowKey));
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-
-    const timer = window.setTimeout(() => {
-      if (cancelled) return;
-      try {
-        setData(buildData(windowKey));
-      } catch (err) {
-        setError(String((err as Error)?.message || err));
-      } finally {
-        setIsLoading(false);
-      }
-    }, 120);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    try {
+      setData(buildData(windowKey));
+      setError(null);
+    } catch (err) {
+      setError(String((err as Error)?.message || err));
+    }
   }, [windowKey, nonce]);
 
   return useMemo(() => ({
     data,
-    isLoading,
+    isLoading: false,
     error,
     reload: () => setNonce((value) => value + 1),
-  }), [data, isLoading, error]);
+  }), [data, error]);
 }
 
 export const FREE_HOME_WINDOW_OPTIONS = HOME_WINDOW_OPTIONS.map((option) => ({ key: option.key, label: option.label }));
