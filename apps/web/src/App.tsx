@@ -642,7 +642,7 @@ function SalesHeatmapWorldwide({
     <Card><CardContent>
       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Sales Heatmap Worldwide</Typography>
       <Divider sx={{ my: 1.2 }} />
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 0.8 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(4,minmax(0,1fr))" }, gap: 0.8 }}>
         {rows.map((row) => (
           <Box
             key={row.country}
@@ -1194,7 +1194,7 @@ function VariantProfilePage({
                 alt={`${variant.display_name} primary`}
                 sx={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 1.2, border: "1px solid", borderColor: "divider", display: "block" }}
               />
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 0.6, mt: 0.7 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(4,minmax(0,1fr))" }, gap: 0.6, mt: 0.7 }}>
                 {imageGallery.slice(0, 4).map((src, idx) => (
                   <Box
                     key={`${src}-${idx}`}
@@ -2555,7 +2555,15 @@ function SearchScreen({
               {suggestedResultFilters.length > 0 ? <Chip size="small" label="Suggested" /> : null}
             </Stack>
           </Stack>
-          <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)", gap: 1, px: 1, pb: 1 }}>
+          <Box
+            sx={{
+              display: { xs: "none", md: "grid" },
+              gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr)",
+              gap: 1,
+              px: 1,
+              pb: 1,
+            }}
+          >
             <Typography variant="caption" color="text.secondary">Artifact</Typography>
             <Typography variant="caption" color="text.secondary">Verification</Typography>
             <Typography variant="caption" color="text.secondary">Valuation</Typography>

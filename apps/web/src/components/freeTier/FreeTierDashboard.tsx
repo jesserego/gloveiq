@@ -146,7 +146,7 @@ function Sparkline({ points, positive }: { points: number[]; positive: boolean }
         ],
       }}
       options={{
-        animation: false,
+        animation: { duration: 420, easing: "easeOutQuart" },
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { display: false, grid: { display: false }, border: { display: false } },
@@ -260,6 +260,9 @@ function PriceOverviewPanel({
   const tokens = readChartThemeTokens();
   const range = data.priceOverview.p90 - data.priceOverview.p10;
   const spreadPct = Math.round((range / Math.max(data.priceOverview.medianWindow, 1)) * 100);
+  const midpoint = Math.round((data.priceOverview.p10 + data.priceOverview.p90) / 2);
+  const medianPositionRaw = range > 0 ? ((data.priceOverview.medianWindow - data.priceOverview.p10) / range) * 100 : 50;
+  const medianPosition = Math.min(95, Math.max(5, medianPositionRaw));
   const trendSeries = data.salesTrend.series;
   const trendLabels = trendSeries.map((row) => row.label);
   const currentSpark = trendSeries.slice(-12).map((row) => row.medianPrice + 8);
@@ -325,16 +328,27 @@ function PriceOverviewPanel({
               {money(data.priceOverview.p10)} - {money(data.priceOverview.p90)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Spread: {spreadPct}%
+              10th to 90th percentile transaction band
             </Typography>
             <Box sx={{ mt: 1.1, height: 40, borderRadius: 1, border: "1px solid", borderColor: alpha(tokens.border, tokens.isDark ? 0.4 : 0.28), background: alpha(tokens.chart1, tokens.isDark ? 0.12 : 0.16), position: "relative", overflow: "hidden" }}>
-              <Box sx={{ position: "absolute", left: "7%", right: "7%", top: "35%", height: 12, borderRadius: 999, background: alpha(tokens.chart1, tokens.isDark ? 0.35 : 0.42) }} />
-              <Box sx={{ position: "absolute", left: "34%", width: 18, top: "20%", bottom: "20%", borderRadius: 0.6, background: alpha(tokens.chart3, tokens.isDark ? 0.9 : 0.8) }} />
+              <Box sx={{ position: "absolute", left: "7%", right: "7%", top: "42%", height: 6, borderRadius: 999, background: alpha(tokens.chart1, tokens.isDark ? 0.35 : 0.42) }} />
+              <Box sx={{ position: "absolute", left: `calc(${medianPosition}% - 1px)`, width: 2, top: "18%", bottom: "18%", borderRadius: 999, background: alpha(tokens.chart3, tokens.isDark ? 0.96 : 0.84), boxShadow: `0 0 0 3px ${alpha(tokens.chart3, tokens.isDark ? 0.16 : 0.18)}` }} />
+              <Box sx={{ position: "absolute", left: `calc(${medianPosition}% - 4px)`, top: "50%", transform: "translateY(-50%)", width: 8, height: 8, borderRadius: "50%", background: alpha(tokens.chart3, tokens.isDark ? 0.98 : 0.9) }} />
             </Box>
             <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
               <Typography variant="caption" color="text.secondary">{money(data.priceOverview.p10)}</Typography>
               <Typography variant="caption" color="text.secondary">{money(data.priceOverview.p90)}</Typography>
             </Stack>
+            <Box sx={{ mt: 0.65, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.6 }}>
+              <Box sx={{ p: 0.55, border: "1px dashed", borderColor: alpha(tokens.border, tokens.isDark ? 0.45 : 0.38), borderRadius: 0.9 }}>
+                <Typography variant="caption" color="text.secondary">Midpoint</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(midpoint)}</Typography>
+              </Box>
+              <Box sx={{ p: 0.55, border: "1px dashed", borderColor: alpha(tokens.border, tokens.isDark ? 0.45 : 0.38), borderRadius: 0.9 }}>
+                <Typography variant="caption" color="text.secondary">Spread</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{spreadPct}%</Typography>
+              </Box>
+            </Box>
           </Box>
         </Box>
 
@@ -512,7 +526,18 @@ function SalesTrendPanel({
           <Chip size="small" label="3/6/12 mo models" disabled={TIER_RANK[tier] < TIER_RANK[Tier.PRO]} />
           {TIER_RANK[tier] < TIER_RANK[Tier.PRO] ? <Chip size="small" label="Pro Analytics" /> : null}
         </Stack>
-        <Box sx={{ flex: 1, minHeight: 0, height: { xs: 220, sm: 250, md: 300 } }}>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            height: { xs: 220, sm: 250, md: 300 },
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1.2,
+            p: 0.7,
+            backgroundColor: alpha(tokens.bgCard, tokens.isDark ? 0.52 : 0.82),
+          }}
+        >
           <ReactChart ref={chartRef} type="bar" data={chartData} options={buildChartOptions(chartOptions)} />
         </Box>
       </Stack>
@@ -695,7 +720,7 @@ function LockedTierContainer({
     >
       <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 230, md: compact ? 150 : 220 }, border: "1px solid", borderColor: "divider", borderRadius: 1.4, overflow: "hidden" }}>
         <Box sx={{ p: compact ? 0.9 : 1.1, filter: compact ? "blur(1.6px)" : "blur(2px)", opacity: 0.68 }}>
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0.8 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3,minmax(0,1fr))" }, gap: 0.8 }}>
             {[1, 2, 3].map((idx) => (
               <Box key={idx} sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
                 <Typography variant="caption" color="text.secondary">Teaser metric {idx}</Typography>
@@ -786,7 +811,7 @@ function PortfolioOverviewPanel({ selectedWindow, onWindow }: { selectedWindow: 
   return (
     <PanelShell title="Collection / Portfolio Overview" subtitle="Ownership and value tracking" selectedWindow={selectedWindow} onWindow={onWindow}>
       <Stack spacing={1} sx={{ flex: 1 }}>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 0.8 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 0.8 }}>
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Collection value</Typography><Typography sx={{ fontWeight: 900 }}>{money(PORTFOLIO_OVERVIEW.totalValue)}</Typography></Box>
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Gain/Loss</Typography><Typography sx={{ fontWeight: 900, color: "success.main" }}>+{money(PORTFOLIO_OVERVIEW.gainLoss)}</Typography></Box>
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Appreciation</Typography><Typography sx={{ fontWeight: 900 }}>{PORTFOLIO_OVERVIEW.appreciationRatePct}%</Typography></Box>
@@ -904,7 +929,7 @@ function InventoryOperationsPanel({ selectedWindow, onWindow }: { selectedWindow
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 0.8 }}>
           <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.2, p: 1 }}>
             <Typography variant="caption" color="text.secondary">Aging inventory heatmap</Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 0.5, mt: 0.65 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(4,minmax(0,1fr))" }, gap: 0.5, mt: 0.65 }}>
               {INVENTORY_OPERATIONS.agingHeatmap.map((row) => (
                 <Box key={row.bucket} sx={{ p: 0.6, border: "1px solid", borderColor: "divider", borderRadius: 0.9, bgcolor: alpha(tokens.chart1, 0.08) }}>
                   <Typography variant="caption">{row.bucket}</Typography>

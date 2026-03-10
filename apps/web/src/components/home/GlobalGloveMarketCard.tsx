@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import React, { useMemo } from "react";
+import { Box, Divider, Stack, Typography } from "@mui/material";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
 import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 import { alpha } from "@mui/material/styles";
 import { Card, CardContent } from "../../ui/Primitives";
 import { hexToRgba, readChartThemeTokens } from "../../lib/chartjsTheme";
-import { compactCurrency, quantizeScale, type HomeWindowKey } from "../../lib/homeMarketUtils";
+import { compactCurrency, type HomeWindowKey } from "../../lib/homeMarketUtils";
+import { ThemedLineChart } from "../charts/ThemedCharts";
 import WindowFilterMenu from "./WindowFilterMenu";
 
 export type GlobalCountryRow = {
@@ -17,24 +18,37 @@ export type GlobalCountryRow = {
   is_dummy?: boolean;
 };
 
-const COUNTRY_SHAPES: Array<{ country: string; path: string }> = [
-  { country: "US", path: "M110,155 L210,155 L215,195 L120,205 Z" },
-  { country: "Canada", path: "M100,110 L235,105 L245,145 L110,148 Z" },
-  { country: "United Kingdom", path: "M430,138 L450,134 L456,153 L437,160 Z" },
-  { country: "Germany", path: "M475,146 L505,146 L506,176 L475,176 Z" },
-  { country: "France", path: "M448,176 L477,176 L478,208 L448,208 Z" },
-  { country: "Spain", path: "M408,194 L448,194 L446,216 L406,216 Z" },
-  { country: "Italy", path: "M502,183 L522,186 L528,220 L509,224 Z" },
-  { country: "Japan", path: "M787,152 L803,146 L808,200 L792,206 Z" },
-  { country: "Australia", path: "M785,286 L865,284 L880,335 L795,342 Z" },
-  { country: "Brazil", path: "M300,268 L360,258 L388,344 L338,373 Z" },
-  { country: "Argentina", path: "M344,376 L369,374 L374,436 L351,438 Z" },
-  { country: "Colombia", path: "M284,229 L312,225 L320,256 L297,268 Z" },
+const countryFlags: Record<string, string> = {
+  US: "🇺🇸",
+  Canada: "🇨🇦",
+  "United Kingdom": "🇬🇧",
+  Germany: "🇩🇪",
+  France: "🇫🇷",
+  Spain: "🇪🇸",
+  Italy: "🇮🇹",
+  Japan: "🇯🇵",
+  Australia: "🇦🇺",
+  Brazil: "🇧🇷",
+  Argentina: "🇦🇷",
+  Colombia: "🇨🇴",
+};
+
+const FALLBACK_ROWS: GlobalCountryRow[] = [
+  { country: "US", value: 915200, count: 3354, change_pct: 4.8, is_dummy: true },
+  { country: "Japan", value: 465000, count: 1493, change_pct: 3.9, is_dummy: true },
+  { country: "United Kingdom", value: 233400, count: 794, change_pct: 2.6, is_dummy: true },
+  { country: "Germany", value: 221700, count: 742, change_pct: 1.8, is_dummy: true },
+  { country: "Canada", value: 206100, count: 689, change_pct: 2.1, is_dummy: true },
+  { country: "Australia", value: 184500, count: 618, change_pct: 1.4, is_dummy: true },
 ];
 
-const countryAliases: Record<string, string> = {
-  "United Kingdom": "UK",
-};
+type TrendDirection = "up" | "down" | "flat";
+
+function getTrendDirection(value: number, epsilon = 0.15): TrendDirection {
+  if (value > epsilon) return "up";
+  if (value < -epsilon) return "down";
+  return "flat";
+}
 
 export default function GlobalGloveMarketCard({
   rows,
@@ -52,25 +66,75 @@ export default function GlobalGloveMarketCard({
   onSelectWindow: (key: HomeWindowKey) => void;
 }) {
   const tokens = readChartThemeTokens();
-  const [hovered, setHovered] = useState<{ row: GlobalCountryRow; x: number; y: number } | null>(null);
+  const usingDummy = rows.length === 0;
+  const displayRows = useMemo(
+    () => (usingDummy ? FALLBACK_ROWS : [...rows].sort((a, b) => b.value - a.value).slice(0, 8)),
+    [rows, usingDummy],
+  );
+  const computedTotalValue = usingDummy
+    ? displayRows.reduce((sum, row) => sum + row.value, 0)
+    : totalValue;
+  const computedTotalCount = usingDummy
+    ? displayRows.reduce((sum, row) => sum + row.count, 0)
+    : totalCount;
+  const avgChange = displayRows.reduce((sum, row) => sum + row.change_pct, 0) / Math.max(displayRows.length, 1);
+  const avgSalePrice = computedTotalValue / Math.max(computedTotalCount, 1);
+  const trendLabels = useMemo(
+    () => Array.from({ length: 12 }).map((_, idx) => `W${idx + 1}`),
+    [],
+  );
+  const seriesPalette = [
+    tokens.chart1,
+    tokens.chart2,
+    tokens.chart3,
+    tokens.chart4,
+    tokens.accent,
+    tokens.positive,
+    hexToRgba(tokens.chart1, 0.7),
+    hexToRgba(tokens.chart2, 0.7),
+  ];
+  const countryTrendDatasets = useMemo(() => (
+    displayRows.map((row, countryIdx) => {
+      const color = seriesPalette[countryIdx % seriesPalette.length];
+      const avgTicket = row.value / Math.max(row.count, 1);
+      const growthBias = row.change_pct / 100;
+      const variance = Math.max(2, Math.min(12, avgTicket * 0.04));
+      const points = trendLabels.map((_, pointIdx) => {
+        const progress = pointIdx / Math.max(trendLabels.length - 1, 1);
+        const seasonality = Math.sin((pointIdx + countryIdx) * 0.78) * variance;
+        const drift = ((progress - 0.5) * 2) * variance * growthBias * 6;
+        return Number((avgTicket + seasonality + drift).toFixed(1));
+      });
 
-  const byCountry = useMemo(() => {
-    const map = new Map<string, GlobalCountryRow>();
-    for (const row of rows) map.set(row.country, row);
-    return map;
-  }, [rows]);
+      return {
+        label: row.country,
+        data: points,
+        borderColor: color,
+        backgroundColor: hexToRgba(color, tokens.isDark ? 0.1 : 0.14),
+        pointBackgroundColor: color,
+        pointRadius: 1.8,
+        pointHoverRadius: 3.4,
+        borderWidth: 1.9,
+        fill: false,
+        tension: 0.3,
+      };
+    })
+  ), [displayRows, trendLabels, tokens.isDark, seriesPalette]);
 
-  const values = rows.map((row) => row.value);
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
-
-  const colorForCountry = (country: string) => {
-    const row = byCountry.get(country);
-    if (!row) return hexToRgba(tokens.border, tokens.isDark ? 0.18 : 0.22);
-    const bucket = quantizeScale(row.value, min, max, 6);
-    const alphaStep = [0.2, 0.32, 0.44, 0.58, 0.7, 0.84][bucket] ?? 0.2;
-    // Intensity is based on total sales value for selected window.
-    return hexToRgba(tokens.chart1, alphaStep);
+  const renderTrend = (changePct: number) => {
+    const direction = getTrendDirection(changePct);
+    const color = direction === "up" ? "success.main" : direction === "down" ? "error.main" : "text.secondary";
+    return (
+      <Stack direction="row" spacing={0.25} alignItems="center">
+        {direction === "up" ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+        {direction === "down" ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+        {direction === "flat" ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color }} /> : null}
+        <Typography variant="caption" sx={{ color, fontWeight: 700 }}>
+          {changePct > 0 ? "+" : ""}
+          {changePct}%
+        </Typography>
+      </Stack>
+    );
   };
 
   return (
@@ -78,118 +142,77 @@ export default function GlobalGloveMarketCard({
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Global Glove Market (All Sales)</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900 }}>{compactCurrency(totalValue)}</Typography>
-          <Typography variant="body2" color="text.secondary">{totalCount.toLocaleString()} tracked sales in selected window</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Regional sales value and velocity
+          </Typography>
         </Box>
-        <WindowFilterMenu
-          selected={selectedWindow}
-          options={windowOptions}
-          onChange={onSelectWindow}
-        />
+        <WindowFilterMenu selected={selectedWindow} options={windowOptions} onChange={onSelectWindow} />
       </Stack>
 
-      <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(4,minmax(0,1fr))" }, gap: 0.7 }}>
-        {rows.map((row) => (
+      <Divider sx={{ mb: 1.1 }} />
+
+      <Stack direction={{ xs: "column", md: "row" }} spacing={1.1} alignItems={{ md: "flex-end" }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h3" sx={{ fontWeight: 900 }}>{compactCurrency(computedTotalValue)}</Typography>
+          <Typography variant="body2" color="text.secondary">{computedTotalCount.toLocaleString()} tracked sales in selected window</Typography>
+        </Box>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3,minmax(0,1fr))" }, gap: 0.7, width: { xs: "100%", md: 410 } }}>
+          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+            <Typography variant="caption" color="text.secondary">Market momentum</Typography>
+            {renderTrend(Number(avgChange.toFixed(1)))}
+          </Box>
+          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+            <Typography variant="caption" color="text.secondary">Avg sale price</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 800 }}>{compactCurrency(avgSalePrice)}</Typography>
+          </Box>
+          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
+            <Typography variant="caption" color="text.secondary">Active regions</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 800 }}>{displayRows.length}</Typography>
+          </Box>
+        </Box>
+      </Stack>
+
+      <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 0.7 }}>
+        {displayRows.map((row) => (
           <Box key={row.country} sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
             <Typography variant="caption" color="text.secondary">
+              {countryFlags[row.country] ? `${countryFlags[row.country]} ` : ""}
               {row.country}
               {row.is_dummy ? " • demo" : ""}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 800 }}>{compactCurrency(row.value)}</Typography>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
-              <Stack direction="row" spacing={0.25} alignItems="center">
-                {row.change_pct > 1 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: "success.main" }} /> : null}
-                {row.change_pct < -1 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: "error.main" }} /> : null}
-                {Math.abs(row.change_pct) <= 1 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: "text.secondary" }} /> : null}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: row.change_pct > 1 ? "success.main" : row.change_pct < -1 ? "error.main" : "text.secondary",
-                    fontWeight: 700,
-                  }}
-                >
-                  {row.change_pct > 0 ? "+" : ""}{row.change_pct}%
-                </Typography>
-              </Stack>
+              {renderTrend(row.change_pct)}
             </Stack>
           </Box>
         ))}
       </Box>
 
-      <Box sx={{ mt: 1.2, position: "relative", p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2, overflow: "hidden", minHeight: { xs: 220, md: 280 } }}>
-        <Box component="svg" viewBox="0 0 1000 460" sx={{ width: "100%", height: { xs: 200, md: 260 }, display: "block" }}>
-          <rect x="0" y="0" width="1000" height="460" fill={hexToRgba(tokens.bgCard, tokens.isDark ? 0.46 : 0.7)} />
-          <path d="M20,130 L320,110 L390,200 L420,260 L370,405 L230,430 L120,390 L45,295 Z" fill={hexToRgba(tokens.border, tokens.isDark ? 0.12 : 0.2)} />
-          <path d="M360,80 L595,85 L725,152 L692,312 L560,368 L440,340 L410,280 L425,200 Z" fill={hexToRgba(tokens.border, tokens.isDark ? 0.12 : 0.2)} />
-          <path d="M745,120 L935,145 L960,265 L900,350 L770,338 L730,255 Z" fill={hexToRgba(tokens.border, tokens.isDark ? 0.12 : 0.2)} />
-
-          {COUNTRY_SHAPES.map((shape) => {
-            const row = byCountry.get(shape.country);
-            const isHovered = hovered?.row.country === shape.country;
-            return (
-              <path
-                key={shape.country}
-                d={shape.path}
-                fill={colorForCountry(shape.country)}
-                stroke={isHovered ? tokens.accent : hexToRgba(tokens.border, tokens.isDark ? 0.6 : 0.7)}
-                strokeWidth={isHovered ? 2 : 1.1}
-                onMouseEnter={(event) => {
-                  if (!row) return;
-                  const rect = (event.currentTarget.ownerSVGElement?.getBoundingClientRect()) || { left: 0, top: 0 };
-                  setHovered({ row, x: event.clientX - rect.left, y: event.clientY - rect.top });
-                }}
-                onMouseMove={(event) => {
-                  if (!row) return;
-                  const rect = (event.currentTarget.ownerSVGElement?.getBoundingClientRect()) || { left: 0, top: 0 };
-                  setHovered({ row, x: event.clientX - rect.left, y: event.clientY - rect.top });
-                }}
-                onMouseLeave={() => setHovered(null)}
-              />
-            );
-          })}
-
-          {COUNTRY_SHAPES.map((shape) => {
-            const row = byCountry.get(shape.country);
-            if (!row) return null;
-            return (
-              <text key={`${shape.country}_label`} x={shape.path.includes("M") ? Number(shape.path.split("M")[1].split(",")[0]) + 8 : 0} y={shape.path.includes("L") ? Number(shape.path.split("L")[1].split(",")[1]) + 8 : 0} fill={tokens.textSecondary} fontSize="11">
-                {countryAliases[shape.country] || shape.country}
-              </text>
-            );
-          })}
-        </Box>
-
-        {hovered ? (
-          <Box
-            sx={{
-              position: "absolute",
-              left: Math.min(hovered.x + 14, 760),
-              top: Math.max(10, hovered.y - 16),
-              px: 1,
-              py: 0.8,
-              borderRadius: 1.2,
-              border: "1px solid",
-              borderColor: "divider",
-              bgcolor: alpha(tokens.bgCard, tokens.isDark ? 0.95 : 0.98),
-              boxShadow: "0 14px 24px rgba(0,0,0,0.28)",
-              minWidth: 180,
-              pointerEvents: "none",
-            }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{hovered.row.country}</Typography>
-            <Typography variant="caption" color="text.secondary">Sales: {compactCurrency(hovered.row.value)}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>Count: {hovered.row.count}</Typography>
-            <Stack direction="row" spacing={0.35} alignItems="center">
-              {hovered.row.change_pct > 1 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: "success.main" }} /> : null}
-              {hovered.row.change_pct < -1 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: "error.main" }} /> : null}
-              {Math.abs(hovered.row.change_pct) <= 1 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: "text.secondary" }} /> : null}
-              <Typography variant="caption" sx={{ color: hovered.row.change_pct > 0 ? "success.main" : hovered.row.change_pct < 0 ? "error.main" : "text.secondary", fontWeight: 800 }}>
-                {hovered.row.change_pct > 0 ? "+" : ""}{hovered.row.change_pct}% vs previous
-              </Typography>
-            </Stack>
-          </Box>
-        ) : null}
+      <Box sx={{ mt: 1.2, p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2, bgcolor: alpha(tokens.bgCard, tokens.isDark ? 0.48 : 0.66) }}>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, display: "block" }}>
+          Country trend lines for displayed regions
+        </Typography>
+        <ThemedLineChart
+          data={{
+            labels: trendLabels,
+            datasets: countryTrendDatasets,
+          }}
+          options={{
+            plugins: {
+              legend: {
+                display: true,
+                position: "bottom",
+                labels: { usePointStyle: true, pointStyle: "line", boxWidth: 12 },
+              },
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } },
+              y: { grid: { color: hexToRgba(tokens.border, tokens.isDark ? 0.28 : 0.4) }, ticks: { maxTicksLimit: 5 } },
+            },
+          }}
+          height={{ xs: 170, sm: 190, md: 210 }}
+        />
       </Box>
     </CardContent></Card>
   );

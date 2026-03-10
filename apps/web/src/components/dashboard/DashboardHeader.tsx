@@ -125,6 +125,7 @@ export function SearchInput({
       <Box
         sx={{
           flexShrink: 0,
+          display: { xs: "none", sm: "inline-flex" },
           borderRadius: 1,
           px: 0.75,
           py: 0.25,
@@ -198,7 +199,7 @@ export function NotificationBell() {
         anchorEl={anchorEl}
         open={open}
         onClose={() => setAnchorEl(null)}
-        PaperProps={{ sx: { mt: 0.5, borderRadius: 2, minWidth: 300 } }}
+        PaperProps={{ sx: { mt: 0.5, borderRadius: 2, minWidth: { xs: 220, sm: 300 }, maxWidth: "calc(100vw - 16px)" } }}
       >
         {alerts.map((alert) => <MenuItem key={alert}>{alert}</MenuItem>)}
       </Menu>

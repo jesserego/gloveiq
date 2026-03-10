@@ -140,6 +140,18 @@ export function buildChartOptions<TType extends keyof ChartOptions>(baseOptions:
   return {
     responsive: true,
     maintainAspectRatio: false,
+    animation: baseOptions.animation ?? {
+      duration: 560,
+      easing: "easeOutQuart",
+    },
+    transitions: {
+      active: {
+        animation: {
+          duration: 180,
+        },
+      },
+      ...(baseOptions.transitions || {}),
+    },
     ...baseOptions,
     plugins: {
       legend: {
