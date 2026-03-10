@@ -16,6 +16,7 @@ import { alpha } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import SportsBaseballIcon from "@mui/icons-material/SportsBaseball";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
+import CollectionsBookmarkOutlinedIcon from "@mui/icons-material/CollectionsBookmarkOutlined";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
@@ -78,7 +79,7 @@ export function SidebarNav({
     { tab: "search" as const, label: t(locale, "tab.search"), subtitle: "KPIs, queue, catalog", icon: <HomeOutlinedIcon fontSize="small" /> },
     { tab: "artifact" as const, label: t(locale, "tab.artifact"), subtitle: "Models and artifacts", icon: <SportsBaseballIcon fontSize="small" /> },
     { tab: "appraisal" as const, label: t(locale, "tab.appraisal"), subtitle: "Upload and estimate", icon: <UploadFileOutlinedIcon fontSize="small" /> },
-    { tab: "collection" as const, label: collectionLabel, subtitle: "Owned and wantlist", icon: <LocalOfferIcon fontSize="small" /> },
+    { tab: "collection" as const, label: collectionLabel, subtitle: "Owned and wantlist", icon: <CollectionsBookmarkOutlinedIcon fontSize="small" /> },
   ];
   const utilityItems = [
     { tab: "account" as const, label: t(locale, "tab.account"), subtitle: "Login, profile, security", icon: <AccountCircleOutlinedIcon fontSize="small" /> },
@@ -448,7 +449,7 @@ export function MobileBottomNav({
     { name: "search" as const, label: t(locale, "tab.search"), icon: <SearchIcon fontSize="small" /> },
     { name: "artifact" as const, label: t(locale, "tab.artifact"), icon: <SportsBaseballIcon fontSize="small" /> },
     { name: "appraisal" as const, label: t(locale, "tab.appraisal"), icon: <UploadFileOutlinedIcon fontSize="small" /> },
-    { name: "collection" as const, label: collectionLabel, icon: <LocalOfferIcon fontSize="small" /> },
+    { name: "collection" as const, label: collectionLabel, icon: <CollectionsBookmarkOutlinedIcon fontSize="small" /> },
     { name: "account" as const, label: t(locale, "tab.account"), icon: <AccountCircleOutlinedIcon fontSize="small" /> },
     { name: "pricing" as const, label: t(locale, "tab.pricing"), icon: <LocalOfferIcon fontSize="small" /> },
   ];

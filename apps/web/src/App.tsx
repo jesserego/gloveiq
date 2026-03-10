@@ -14,6 +14,7 @@ import CollectionPage from "./components/CollectionPage";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
 import CommandPalette from "./components/dashboard/CommandPalette";
 import { useCommandPalette, type CommandResult } from "./components/dashboard/useCommandPalette";
+import IQModeDrawer from "./components/IQModeDrawer";
 import { ThemedBarChart, ThemedLineChart } from "./components/charts/ThemedCharts";
 import GlobalGloveMarketCard from "./components/home/GlobalGloveMarketCard";
 import { TierGate } from "./components/TierGate";
@@ -44,6 +45,7 @@ import {
   MenuItem,
   Pagination,
   Popover,
+  Snackbar,
   Select,
   Slider,
   Stack,
@@ -859,6 +861,10 @@ function SearchResultsPage({
       const token = raw.split(/[\s-_]/).filter(Boolean)[0];
       return token || "Unknown";
     };
+    const tidyTag = (value: string | null | undefined, fallback = "Unknown") => {
+      const raw = String(value || "").trim();
+      return (raw || fallback).replace(/_/g, " ").replace(/\s+/g, " ").trim();
+    };
     const conditionBucket = (score: number | null | undefined) => {
       if (typeof score !== "number") return "Other";
       if (score >= 0.95) return "New";
@@ -913,7 +919,11 @@ function SearchResultsPage({
       record_type: "variant",
       title: v.display_name,
       subtitle: `${v.brand_key} • ${v.model_code || "model n/a"}`,
-      chips: [v.made_in || "Unknown", v.display_name || "Unknown", v.web || "Unknown", v.leather || "Unknown"].filter(Boolean),
+      chips: [
+        tidyTag(v.made_in),
+        tidyTag(v.leather),
+        tidyTag(v.web),
+      ].filter(Boolean),
       meta: {
         brand: v.brand_key,
         region: regionFromOrigin(v.made_in),
@@ -957,10 +967,9 @@ function SearchResultsPage({
       title: g.model_code || g.id,
       subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
       chips: [
-        g.made_in || "Unknown",
-        g.model_code || g.id || "Unknown",
-        webBucket(g.model_code),
-        "Unknown",
+        tidyTag(g.made_in),
+        tidyTag(null),
+        tidyTag(webBucket(g.model_code)),
       ].filter(Boolean),
       thumbnail: g.photos?.[0]?.url,
       meta: {
@@ -4948,6 +4957,51 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 }
 
 function AppraisalScreen({ locale }: { locale: Locale }) {
+  const [infoAnchorEl, setInfoAnchorEl] = useState<HTMLElement | null>(null);
+  const openInfo = Boolean(infoAnchorEl);
+  const [highlightedInstruction, setHighlightedInstruction] = useState(0);
+  const orchestrationSteps = [
+    {
+      title: "Fast intake and setup",
+      detail: "Upload photos and optional hints so analysis starts quickly with less manual entry.",
+      accent: "#3B82F6",
+    },
+    {
+      title: "Photo role and quality checks",
+      detail: "Verifies palm, backhand, web, heel, and interior coverage for stronger model confidence.",
+      accent: "#22C55E",
+    },
+    {
+      title: "Model and variant normalization",
+      detail: "Standardizes brand, pattern, leather, and web attributes for cleaner downstream matching.",
+      accent: "#A855F7",
+    },
+    {
+      title: "Condition impact scoring",
+      detail: "Maps visible wear and break-in into estimated value impact.",
+      accent: "#F59E0B",
+    },
+    {
+      title: "Comparable sales weighting",
+      detail: "Ranks recent relevant comps so the estimate reflects current market behavior.",
+      accent: "#06B6D4",
+    },
+    {
+      title: "Final confidence and valuation",
+      detail: "Delivers confidence band and value range with explainable reasoning.",
+      accent: "#EC4899",
+    },
+  ];
+
+  useEffect(() => {
+    if (!openInfo) return;
+    setHighlightedInstruction(0);
+    const timer = window.setInterval(() => {
+      setHighlightedInstruction((current) => (current + 1) % orchestrationSteps.length);
+    }, 3200);
+    return () => window.clearInterval(timer);
+  }, [openInfo, orchestrationSteps.length]);
+
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
       <Stack spacing={2}>
@@ -4965,11 +5019,87 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
               </Box>
             </Stack>
             <Stack direction="row" spacing={0.8}>
-              <Button color="inherit" sx={FIGMA_OPEN_BUTTON_SX}>How it works</Button>
-              <IconButton size="small"><InfoOutlinedIcon fontSize="small" /></IconButton>
+              <Tooltip title="View appraisal orchestration steps">
+                <IconButton
+                  size="small"
+                  onClick={(event) => setInfoAnchorEl(event.currentTarget)}
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Stack>
         </CardContent></Card>
+        <Popover
+          open={openInfo}
+          anchorEl={infoAnchorEl}
+          onClose={() => setInfoAnchorEl(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          PaperProps={{
+            sx: {
+              width: 390,
+              maxWidth: "calc(100vw - 24px)",
+              p: 1.1,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+            },
+          }}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 0.4 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+              How IQ Mode works
+            </Typography>
+            <IconButton size="small" onClick={() => setInfoAnchorEl(null)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+          <Divider sx={{ my: 1 }} />
+          <Stack spacing={0.7}>
+            {orchestrationSteps.map((step, idx) => {
+              const isActive = idx === highlightedInstruction;
+              return (
+                <Box
+                  key={step.title}
+                  sx={{
+                    p: 0.9,
+                    border: "1px solid",
+                    borderColor: isActive ? alpha(step.accent, 0.82) : "divider",
+                    borderRadius: 1.2,
+                    background: isActive
+                      ? `linear-gradient(180deg, ${alpha(step.accent, 0.18)} 0%, ${alpha(step.accent, 0.08)} 100%)`
+                      : "transparent",
+                    boxShadow: isActive ? `0 10px 22px ${alpha(step.accent, 0.18)}` : "none",
+                    transition: "all 260ms ease",
+                  }}
+                >
+                  <Stack direction="row" spacing={0.7} alignItems="flex-start">
+                    <Chip
+                      size="small"
+                      label={idx + 1}
+                      sx={{
+                        mt: 0.05,
+                        bgcolor: alpha(step.accent, 0.2),
+                        border: "1px solid",
+                        borderColor: alpha(step.accent, 0.62),
+                        fontWeight: 800,
+                      }}
+                    />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                        {step.title}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {step.detail}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        </Popover>
         <AppraisalIntakeWidget locale={locale} />
       </Stack>
     </Container>
@@ -4977,13 +5107,16 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
 }
 
 function AccountScreen({ locale }: { locale: Locale }) {
-  const [authStep, setAuthStep] = useState<"login" | "2fa" | "done">("login");
+  const [authStep, setAuthStep] = useState<"login" | "2fa" | "done">("done");
   const [loginForm, setLoginForm] = useState({ email: "", password: "", remember: true, trustDevice: false });
   const [otpCode, setOtpCode] = useState("246810");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [accountNotice, setAccountNotice] = useState<string | null>(null);
-  const [section, setSection] = useState<"overview" | "profile" | "security" | "settings">("overview");
+  const [accountNotice, setAccountNotice] = useState<{ message: string; severity: "success" | "info" | "warning" | "error" } | null>(null);
+  const [section, setSection] = useState<"overview" | "profile" | "security" | "settings">("profile");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarUploadProgress, setAvatarUploadProgress] = useState(0);
+  const [avatarUploadPhotoId, setAvatarUploadPhotoId] = useState<string | null>(null);
   const [profile, setProfile] = useState({
     fullName: "Jesse Rego",
     displayName: "Jesse",
@@ -5050,6 +5183,18 @@ function AccountScreen({ locale }: { locale: Locale }) {
     return Math.min(100, score);
   }, [security.twoFactorEnabled, security.backupCodes, security.deviceAlerts, security.payoutLock]);
 
+  const notifyAccount = (message: string, severity: "success" | "info" | "warning" | "error" = "success") => {
+    setAccountNotice({ message, severity });
+  };
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("avatar-read-failed"));
+      reader.readAsDataURL(file);
+    });
+
   function submitLogin() {
     setAuthError(null);
     if (!loginForm.email.trim() || !loginForm.password.trim()) {
@@ -5068,44 +5213,83 @@ function AccountScreen({ locale }: { locale: Locale }) {
     }
     setAuthStep("done");
     setSection("overview");
-    setAccountNotice("Logged in successfully. Account controls are now unlocked.");
+    notifyAccount("Logged in successfully. Account controls are now unlocked.");
   }
 
   function enableTwoFactor() {
     if (twoFactorSetupCode.trim() !== "246810") {
-      setAccountNotice("Invalid setup code. Use 246810 in this prototype.");
+      notifyAccount("Invalid setup code. Use 246810 in this prototype.", "warning");
       return;
     }
     setSecurity((s) => ({ ...s, twoFactorEnabled: true }));
-    setAccountNotice("Two-factor authentication is now enabled.");
+    notifyAccount("Two-factor authentication is now enabled.");
   }
 
   function disableTwoFactor() {
     setSecurity((s) => ({ ...s, twoFactorEnabled: false }));
-    setAccountNotice("Two-factor authentication has been disabled.");
+    notifyAccount("Two-factor authentication has been disabled.", "info");
   }
 
   function saveProfile() {
-    setAccountNotice("Profile details saved.");
+    notifyAccount("Profile details saved.");
   }
 
   function updatePassword() {
     if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
-      setAccountNotice("Enter current and new password fields.");
+      notifyAccount("Enter current and new password fields.", "warning");
       return;
     }
     if (passwordForm.next !== passwordForm.confirm) {
-      setAccountNotice("New password and confirmation do not match.");
+      notifyAccount("New password and confirmation do not match.", "warning");
       return;
     }
     setPasswordForm({ current: "", next: "", confirm: "" });
-    setAccountNotice("Password updated.");
+    notifyAccount("Password updated.");
   }
 
   function signOutOtherSessions() {
     setActiveSessions((list) => list.filter((s) => s.current));
     setSecurity((s) => ({ ...s, activeSessions: 1 }));
-    setAccountNotice("Other sessions were signed out.");
+    notifyAccount("Other sessions were signed out.");
+  }
+
+  function onAvatarFilePicked(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notifyAccount("Only image files are supported for avatar upload.", "warning");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      notifyAccount("Avatar image must be under 8MB.", "warning");
+      return;
+    }
+    setAvatarFile(file);
+    setAvatarUploadPhotoId(null);
+    setAvatarUploadProgress(0);
+    notifyAccount(`Selected avatar image: ${file.name}`, "info");
+  }
+
+  async function uploadAvatar() {
+    if (!avatarFile) {
+      notifyAccount("Select an avatar image first.", "warning");
+      return;
+    }
+    try {
+      setAvatarUploading(true);
+      setAvatarUploadProgress(18);
+      const out = await api.uploadPhoto(avatarFile);
+      const nextAvatar = await fileToDataUrl(avatarFile);
+      window.localStorage.setItem("gloveiq-avatar", nextAvatar);
+      window.dispatchEvent(new CustomEvent("gloveiq:avatar-updated", { detail: { avatar: nextAvatar } }));
+      setAvatarUploadProgress(100);
+      setAvatarUploadPhotoId(out.photo_id);
+      notifyAccount(`Avatar uploaded. Photo ID: ${out.photo_id}${out.deduped ? " (deduplicated)" : ""}`);
+    } catch {
+      notifyAccount("Avatar upload failed. Please try again.", "error");
+    } finally {
+      setAvatarUploading(false);
+      setTimeout(() => setAvatarUploadProgress(0), 650);
+    }
   }
 
   return (
@@ -5129,12 +5313,6 @@ function AccountScreen({ locale }: { locale: Locale }) {
             </Stack>
           </Stack>
         </CardContent></Card>
-        {accountNotice ? (
-          <Alert severity="success" action={<Button color="inherit" onClick={() => setAccountNotice(null)}>Dismiss</Button>}>
-            {accountNotice}
-          </Alert>
-        ) : null}
-
         {!isLoggedIn ? (
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
             <Card><CardContent>
@@ -5281,10 +5459,39 @@ function AccountScreen({ locale }: { locale: Locale }) {
             {section === "profile" ? (
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "0.9fr 1.3fr" }, gap: 2 }}>
                 <Card><CardContent>
-                  <Stack spacing={1.25} alignItems="center">
-                    <Avatar src={avatarPreview || undefined} sx={{ width: 84, height: 84 }}>
-                      {profile.displayName.slice(0, 2).toUpperCase()}
-                    </Avatar>
+                  <Stack spacing={1.1} alignItems="center">
+                    <Box sx={{ position: "relative" }}>
+                      <Avatar
+                        src={avatarPreview || undefined}
+                        sx={{
+                          width: 86,
+                          height: 86,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          bgcolor: (theme) => alpha(theme.palette.text.secondary, theme.palette.mode === "dark" ? 0.28 : 0.18),
+                          color: "text.primary",
+                        }}
+                      >
+                        {profile.displayName.slice(0, 2).toUpperCase()}
+                      </Avatar>
+                      <IconButton
+                        size="small"
+                        aria-label="Change avatar image"
+                        onClick={() => document.getElementById("avatar-upload-input")?.click()}
+                        sx={{
+                          position: "absolute",
+                          right: -4,
+                          bottom: -4,
+                          width: 28,
+                          height: 28,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.9 : 0.96),
+                        }}
+                      >
+                        <PhotoCameraIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
                     <Typography sx={{ fontWeight: 900 }}>{profile.fullName}</Typography>
                     <Typography variant="body2" color="text.secondary">{profile.role} • {profile.company}</Typography>
                     <input
@@ -5294,21 +5501,66 @@ function AccountScreen({ locale }: { locale: Locale }) {
                       accept="image/*"
                       onChange={(e) => {
                         const next = e.target.files?.[0] || null;
-                        setAvatarFile(next);
-                        if (next) setAccountNotice(`Selected image: ${next.name}`);
+                        onAvatarFilePicked(next);
                       }}
                     />
-                    <Button color="inherit" onClick={() => document.getElementById("avatar-upload-input")?.click()}>
-                      Change profile image
-                    </Button>
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => document.getElementById("avatar-upload-input")?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          document.getElementById("avatar-upload-input")?.click();
+                        }
+                      }}
+                      sx={{
+                        width: "100%",
+                        p: 1.1,
+                        borderRadius: 1.4,
+                        border: "1px dashed",
+                        borderColor: "divider",
+                        bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.48 : 0.82),
+                        cursor: "pointer",
+                        "&:hover": { borderColor: "primary.main" },
+                      }}
+                    >
+                      <Stack direction="row" spacing={0.8} alignItems="center">
+                        <CloudUploadRoundedIcon fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 800 }}>Upload avatar image</Typography>
+                          <Typography variant="caption" color="text.secondary">PNG, JPG, WEBP • up to 8MB</Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+                    <Stack direction="row" spacing={0.8} sx={{ width: "100%" }}>
+                      <Button color="inherit" sx={{ flex: 1 }} onClick={() => document.getElementById("avatar-upload-input")?.click()}>
+                        Choose file
+                      </Button>
+                      <Button sx={{ flex: 1 }} disabled={!avatarFile || avatarUploading} onClick={uploadAvatar}>
+                        {avatarUploading ? "Uploading..." : "Save avatar"}
+                      </Button>
+                    </Stack>
+                    {avatarUploading || avatarUploadProgress > 0 ? <LinearProgress variant="determinate" value={avatarUploadProgress || 6} sx={{ width: "100%" }} /> : null}
                     {avatarFile ? <Chip size="small" label={avatarFile.name} /> : null}
+                    {avatarUploadPhotoId ? <Chip size="small" color="success" label={`Uploaded • ${avatarUploadPhotoId}`} /> : null}
                     <Chip size="small" label={`Sessions: ${activeSessions.length}`} />
                   </Stack>
                 </CardContent></Card>
                 <Card><CardContent>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Profile and Personal Data</Typography>
                   <Divider sx={{ my: 1.5 }} />
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.25 }}>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                      columnGap: 1.25,
+                      rowGap: 1.55,
+                      "& .MuiInputBase-root": {
+                        minHeight: 42,
+                      },
+                    }}
+                  >
                     <TextField size="small" label="Full name" value={profile.fullName} onChange={(e) => setProfile((s) => ({ ...s, fullName: e.target.value }))} />
                     <TextField size="small" label="Display name" value={profile.displayName} onChange={(e) => setProfile((s) => ({ ...s, displayName: e.target.value }))} />
                     <TextField size="small" label="Email" value={profile.email} onChange={(e) => setProfile((s) => ({ ...s, email: e.target.value }))} />
@@ -5328,8 +5580,22 @@ function AccountScreen({ locale }: { locale: Locale }) {
                   </Box>
                   <TextField size="small" label="Bio" value={profile.bio} onChange={(e) => setProfile((s) => ({ ...s, bio: e.target.value }))} multiline minRows={3} fullWidth sx={{ mt: 1.25 }} />
                   <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
-                    <Button onClick={saveProfile}>Save Profile</Button>
-                    <Button color="inherit" onClick={() => setAccountNotice("Reverted unsaved profile changes for this prototype view.")}>Discard</Button>
+                    <Button
+                      color="inherit"
+                      size="small"
+                      sx={{ minHeight: 0, py: 0.5, px: 1.1, border: "1px solid", borderColor: "divider" }}
+                      onClick={saveProfile}
+                    >
+                      Save Profile
+                    </Button>
+                    <Button
+                      color="inherit"
+                      size="small"
+                      sx={{ minHeight: 0, py: 0.5, px: 1.1, border: "1px solid", borderColor: "divider" }}
+                      onClick={() => notifyAccount("Reverted unsaved profile changes for this prototype view.", "info")}
+                    >
+                      Discard
+                    </Button>
                   </Stack>
                 </CardContent></Card>
               </Box>
@@ -5442,7 +5708,7 @@ function AccountScreen({ locale }: { locale: Locale }) {
                   <FormControlLabel control={<Switch checked={settings.compAlerts} onChange={(e) => setSettings((s) => ({ ...s, compAlerts: e.target.checked }))} />} label="Comp-drop notifications" />
                   <FormControlLabel control={<Switch checked={settings.productNews} onChange={(e) => setSettings((s) => ({ ...s, productNews: e.target.checked }))} />} label="Product updates and release notes" />
                   <FormControlLabel control={<Switch checked={settings.weeklyDigest} onChange={(e) => setSettings((s) => ({ ...s, weeklyDigest: e.target.checked }))} />} label="Weekly digest email" />
-                  <Button sx={{ mt: 1 }} onClick={() => setAccountNotice("Settings saved.")}>Save Settings</Button>
+                  <Button sx={{ mt: 1 }} onClick={() => notifyAccount("Settings saved.")}>Save Settings</Button>
                 </CardContent></Card>
 
                 <Card><CardContent>
@@ -5467,6 +5733,43 @@ function AccountScreen({ locale }: { locale: Locale }) {
           </>
         )}
       </Stack>
+      <Snackbar
+        open={Boolean(accountNotice)}
+        autoHideDuration={2600}
+        onClose={() => setAccountNotice(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={accountNotice?.severity || "success"}
+          variant="standard"
+          onClose={() => setAccountNotice(null)}
+          sx={{
+            width: "100%",
+            minWidth: 260,
+            boxShadow: "0 10px 26px rgba(2,6,23,0.28)",
+            bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.92 : 0.96),
+            border: "1px solid",
+            borderColor: "divider",
+            color: "text.primary",
+            "& .MuiAlert-message": {
+              fontSize: 13,
+              fontWeight: 700,
+              lineHeight: 1.35,
+            },
+            "& .MuiAlert-icon": {
+              color: accountNotice?.severity === "success"
+                ? "success.main"
+                : accountNotice?.severity === "warning"
+                  ? "warning.main"
+                  : accountNotice?.severity === "error"
+                    ? "error.main"
+                    : "info.main",
+            },
+          }}
+        >
+          {accountNotice?.message || ""}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }
@@ -5883,6 +6186,8 @@ export default function App() {
   const [gloves, setGloves] = useState<Artifact[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
+  const [iqModeOpen, setIqModeOpen] = useState(false);
+  const [iqModeSeedQuery, setIqModeSeedQuery] = useState("");
   const [leftRailCollapsed, setLeftRailCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("gloveiq-left-rail-collapsed") === "1";
@@ -6062,6 +6367,19 @@ export default function App() {
     commandPalette.setQuery(query);
     commandPalette.open();
   };
+  const openIQModeDrawer = () => {
+    const routeSeed = route.name === "artifacts"
+      ? "Variants market scan"
+      : route.name === "search"
+        ? "Global search context"
+        : route.name === "variantProfile"
+          ? `Variant ${route.variantId}`
+          : route.name === "gloveProfile"
+            ? `Glove ${route.gloveId}`
+            : "Identifier context";
+    setIqModeSeedQuery(commandPalette.query.trim() || routeSeed);
+    setIqModeOpen(true);
+  };
 
   return (
     <ThemeProvider theme={appTheme}>
@@ -6167,7 +6485,7 @@ export default function App() {
                 onOpenCommandPalette={commandPalette.open}
                 onOpenGlobe={() => openPaletteWithQuery("region")}
                 onOpenBaseball={() => openPaletteWithQuery("brand")}
-                onOpenIQMode={() => openPaletteWithQuery("iq mode")}
+                onOpenIQMode={openIQModeDrawer}
                 onOpenFilters={() => openPaletteWithQuery("filters")}
               />
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
@@ -6280,6 +6598,11 @@ export default function App() {
         onMove={commandPalette.moveSelection}
         onRun={commandPalette.runSelected}
         onClose={commandPalette.close}
+      />
+      <IQModeDrawer
+        open={iqModeOpen}
+        onClose={() => setIqModeOpen(false)}
+        seedQuery={iqModeSeedQuery}
       />
     </ThemeProvider>
   );

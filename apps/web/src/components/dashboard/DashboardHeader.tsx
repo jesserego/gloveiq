@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -102,7 +102,7 @@ export function SearchInput({
         </IconButton>
       </Tooltip>
       <Button
-        color="inherit"
+        color="success"
         onClick={onOpenIQMode}
         startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}
         sx={{
@@ -111,13 +111,18 @@ export function SearchInput({
           px: 1.15,
           py: 0.5,
           border: "1px solid",
-          borderColor: "divider",
-          bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9),
+          borderColor: alpha(theme.palette.success.main, 0.55),
+          bgcolor: alpha(theme.palette.success.main, isDark ? 0.22 : 0.16),
           fontSize: 11,
           fontWeight: 700,
           minWidth: 84,
           flexShrink: 0,
           whiteSpace: "nowrap",
+          color: theme.palette.success.main,
+          "&:hover": {
+            borderColor: alpha(theme.palette.success.main, 0.72),
+            bgcolor: alpha(theme.palette.success.main, isDark ? 0.28 : 0.2),
+          },
         }}
       >
         IQ Mode
@@ -211,6 +216,24 @@ export function ProfileMenu({ onOpenAccount }: { onOpenAccount: () => void }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem("gloveiq-avatar") || null;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onAvatarUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string | null }>).detail;
+      if (detail?.avatar) {
+        setAvatarSrc(detail.avatar);
+        return;
+      }
+      setAvatarSrc(window.localStorage.getItem("gloveiq-avatar") || null);
+    };
+    window.addEventListener("gloveiq:avatar-updated", onAvatarUpdate as EventListener);
+    return () => window.removeEventListener("gloveiq:avatar-updated", onAvatarUpdate as EventListener);
+  }, []);
 
   return (
     <>
@@ -223,7 +246,7 @@ export function ProfileMenu({ onOpenAccount }: { onOpenAccount: () => void }) {
           bgcolor: alpha(theme.palette.background.paper, 0.72),
         }}
       >
-        <Avatar sx={{ width: 24, height: 24, fontSize: 12, bgcolor: "primary.main" }}>JR</Avatar>
+        <Avatar src={avatarSrc || undefined} sx={{ width: 24, height: 24, fontSize: 12, bgcolor: alpha(theme.palette.text.secondary, 0.3) }}>JR</Avatar>
       </IconButton>
       <Menu anchorEl={anchorEl} open={open} onClose={() => setAnchorEl(null)} PaperProps={{ sx: { mt: 0.5, borderRadius: 2, minWidth: 190 } }}>
         <MenuItem onClick={() => { onOpenAccount(); setAnchorEl(null); }}>Profile</MenuItem>
@@ -296,9 +319,7 @@ export default function DashboardHeader({
                 <TuneRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Box sx={{ display: { xs: "none", md: "inline-flex" } }}>
-              <TierBadge tier={tier} onClick={() => setUpgradeOpen(true)} />
-            </Box>
+            <Box sx={{ display: { xs: "none", md: "inline-flex" }, width: 94 }} />
             <NotificationBell />
             <ProfileMenu onOpenAccount={onOpenAccount} />
           </Stack>
