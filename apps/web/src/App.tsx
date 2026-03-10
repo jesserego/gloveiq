@@ -388,7 +388,6 @@ function ResultsGrid({
             {(row.chips[0] || row.title).slice(0, 2)}
           </Box>
           <Typography sx={{ fontWeight: 800 }} noWrap>{row.title}</Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>{row.subtitle}</Typography>
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.7 }}>
             <Typography variant="caption" color="text.secondary">Avg sale:</Typography>
             <Typography variant="caption" sx={{ fontWeight: 800 }}>
@@ -914,7 +913,7 @@ function SearchResultsPage({
       record_type: "variant",
       title: v.display_name,
       subtitle: `${v.brand_key} • ${v.model_code || "model n/a"}`,
-      chips: [v.brand_key, v.model_code || "—", v.web || "web ?", v.made_in || "origin ?", String(v.year || "")].filter(Boolean),
+      chips: [v.made_in || "Unknown", v.display_name || "Unknown", v.web || "Unknown", v.leather || "Unknown"].filter(Boolean),
       meta: {
         brand: v.brand_key,
         region: regionFromOrigin(v.made_in),
@@ -957,7 +956,12 @@ function SearchResultsPage({
       record_type: "artifact",
       title: g.model_code || g.id,
       subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
-      chips: [g.brand_key || "Unknown", g.model_code || "—", g.position || "position ?", g.size_in ? String(g.size_in) : "size ?", g.source || ""].filter(Boolean),
+      chips: [
+        g.made_in || "Unknown",
+        g.model_code || g.id || "Unknown",
+        webBucket(g.model_code),
+        "Unknown",
+      ].filter(Boolean),
       thumbnail: g.photos?.[0]?.url,
       meta: {
         brand: String(g.brand_key || "Unknown"),
@@ -4587,15 +4591,13 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                             </Box>
                             <Box sx={{ minWidth: 0 }}>
                               <Typography sx={{ fontWeight: 900 }} noWrap>{variant.display_name}</Typography>
-                              <Typography variant="body2" color="text.secondary" noWrap>
-                                {variant.variant_id} • {variant.brand_key} • {variant.model_code || "model n/a"} • {variant.year}
-                              </Typography>
                             </Box>
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                            <Chip size="small" label={`${relatedArtifacts.length} artifacts`} />
-                            <Chip size="small" label={`${verifiedCountForVariant} verified`} color={verifiedCountForVariant ? "success" : "warning"} />
-                            <Chip size="small" label={`Made in ${variant.made_in || "Unknown"}`} />
+                            <Chip size="small" label={`Origin: ${variant.made_in || "Unknown"}`} />
+                            <Chip size="small" label={`Variant: ${variant.variant_id || "Unknown"}`} />
+                            <Chip size="small" label={`Web: ${variant.web || "Unknown"}`} />
+                            <Chip size="small" label={`Leather: ${variant.leather || "Unknown"}`} />
                           </Stack>
                         </Box>
                         <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
