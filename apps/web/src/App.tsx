@@ -338,12 +338,12 @@ function ResultsGrid({
   selectedId,
   onSelect,
 }: {
-  rows: SearchResult[];
+  rows: Array<SearchResult & { meta: { avgSalePrice: number | null; trendPct: number; activeListings: number } }>;
   selectedId: string | null;
   onSelect: (row: SearchResult) => void;
 }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(3,minmax(0,1fr))", xl: "repeat(4,minmax(0,1fr))" }, gap: 1.2 }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(4,minmax(0,1fr))" }, gap: 1.2 }}>
       {rows.map((row) => (
         <Box
           key={row.id}
@@ -389,6 +389,33 @@ function ResultsGrid({
           </Box>
           <Typography sx={{ fontWeight: 800 }} noWrap>{row.title}</Typography>
           <Typography variant="body2" color="text.secondary" noWrap>{row.subtitle}</Typography>
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.7 }}>
+            <Typography variant="caption" color="text.secondary">Avg sale:</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+              {row.meta.avgSalePrice != null ? money(row.meta.avgSalePrice) : "n/a"}
+            </Typography>
+          </Stack>
+          <Stack direction="row" alignItems="center" spacing={0.45} sx={{ mt: 0.45 }}>
+            {row.meta.trendPct > 0.15 ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: "success.main" }} /> : null}
+            {row.meta.trendPct < -0.15 ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: "error.main" }} /> : null}
+            {row.meta.trendPct <= 0.15 && row.meta.trendPct >= -0.15 ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: "text.secondary" }} /> : null}
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: 800,
+                color: row.meta.trendPct > 0.15 ? "success.main" : row.meta.trendPct < -0.15 ? "error.main" : "text.secondary",
+              }}
+            >
+              {row.meta.trendPct > 0 ? "+" : ""}
+              {row.meta.trendPct.toFixed(1)}%
+            </Typography>
+          </Stack>
+          <Stack direction="row" alignItems="center" spacing={0.45} sx={{ mt: 0.45 }}>
+            <LocalOfferIcon sx={{ fontSize: 14, color: row.meta.activeListings > 0 ? "success.main" : "text.disabled" }} />
+            <Typography variant="caption" color="text.secondary">
+              {row.meta.activeListings} for sale
+            </Typography>
+          </Stack>
           <Stack direction="row" sx={{ mt: 0.85, flexWrap: "wrap", gap: 0.7, alignItems: "center" }}>
             {row.chips.map((chip) => <Chip key={`${row.id}-${chip}`} size="small" label={chip} sx={FIGMA_TAG_BASE_SX} />)}
           </Stack>
@@ -810,11 +837,23 @@ function SearchResultsPage({
       position: string;
       series: string;
       priceBucket: string;
+      avgSalePrice: number | null;
+      trendPct: number;
+      activeListings: number;
       recordType: "variant" | "artifact";
     };
   };
 
   const rows = useMemo<SearchResultRow[]>(() => {
+    const normalizeToken = (value: string | null | undefined) => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const salesByVariant = new Map<string, SaleRecord[]>();
+    for (const sale of sales) {
+      const list = salesByVariant.get(sale.variant_id) || [];
+      list.push(sale);
+      salesByVariant.set(sale.variant_id, list);
+    }
+    salesByVariant.forEach((list) => list.sort((a, b) => b.sale_date.localeCompare(a.sale_date)));
+
     const seriesFromModel = (model: string | null | undefined) => {
       const raw = String(model || "").trim();
       if (!raw) return "Unknown";
@@ -889,6 +928,27 @@ function SearchResultsPage({
         position: "Other",
         series: seriesFromModel(v.model_code),
         priceBucket: "Unknown",
+        avgSalePrice: (() => {
+          const variantSales = salesByVariant.get(v.variant_id) || [];
+          return variantSales.length
+            ? variantSales.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0) / variantSales.length
+            : null;
+        })(),
+        trendPct: (() => {
+          const variantSales = salesByVariant.get(v.variant_id) || [];
+          const latestSale = variantSales[0] || null;
+          const previousSale = variantSales[1] || null;
+          if (!latestSale || !previousSale || previousSale.price_usd <= 0) return 0;
+          return Number((((latestSale.price_usd - previousSale.price_usd) / previousSale.price_usd) * 100).toFixed(1));
+        })(),
+        activeListings: (() => {
+          const modelToken = normalizeToken(v.model_code);
+          return gloves.filter((g) => {
+            if (!v.brand_key || !v.model_code) return false;
+            return String(g.brand_key || "").toUpperCase() === String(v.brand_key || "").toUpperCase()
+              && normalizeToken(g.model_code) === modelToken;
+          }).length;
+        })(),
         recordType: "variant",
       },
     }));
@@ -912,6 +972,9 @@ function SearchResultsPage({
         position: positionBucket(g.position),
         series: seriesFromModel(g.model_code),
         priceBucket: priceBucket(g.valuation_estimate || g.valuation_high || g.valuation_low),
+        avgSalePrice: g.valuation_estimate ?? null,
+        trendPct: 0,
+        activeListings: 1,
         recordType: "artifact",
       },
     }));
@@ -932,12 +995,15 @@ function SearchResultsPage({
           position: "Other",
           series: "Unknown",
           priceBucket: "Unknown",
+          avgSalePrice: null,
+          trendPct: 0,
+          activeListings: 0,
           recordType: row.record_type === "variant" ? "variant" : "artifact",
         },
       }));
     }
     return merged;
-  }, [variants, gloves]);
+  }, [variants, gloves, sales]);
 
   const sportOptions = useMemo(() => ["Baseball", "Softball", "Rubberball"], []);
   const brandOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.meta.brand))).filter((v) => v !== "Unknown"), [rows]);
@@ -4450,17 +4516,17 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 <Chip label={artifactExpanded ? `${visibleArtifacts.length} shown (page ${artifactPage}/${artifactPageCount})` : `${visibleArtifacts.length} shown`} />
               </Stack>
               <Divider sx={{ my: 2 }} />
-              <Stack spacing={1.25}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", lg: "repeat(4,minmax(0,1fr))" }, gap: 1.1 }}>
                 {visibleArtifacts.map((variant) => {
                   const relatedArtifacts = artifactsByVariant.get(variant.variant_id) || [];
                   const firstArtifact = relatedArtifacts[0];
                   const verifiedCountForVariant = relatedArtifacts.filter((a) => isVerified(a)).length;
-                  const avgEstimate = relatedArtifacts
-                    .filter((a) => a.valuation_estimate != null)
-                    .reduce((sum, a, _, arr) => sum + Number(a.valuation_estimate || 0) / arr.length, 0);
                   const variantSales = saleRows
                     .filter((sale) => sale.variant_id === variant.variant_id)
                     .sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+                  const averageSalePrice = variantSales.length
+                    ? variantSales.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0) / variantSales.length
+                    : null;
                   const latestSale = variantSales[0] || null;
                   const previousSale = variantSales[1] || null;
                   const trendPctRaw = latestSale && previousSale && previousSale.price_usd > 0
@@ -4474,7 +4540,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                   return (
                     <Box
                       key={variant.variant_id}
-                      sx={{ p: 1.75, border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                      sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2, minHeight: 228 }}
                     >
                       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.5} alignItems={{ md: "center" }}>
                         <Box sx={{ minWidth: 0 }}>
@@ -4534,20 +4600,23 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                         </Box>
                         <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
                           <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
-                            <Typography sx={{ fontWeight: 900 }}>{relatedArtifacts.some((a) => a.valuation_estimate != null) ? money(avgEstimate) : "—"}</Typography>
+                            <Typography sx={{ fontWeight: 900 }}>{averageSalePrice != null ? money(averageSalePrice) : "—"}</Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {firstArtifact ? `${firstArtifact.id} product page` : "Product page unavailable"}
+                              Average sale price
                             </Typography>
                             <Stack direction="row" spacing={0.45} alignItems="center" justifyContent={{ md: "flex-end" }} sx={{ mt: 0.55 }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Latest sale: {latestSale ? money(latestSale.price_usd) : "n/a"}
-                              </Typography>
                               {isTrendUp ? <TrendingUpRoundedIcon sx={{ fontSize: 14, color: trendColor }} /> : null}
                               {isTrendDown ? <TrendingDownRoundedIcon sx={{ fontSize: 14, color: trendColor }} /> : null}
                               {!isTrendUp && !isTrendDown ? <TrendingFlatRoundedIcon sx={{ fontSize: 14, color: trendColor }} /> : null}
                               <Typography variant="caption" sx={{ color: trendColor, fontWeight: 800 }}>
                                 {trendPct > 0 ? "+" : ""}
                                 {trendPct}%
+                              </Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={{ md: "flex-end" }} sx={{ mt: 0.45 }}>
+                              <LocalOfferIcon sx={{ fontSize: 14, color: relatedArtifacts.length ? "success.main" : "text.disabled" }} />
+                              <Typography variant="caption" color="text.secondary">
+                                {relatedArtifacts.length} for sale
                               </Typography>
                             </Stack>
                           </Box>
@@ -4560,7 +4629,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                 {filteredVariants.length === 0 && !loading ? (
                   <Typography variant="body2" color="text.secondary">No variant products match the current filters.</Typography>
                 ) : null}
-              </Stack>
+              </Box>
               {filteredVariants.length > collapsedSize ? (
                 <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} spacing={1.25} sx={{ mt: 1.5 }}>
                   <Button onClick={() => { setArtifactExpanded((prev) => !prev); if (artifactExpanded) setArtifactPage(1); }}>
