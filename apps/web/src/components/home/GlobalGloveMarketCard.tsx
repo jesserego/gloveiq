@@ -3,11 +3,9 @@ import { Box, Divider, Stack, Typography } from "@mui/material";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
 import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
-import { alpha } from "@mui/material/styles";
 import { Card, CardContent } from "../../ui/Primitives";
-import { hexToRgba, readChartThemeTokens } from "../../lib/chartjsTheme";
+import { readChartThemeTokens } from "../../lib/chartjsTheme";
 import { compactCurrency, type HomeWindowKey } from "../../lib/homeMarketUtils";
-import { ThemedLineChart } from "../charts/ThemedCharts";
 import WindowFilterMenu from "./WindowFilterMenu";
 
 export type GlobalCountryRow = {
@@ -29,6 +27,7 @@ const countryFlags: Record<string, string> = {
   Japan: "🇯🇵",
   Australia: "🇦🇺",
   Brazil: "🇧🇷",
+  Mexico: "🇲🇽",
   Argentina: "🇦🇷",
   Colombia: "🇨🇴",
 };
@@ -40,6 +39,13 @@ const FALLBACK_ROWS: GlobalCountryRow[] = [
   { country: "Germany", value: 221700, count: 742, change_pct: 1.8, is_dummy: true },
   { country: "Canada", value: 206100, count: 689, change_pct: 2.1, is_dummy: true },
   { country: "Australia", value: 184500, count: 618, change_pct: 1.4, is_dummy: true },
+  { country: "France", value: 176400, count: 571, change_pct: 1.7, is_dummy: true },
+  { country: "Italy", value: 169300, count: 542, change_pct: 1.3, is_dummy: true },
+  { country: "Spain", value: 163100, count: 521, change_pct: 1.2, is_dummy: true },
+  { country: "Brazil", value: 159400, count: 513, change_pct: 2.4, is_dummy: true },
+  { country: "Mexico", value: 152600, count: 492, change_pct: 2.2, is_dummy: true },
+  { country: "Argentina", value: 145200, count: 468, change_pct: 1.1, is_dummy: true },
+  { country: "Colombia", value: 139500, count: 441, change_pct: 0.9, is_dummy: true },
 ];
 
 type TrendDirection = "up" | "down" | "flat";
@@ -65,10 +71,10 @@ export default function GlobalGloveMarketCard({
   windowOptions: Array<{ key: HomeWindowKey; label: string }>;
   onSelectWindow: (key: HomeWindowKey) => void;
 }) {
-  const tokens = readChartThemeTokens();
+  readChartThemeTokens();
   const usingDummy = rows.length === 0;
   const displayRows = useMemo(
-    () => (usingDummy ? FALLBACK_ROWS : [...rows].sort((a, b) => b.value - a.value).slice(0, 8)),
+    () => (usingDummy ? FALLBACK_ROWS : [...rows].sort((a, b) => b.value - a.value).slice(0, 13)),
     [rows, usingDummy],
   );
   const computedTotalValue = usingDummy
@@ -77,49 +83,6 @@ export default function GlobalGloveMarketCard({
   const computedTotalCount = usingDummy
     ? displayRows.reduce((sum, row) => sum + row.count, 0)
     : totalCount;
-  const avgChange = displayRows.reduce((sum, row) => sum + row.change_pct, 0) / Math.max(displayRows.length, 1);
-  const avgSalePrice = computedTotalValue / Math.max(computedTotalCount, 1);
-  const trendLabels = useMemo(
-    () => Array.from({ length: 12 }).map((_, idx) => `W${idx + 1}`),
-    [],
-  );
-  const seriesPalette = [
-    tokens.chart1,
-    tokens.chart2,
-    tokens.chart3,
-    tokens.chart4,
-    tokens.accent,
-    tokens.positive,
-    hexToRgba(tokens.chart1, 0.7),
-    hexToRgba(tokens.chart2, 0.7),
-  ];
-  const countryTrendDatasets = useMemo(() => (
-    displayRows.map((row, countryIdx) => {
-      const color = seriesPalette[countryIdx % seriesPalette.length];
-      const avgTicket = row.value / Math.max(row.count, 1);
-      const growthBias = row.change_pct / 100;
-      const variance = Math.max(2, Math.min(12, avgTicket * 0.04));
-      const points = trendLabels.map((_, pointIdx) => {
-        const progress = pointIdx / Math.max(trendLabels.length - 1, 1);
-        const seasonality = Math.sin((pointIdx + countryIdx) * 0.78) * variance;
-        const drift = ((progress - 0.5) * 2) * variance * growthBias * 6;
-        return Number((avgTicket + seasonality + drift).toFixed(1));
-      });
-
-      return {
-        label: row.country,
-        data: points,
-        borderColor: color,
-        backgroundColor: hexToRgba(color, tokens.isDark ? 0.1 : 0.14),
-        pointBackgroundColor: color,
-        pointRadius: 1.8,
-        pointHoverRadius: 3.4,
-        borderWidth: 1.9,
-        fill: false,
-        tension: 0.3,
-      };
-    })
-  ), [displayRows, trendLabels, tokens.isDark, seriesPalette]);
 
   const renderTrend = (changePct: number) => {
     const direction = getTrendDirection(changePct);
@@ -150,69 +113,77 @@ export default function GlobalGloveMarketCard({
       </Stack>
 
       <Divider sx={{ mb: 1.1 }} />
-
-      <Stack direction={{ xs: "column", md: "row" }} spacing={1.1} alignItems={{ md: "flex-end" }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h3" sx={{ fontWeight: 900 }}>{compactCurrency(computedTotalValue)}</Typography>
-          <Typography variant="body2" color="text.secondary">{computedTotalCount.toLocaleString()} tracked sales in selected window</Typography>
-        </Box>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3,minmax(0,1fr))" }, gap: 0.7, width: { xs: "100%", md: 410 } }}>
-          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-            <Typography variant="caption" color="text.secondary">Market momentum</Typography>
-            {renderTrend(Number(avgChange.toFixed(1)))}
-          </Box>
-          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-            <Typography variant="caption" color="text.secondary">Avg sale price</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{compactCurrency(avgSalePrice)}</Typography>
-          </Box>
-          <Box sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-            <Typography variant="caption" color="text.secondary">Active regions</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{displayRows.length}</Typography>
-          </Box>
-        </Box>
-      </Stack>
-
-      <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 0.7 }}>
-        {displayRows.map((row) => (
-          <Box key={row.country} sx={{ p: 0.85, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}>
-            <Typography variant="caption" color="text.secondary">
-              {countryFlags[row.country] ? `${countryFlags[row.country]} ` : ""}
-              {row.country}
-              {row.is_dummy ? " • demo" : ""}
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{compactCurrency(row.value)}</Typography>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
-              {renderTrend(row.change_pct)}
-            </Stack>
-          </Box>
-        ))}
-      </Box>
-
-      <Box sx={{ mt: 1.2, p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.2, bgcolor: alpha(tokens.bgCard, tokens.isDark ? 0.48 : 0.66) }}>
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.4, display: "block" }}>
-          Country trend lines for displayed regions
-        </Typography>
-        <ThemedLineChart
-          data={{
-            labels: trendLabels,
-            datasets: countryTrendDatasets,
+      <Box sx={{ mt: 0.4, display: "flex", gap: 0.7, alignItems: "stretch", flexWrap: "nowrap" }}>
+        <Box
+          sx={{
+            p: 0.95,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1.1,
+            minWidth: { xs: 220, sm: 240 },
+            flex: "0 0 270px",
           }}
-          options={{
-            plugins: {
-              legend: {
-                display: true,
-                position: "bottom",
-                labels: { usePointStyle: true, pointStyle: "line", boxWidth: 12 },
+        >
+          <Typography variant="h4" sx={{ fontWeight: 900 }}>{compactCurrency(computedTotalValue)}</Typography>
+          <Typography variant="caption" color="text.secondary">{computedTotalCount.toLocaleString()} tracked sales in selected window</Typography>
+        </Box>
+        <Box
+          sx={{
+            position: "relative",
+            minWidth: 0,
+            flex: "1 1 auto",
+            overflow: "hidden",
+            borderRadius: 1.1,
+            maskImage: "linear-gradient(90deg, transparent 0%, black 7%, black 93%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(90deg, transparent 0%, black 7%, black 93%, transparent 100%)",
+            "@media (prefers-reduced-motion: reduce)": {
+              overflowX: "auto",
+              maskImage: "none",
+              WebkitMaskImage: "none",
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              gap: 0.7,
+              width: "max-content",
+              animation: "gloveiq-country-marquee 52s linear infinite",
+              "@keyframes gloveiq-country-marquee": {
+                "0%": { transform: "translateX(0)" },
+                "100%": { transform: "translateX(calc(-50% - 0.35rem))" },
               },
-            },
-            scales: {
-              x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } },
-              y: { grid: { color: hexToRgba(tokens.border, tokens.isDark ? 0.28 : 0.4) }, ticks: { maxTicksLimit: 5 } },
-            },
-          }}
-          height={{ xs: 170, sm: 190, md: 210 }}
-        />
+              "@media (prefers-reduced-motion: reduce)": {
+                animation: "none",
+              },
+            }}
+          >
+            {[...displayRows, ...displayRows].map((row, idx) => (
+              <Box
+                key={`${row.country}-${idx}`}
+                sx={{
+                  p: 0.85,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1.1,
+                  minWidth: 156,
+                  backgroundColor: "background.paper",
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {countryFlags[row.country] ? `${countryFlags[row.country]} ` : ""}
+                  {row.country}
+                  {row.is_dummy ? " • demo" : ""}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{compactCurrency(row.value)}</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="caption" color="text.secondary">{row.count} sales</Typography>
+                  {renderTrend(row.change_pct)}
+                </Stack>
+              </Box>
+            ))}
+          </Box>
+        </Box>
       </Box>
     </CardContent></Card>
   );

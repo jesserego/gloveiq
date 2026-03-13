@@ -22,6 +22,11 @@ import { FeatureKey, featureMinTier, hasFeature } from "./lib/features";
 import { useTier } from "./providers/TierProvider";
 import { applyChartJsDefaults, hexToRgba, initChartThemeSync, readChartThemeTokens } from "./lib/chartjsTheme";
 import { HOME_WINDOW_OPTIONS, percentChange, type HomeWindowKey } from "./lib/homeMarketUtils";
+import {
+  FREE_HOME_COUNTRY_OPTIONS,
+  type HomeBrandKey,
+  type HomeCountryKey,
+} from "./mock/freeHomeDashboardData";
 
 import {
   Accordion,
@@ -1480,6 +1485,8 @@ function SearchScreen({
   brands,
   families,
   patterns,
+  selectedBrand,
+  selectedCountry,
   onOpenArtifact,
   onOpenBrandProfile,
 }: {
@@ -1487,6 +1494,8 @@ function SearchScreen({
   brands: BrandConfig[];
   families: FamilyRecord[];
   patterns: PatternRecord[];
+  selectedBrand: HomeBrandKey;
+  selectedCountry: HomeCountryKey;
   onOpenArtifact: (id: string) => void;
   onOpenBrandProfile: (brandKey: string) => void;
 }) {
@@ -2017,7 +2026,7 @@ function SearchScreen({
         {homeLoading ? <LinearProgress /> : null}
         {homeErr ? <Typography color="error">{homeErr}</Typography> : null}
 
-        <FreeTierDashboard tier={tier} />
+        <FreeTierDashboard tier={tier} selectedBrand={selectedBrand} selectedCountry={selectedCountry} />
 
         {false && tier !== Tier.FREE ? (
           <>
@@ -5107,6 +5116,20 @@ function AppraisalScreen({ locale }: { locale: Locale }) {
 }
 
 function AccountScreen({ locale }: { locale: Locale }) {
+  const buildInitialProfile = (currentLocale: Locale) => ({
+    fullName: "Jesse Rego",
+    displayName: "Jesse",
+    email: "jesse@gloveiq.ai",
+    phone: "+1 (555) 014-2456",
+    company: "GloveIQ",
+    role: "Founder",
+    timezone: "America/Los_Angeles",
+    locale: currentLocale,
+    city: "San Francisco",
+    country: "United States",
+    website: "https://gloveiq.ai",
+    bio: "Collector and builder focused on explainable glove valuation.",
+  });
   const [authStep, setAuthStep] = useState<"login" | "2fa" | "done">("done");
   const [loginForm, setLoginForm] = useState({ email: "", password: "", remember: true, trustDevice: false });
   const [otpCode, setOtpCode] = useState("246810");
@@ -5117,20 +5140,9 @@ function AccountScreen({ locale }: { locale: Locale }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUploadProgress, setAvatarUploadProgress] = useState(0);
   const [avatarUploadPhotoId, setAvatarUploadPhotoId] = useState<string | null>(null);
-  const [profile, setProfile] = useState({
-    fullName: "Jesse Rego",
-    displayName: "Jesse",
-    email: "jesse@gloveiq.ai",
-    phone: "+1 (555) 014-2456",
-    company: "GloveIQ",
-    role: "Founder",
-    timezone: "America/Los_Angeles",
-    locale: locale,
-    city: "San Francisco",
-    country: "United States",
-    website: "https://gloveiq.ai",
-    bio: "Collector and builder focused on explainable glove valuation.",
-  });
+  const [profile, setProfile] = useState(() => buildInitialProfile(locale));
+  const [savedProfile, setSavedProfile] = useState(() => buildInitialProfile(locale));
+  const [profileEditEnabled, setProfileEditEnabled] = useState(false);
   const [security, setSecurity] = useState({
     twoFactorEnabled: false,
     twoFactorMethod: "auth_app" as "auth_app" | "sms",
@@ -5182,6 +5194,20 @@ function AccountScreen({ locale }: { locale: Locale }) {
     if (security.payoutLock) score += 5;
     return Math.min(100, score);
   }, [security.twoFactorEnabled, security.backupCodes, security.deviceAlerts, security.payoutLock]);
+  const profileDirty = useMemo(() => JSON.stringify(profile) !== JSON.stringify(savedProfile), [profile, savedProfile]);
+  const secondarySaveButtonSx = {
+    minHeight: 0,
+    py: 0.5,
+    px: 1.1,
+    border: "1px solid",
+    borderColor: "divider",
+    bgcolor: (theme: any) => alpha(theme.palette.secondary.main, theme.palette.mode === "dark" ? 0.2 : 0.12),
+    color: "text.primary",
+    "&:hover": {
+      borderColor: "secondary.main",
+      bgcolor: (theme: any) => alpha(theme.palette.secondary.main, theme.palette.mode === "dark" ? 0.28 : 0.18),
+    },
+  };
 
   const notifyAccount = (message: string, severity: "success" | "info" | "warning" | "error" = "success") => {
     setAccountNotice({ message, severity });
@@ -5231,8 +5257,13 @@ function AccountScreen({ locale }: { locale: Locale }) {
   }
 
   function saveProfile() {
+    setSavedProfile(profile);
+    setProfileEditEnabled(false);
     notifyAccount("Profile details saved.");
   }
+  const enableProfileEditing = () => {
+    if (!profileEditEnabled) setProfileEditEnabled(true);
+  };
 
   function updatePassword() {
     if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
@@ -5459,7 +5490,7 @@ function AccountScreen({ locale }: { locale: Locale }) {
             {section === "profile" ? (
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "0.9fr 1.3fr" }, gap: 2 }}>
                 <Card><CardContent>
-                  <Stack spacing={1.1} alignItems="center">
+                  <Stack spacing={1.45} alignItems="center">
                     <Box sx={{ position: "relative" }}>
                       <Avatar
                         src={avatarPreview || undefined}
@@ -5516,88 +5547,97 @@ function AccountScreen({ locale }: { locale: Locale }) {
                       }}
                       sx={{
                         width: "100%",
-                        p: 1.1,
+                        minHeight: 156,
+                        p: 1.6,
                         borderRadius: 1.4,
                         border: "1px dashed",
                         borderColor: "divider",
                         bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.48 : 0.82),
                         cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                         "&:hover": { borderColor: "primary.main" },
                       }}
                     >
-                      <Stack direction="row" spacing={0.8} alignItems="center">
-                        <CloudUploadRoundedIcon fontSize="small" />
+                      <Stack direction="column" spacing={0.6} alignItems="center" sx={{ textAlign: "center" }}>
+                        <CloudUploadRoundedIcon sx={{ fontSize: 22 }} />
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 800 }}>Upload avatar image</Typography>
                           <Typography variant="caption" color="text.secondary">PNG, JPG, WEBP • up to 8MB</Typography>
                         </Box>
                       </Stack>
                     </Box>
-                    <Stack direction="row" spacing={0.8} sx={{ width: "100%" }}>
-                      <Button color="inherit" sx={{ flex: 1 }} onClick={() => document.getElementById("avatar-upload-input")?.click()}>
-                        Choose file
-                      </Button>
-                      <Button sx={{ flex: 1 }} disabled={!avatarFile || avatarUploading} onClick={uploadAvatar}>
-                        {avatarUploading ? "Uploading..." : "Save avatar"}
-                      </Button>
+                    {avatarUploading || avatarUploadProgress > 0 ? <LinearProgress variant="determinate" value={avatarUploadProgress || 6} sx={{ width: "100%", mt: -0.1 }} /> : null}
+                    <Stack direction="row" spacing={0.8} sx={{ width: "100%", flexWrap: "wrap", justifyContent: "center" }}>
+                      {avatarFile ? <Chip size="small" label={avatarFile.name} /> : null}
+                      {avatarUploadPhotoId ? <Chip size="small" color="success" label={`Uploaded • ${avatarUploadPhotoId}`} /> : null}
+                      <Chip size="small" label={`Sessions: ${activeSessions.length}`} />
                     </Stack>
-                    {avatarUploading || avatarUploadProgress > 0 ? <LinearProgress variant="determinate" value={avatarUploadProgress || 6} sx={{ width: "100%" }} /> : null}
-                    {avatarFile ? <Chip size="small" label={avatarFile.name} /> : null}
-                    {avatarUploadPhotoId ? <Chip size="small" color="success" label={`Uploaded • ${avatarUploadPhotoId}`} /> : null}
-                    <Chip size="small" label={`Sessions: ${activeSessions.length}`} />
+                    <Box sx={{ width: "100%", display: "flex", justifyContent: "flex-start" }}>
+                      <Button
+                        color="inherit"
+                        size="small"
+                        sx={secondarySaveButtonSx}
+                        disabled={!avatarFile || avatarUploading}
+                        onClick={uploadAvatar}
+                      >
+                        {avatarUploading ? "Uploading..." : "Save"}
+                      </Button>
+                    </Box>
                   </Stack>
                 </CardContent></Card>
-                <Card><CardContent>
+                <Card>
+                  <CardContent sx={{ opacity: profileEditEnabled ? 1 : 0.9 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Profile and Personal Data</Typography>
                   <Divider sx={{ my: 1.5 }} />
+                  {!profileEditEnabled ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.1 }}>
+                      Click any input field to edit profile details.
+                    </Typography>
+                  ) : null}
                   <Box
                     sx={{
                       display: "grid",
                       gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                       columnGap: 1.25,
-                      rowGap: 1.55,
+                      rowGap: 2.15,
                       "& .MuiInputBase-root": {
-                        minHeight: 42,
+                        minHeight: 46,
                       },
                     }}
                   >
-                    <TextField size="small" label="Full name" value={profile.fullName} onChange={(e) => setProfile((s) => ({ ...s, fullName: e.target.value }))} />
-                    <TextField size="small" label="Display name" value={profile.displayName} onChange={(e) => setProfile((s) => ({ ...s, displayName: e.target.value }))} />
-                    <TextField size="small" label="Email" value={profile.email} onChange={(e) => setProfile((s) => ({ ...s, email: e.target.value }))} />
-                    <TextField size="small" label="Phone" value={profile.phone} onChange={(e) => setProfile((s) => ({ ...s, phone: e.target.value }))} />
-                    <TextField size="small" label="Company" value={profile.company} onChange={(e) => setProfile((s) => ({ ...s, company: e.target.value }))} />
-                    <TextField size="small" label="Role" value={profile.role} onChange={(e) => setProfile((s) => ({ ...s, role: e.target.value }))} />
-                    <TextField size="small" label="City" value={profile.city} onChange={(e) => setProfile((s) => ({ ...s, city: e.target.value }))} />
-                    <TextField size="small" label="Country" value={profile.country} onChange={(e) => setProfile((s) => ({ ...s, country: e.target.value }))} />
-                    <TextField size="small" label="Website" value={profile.website} onChange={(e) => setProfile((s) => ({ ...s, website: e.target.value }))} />
-                    <TextField size="small" label="Timezone" value={profile.timezone} onChange={(e) => setProfile((s) => ({ ...s, timezone: e.target.value }))} />
-                    <FormControl size="small">
-                      <Select value={profile.locale} onChange={(e) => setProfile((s) => ({ ...s, locale: e.target.value as Locale }))}>
+                    <TextField size="small" label="Full name" value={profile.fullName} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, fullName: e.target.value }))} />
+                    <TextField size="small" label="Display name" value={profile.displayName} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, displayName: e.target.value }))} />
+                    <TextField size="small" label="Email" value={profile.email} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, email: e.target.value }))} />
+                    <TextField size="small" label="Phone" value={profile.phone} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, phone: e.target.value }))} />
+                    <TextField size="small" label="Company" value={profile.company} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, company: e.target.value }))} />
+                    <TextField size="small" label="Role" value={profile.role} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, role: e.target.value }))} />
+                    <TextField size="small" label="City" value={profile.city} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, city: e.target.value }))} />
+                    <TextField size="small" label="Country" value={profile.country} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, country: e.target.value }))} />
+                    <TextField size="small" label="Website" value={profile.website} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, website: e.target.value }))} />
+                    <TextField size="small" label="Timezone" value={profile.timezone} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, timezone: e.target.value }))} />
+                    <FormControl size="small" onMouseDown={enableProfileEditing}>
+                      <Select disabled={!profileEditEnabled} value={profile.locale} onChange={(e) => setProfile((s) => ({ ...s, locale: e.target.value as Locale }))}>
                         <MenuItem value="en">English</MenuItem>
                         <MenuItem value="ja">Japanese</MenuItem>
                       </Select>
                     </FormControl>
                   </Box>
-                  <TextField size="small" label="Bio" value={profile.bio} onChange={(e) => setProfile((s) => ({ ...s, bio: e.target.value }))} multiline minRows={3} fullWidth sx={{ mt: 1.25 }} />
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
+                  <TextField size="small" label="Bio" value={profile.bio} onFocus={enableProfileEditing} inputProps={{ readOnly: !profileEditEnabled }} onChange={(e) => setProfile((s) => ({ ...s, bio: e.target.value }))} multiline minRows={3} fullWidth sx={{ mt: 1.85 }} />
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.65 }}>
                     <Button
                       color="inherit"
                       size="small"
-                      sx={{ minHeight: 0, py: 0.5, px: 1.1, border: "1px solid", borderColor: "divider" }}
+                      sx={secondarySaveButtonSx}
+                      disabled={!profileEditEnabled || !profileDirty}
                       onClick={saveProfile}
                     >
-                      Save Profile
-                    </Button>
-                    <Button
-                      color="inherit"
-                      size="small"
-                      sx={{ minHeight: 0, py: 0.5, px: 1.1, border: "1px solid", borderColor: "divider" }}
-                      onClick={() => notifyAccount("Reverted unsaved profile changes for this prototype view.", "info")}
-                    >
-                      Discard
+                      Save
                     </Button>
                   </Stack>
-                </CardContent></Card>
+                  </CardContent>
+                </Card>
               </Box>
             ) : null}
 
@@ -6175,6 +6215,9 @@ export default function App() {
     if (typeof window === "undefined") return "light";
     return (window.localStorage.getItem("gloveiq-theme-mode") as AppThemeMode) || "light";
   });
+  if (typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") !== colorMode) {
+    document.documentElement.setAttribute("data-theme", colorMode);
+  }
   const appTheme = useMemo(() => buildAppTheme(colorMode), [colorMode]);
   const [locale, setLocale] = useState<Locale>("en");
   const [route, setRoute] = useState<Route>(() => routeFromPath(window.location.pathname || "/search"));
@@ -6188,6 +6231,8 @@ export default function App() {
   const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
   const [iqModeOpen, setIqModeOpen] = useState(false);
   const [iqModeSeedQuery, setIqModeSeedQuery] = useState("");
+  const [homeSelectedBrand, setHomeSelectedBrand] = useState<HomeBrandKey>("all");
+  const [homeSelectedCountry, setHomeSelectedCountry] = useState<HomeCountryKey>("all");
   const [leftRailCollapsed, setLeftRailCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("gloveiq-left-rail-collapsed") === "1";
@@ -6230,6 +6275,14 @@ export default function App() {
   const activeTab = routeToTab(route);
   const canOpenCollection = canAccess(Tier.COLLECTOR, tier);
   const collectionLabel = tier === Tier.DEALER ? "My Inventory" : "My Collection";
+  const homeBrandOptions = useMemo(() => {
+    const sorted = [...brands]
+      .sort((a, b) => a.display_name.localeCompare(b.display_name))
+      .map((brand) => ({ key: String(brand.brand_key || "").toLowerCase(), label: brand.display_name }));
+    return [{ key: "all", label: "All brands" }, ...sorted];
+  }, [brands]);
+  const selectedBrandLabel = homeBrandOptions.find((option) => option.key === homeSelectedBrand)?.label || "All brands";
+  const selectedCountryLabel = FREE_HOME_COUNTRY_OPTIONS.find((option) => option.key === homeSelectedCountry)?.label || "All countries";
 
   function onSelectTab(tab: MainTab) {
     if (tab === "artifact") {
@@ -6483,10 +6536,14 @@ export default function App() {
                 onOpenPricing={() => setRoute({ name: "pricing" })}
                 onOpenAccount={() => setRoute({ name: "account" })}
                 onOpenCommandPalette={commandPalette.open}
-                onOpenGlobe={() => openPaletteWithQuery("region")}
-                onOpenBaseball={() => openPaletteWithQuery("brand")}
                 onOpenIQMode={openIQModeDrawer}
                 onOpenFilters={() => openPaletteWithQuery("filters")}
+                selectedCountryLabel={selectedCountryLabel}
+                selectedBrandLabel={selectedBrandLabel}
+                countryOptions={FREE_HOME_COUNTRY_OPTIONS}
+                brandOptions={homeBrandOptions}
+                onSelectCountry={(key) => setHomeSelectedCountry(key as HomeCountryKey)}
+                onSelectBrand={(key) => setHomeSelectedBrand(key as HomeBrandKey)}
               />
               <Box sx={{ flex: 1, overflow: "auto", pb: { xs: 11, md: 2 } }}>
                 <Box key={route.name === "artifactDetail" ? route.artifactId : route.name}>
@@ -6496,6 +6553,8 @@ export default function App() {
                       brands={brands}
                       families={families}
                       patterns={patterns}
+                      selectedBrand={homeSelectedBrand}
+                      selectedCountry={homeSelectedCountry}
                       onOpenArtifact={(id) => {
                         setLastArtifactId(id);
                         setRoute({ name: "artifactDetail", artifactId: id });

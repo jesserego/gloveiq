@@ -34,7 +34,13 @@ import {
   unregisterChartInstance,
 } from "../../lib/chartjsTheme";
 import { ThemedBarChart, ThemedLineChart } from "../charts/ThemedCharts";
-import { FREE_HOME_WINDOW_OPTIONS, useFreeHomeDashboardData, type FreeHomeDashboardData } from "../../mock/freeHomeDashboardData";
+import {
+  FREE_HOME_WINDOW_OPTIONS,
+  useFreeHomeDashboardData,
+  type FreeHomeDashboardData,
+  type HomeBrandKey,
+  type HomeCountryKey,
+} from "../../mock/freeHomeDashboardData";
 import { TIER_DASHBOARD_CONTAINERS, type TierDashboardContainerConfig } from "../../config/tierDashboardContainers";
 import {
   ADVANCED_PRICE_ANALYTICS,
@@ -46,6 +52,7 @@ import {
   PORTFOLIO_OVERVIEW,
   VARIANT_PERFORMANCE,
 } from "../../mock/tierDashboardMocks";
+import GlobalGloveMarketCard from "../home/GlobalGloveMarketCard";
 
 const TIER_RANK: Record<Tier, number> = {
   [Tier.FREE]: 0,
@@ -676,15 +683,28 @@ function ListingsPanel({
                 <TableCell>{row.source}</TableCell>
                 <TableCell>{row.date}</TableCell>
                 <TableCell align="right">
-                  <Button
-                    color="primary"
-                    size="small"
-                    endIcon={<OpenInNewIcon fontSize="inherit" />}
+                  <Box
+                    component="button"
                     onClick={() => window.open(row.url, "_blank", "noopener,noreferrer")}
-                    sx={{ minWidth: 58, px: 1.1, py: 0.25, fontSize: 11, lineHeight: 1.1 }}
+                    sx={{
+                      border: 0,
+                      background: "transparent",
+                      p: 0,
+                      m: 0,
+                      color: "text.secondary",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.45,
+                      cursor: "pointer",
+                      textDecoration: "none",
+                      "&:hover": { color: "primary.main", textDecoration: "underline" },
+                    }}
                   >
                     Link
-                  </Button>
+                    <OpenInNewIcon sx={{ fontSize: 12 }} />
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -1009,9 +1029,17 @@ function LoadingPanel({ height = 260 }: { height?: number }) {
   );
 }
 
-export default function FreeTierDashboard({ tier }: { tier: Tier }) {
+export default function FreeTierDashboard({
+  tier,
+  selectedBrand = "all",
+  selectedCountry = "all",
+}: {
+  tier: Tier;
+  selectedBrand?: HomeBrandKey;
+  selectedCountry?: HomeCountryKey;
+}) {
   const [windowKey, setWindowKey] = useState<HomeWindowKey>("1mo");
-  const { data, isLoading, error, reload } = useFreeHomeDashboardData(windowKey);
+  const { data, isLoading, error, reload } = useFreeHomeDashboardData(windowKey, selectedBrand, selectedCountry);
   const tierRank = TIER_RANK[tier];
   const tierContainers = useMemo(
     () => [...TIER_DASHBOARD_CONTAINERS].sort((a, b) => a.order - b.order),
@@ -1044,6 +1072,21 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
       ) : null}
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(12,minmax(0,1fr))" }, gap: { xs: 1.15, md: 0.9 } }}>
+        <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 300, md: 190 } }}>
+          {isLoading || !data ? (
+            <LoadingPanel height={180} />
+          ) : (
+            <GlobalGloveMarketCard
+              rows={data.global.countries}
+              totalValue={data.global.totalValue}
+              totalCount={data.global.totalCount}
+              selectedWindow={windowKey}
+              windowOptions={FREE_HOME_WINDOW_OPTIONS}
+              onSelectWindow={setWindowKey}
+            />
+          )}
+        </Box>
+
         <Box sx={{ gridColumn: "1 / -1", minHeight: { xs: 300, md: 250 } }}>
           {isLoading || !data ? <LoadingPanel height={250} /> : <MarketSnapshotPanel data={data} selectedWindow={windowKey} onWindow={setWindowKey} />}
         </Box>
@@ -1083,6 +1126,7 @@ export default function FreeTierDashboard({ tier }: { tier: Tier }) {
             </Box>
           );
         })}
+
       </Box>
     </Stack>
   );

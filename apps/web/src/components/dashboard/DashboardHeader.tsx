@@ -38,11 +38,15 @@ export function SearchInput({
   onOpenGlobe,
   onOpenBaseball,
   onOpenIQMode,
+  selectedCountryLabel,
+  selectedBrandLabel,
 }: {
   onActivate: () => void;
-  onOpenGlobe: () => void;
-  onOpenBaseball: () => void;
+  onOpenGlobe: (event: React.MouseEvent<HTMLElement>) => void;
+  onOpenBaseball: (event: React.MouseEvent<HTMLElement>) => void;
   onOpenIQMode: () => void;
+  selectedCountryLabel: string;
+  selectedBrandLabel: string;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -91,12 +95,12 @@ export function SearchInput({
           "&::placeholder": { color: "text.secondary", opacity: 0.95 },
         }}
       />
-      <Tooltip title="Region">
+      <Tooltip title={`Region: ${selectedCountryLabel}`}>
         <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
           <PublicIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
-      <Tooltip title="Brands">
+      <Tooltip title={`Brand: ${selectedBrandLabel}`}>
         <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
           <SportsBaseballIcon sx={{ fontSize: 16 }} />
         </IconButton>
@@ -264,23 +268,33 @@ export default function DashboardHeader({
   onOpenPricing,
   onOpenAccount,
   onOpenCommandPalette,
-  onOpenGlobe,
-  onOpenBaseball,
   onOpenIQMode,
   onOpenFilters,
+  selectedCountryLabel,
+  selectedBrandLabel,
+  countryOptions,
+  brandOptions,
+  onSelectCountry,
+  onSelectBrand,
 }: {
   tier: Tier;
   onOpenPricing: () => void;
   onOpenAccount: () => void;
   onOpenCommandPalette: () => void;
-  onOpenGlobe: () => void;
-  onOpenBaseball: () => void;
   onOpenIQMode: () => void;
   onOpenFilters: () => void;
+  selectedCountryLabel: string;
+  selectedBrandLabel: string;
+  countryOptions: Array<{ key: string; label: string }>;
+  brandOptions: Array<{ key: string; label: string }>;
+  onSelectCountry: (key: string) => void;
+  onSelectBrand: (key: string) => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [countryAnchorEl, setCountryAnchorEl] = useState<HTMLElement | null>(null);
+  const [brandAnchorEl, setBrandAnchorEl] = useState<HTMLElement | null>(null);
 
   return (
     <>
@@ -307,9 +321,11 @@ export default function DashboardHeader({
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
             <SearchInput
               onActivate={onOpenCommandPalette}
-              onOpenGlobe={onOpenGlobe}
-              onOpenBaseball={onOpenBaseball}
+              onOpenGlobe={(event) => setCountryAnchorEl(event.currentTarget)}
+              onOpenBaseball={(event) => setBrandAnchorEl(event.currentTarget)}
               onOpenIQMode={onOpenIQMode}
+              selectedCountryLabel={selectedCountryLabel}
+              selectedBrandLabel={selectedBrandLabel}
             />
           </Box>
 
@@ -325,6 +341,46 @@ export default function DashboardHeader({
           </Stack>
         </Box>
       </Box>
+
+      <Menu
+        anchorEl={countryAnchorEl}
+        open={Boolean(countryAnchorEl)}
+        onClose={() => setCountryAnchorEl(null)}
+        PaperProps={{ sx: { mt: 0.5, borderRadius: 2, minWidth: 220 } }}
+      >
+        {countryOptions.map((option) => (
+          <MenuItem
+            key={option.key}
+            selected={option.label === selectedCountryLabel}
+            onClick={() => {
+              onSelectCountry(option.key);
+              setCountryAnchorEl(null);
+            }}
+          >
+            {option.label}
+          </MenuItem>
+        ))}
+      </Menu>
+
+      <Menu
+        anchorEl={brandAnchorEl}
+        open={Boolean(brandAnchorEl)}
+        onClose={() => setBrandAnchorEl(null)}
+        PaperProps={{ sx: { mt: 0.5, borderRadius: 2, minWidth: 200 } }}
+      >
+        {brandOptions.map((option) => (
+          <MenuItem
+            key={option.key}
+            selected={option.label === selectedBrandLabel}
+            onClick={() => {
+              onSelectBrand(option.key);
+              setBrandAnchorEl(null);
+            }}
+          >
+            {option.label}
+          </MenuItem>
+        ))}
+      </Menu>
 
       <Dialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Upgrade Tier</DialogTitle>
