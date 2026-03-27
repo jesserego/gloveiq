@@ -1,23 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { EBAY_GLOBAL_IDS, fetchEbayMarketplaceRows, persistEbayRows, type EbaySyncMode } from "../src/lib/ebay.js";
 
 const prisma = new PrismaClient();
-
-const brands = [
-  { brand_key: "RAWLINGS", display_name: "Rawlings" },
-  { brand_key: "WILSON", display_name: "Wilson" },
-  { brand_key: "MIZUNO", display_name: "Mizuno" },
-  { brand_key: "ZETT", display_name: "Zett" },
-  { brand_key: "SSK", display_name: "SSK" },
-  { brand_key: "NIKE", display_name: "Nike" },
-  { brand_key: "ADIDAS", display_name: "Adidas" },
-  { brand_key: "MARUCCI", display_name: "Marucci" },
-  { brand_key: "NOKONA", display_name: "Nokona" },
-  { brand_key: "EASTON", display_name: "Easton" },
-  { brand_key: "ALL_STAR", display_name: "All-Star" },
-  { brand_key: "AKADEMA", display_name: "Akadema" },
-  { brand_key: "MARUCHI", display_name: "Marucci" },
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "..");
+const brandsSeedPath = path.join(projectRoot, "data", "seed", "brands.json");
+const brands = JSON.parse(fs.readFileSync(brandsSeedPath, "utf-8")) as Array<{ brand_key: string; display_name: string }>;
 
 function parseGlobalIds(value: string | undefined) {
   const ids = String(value || "")

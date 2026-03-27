@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { HOME_WINDOW_OPTIONS, type HomeWindowKey, percentChange } from "../lib/homeMarketUtils";
+import { api } from "../lib/api";
 
 export type HomeBrandKey = string;
 export type HomeCountryKey =
@@ -319,23 +320,41 @@ export type FreeHomeDashboardLoadState = {
 export function useFreeHomeDashboardData(windowKey: HomeWindowKey, brandKey: HomeBrandKey = "all", countryKey: HomeCountryKey = "all"): FreeHomeDashboardLoadState {
   const [data, setData] = useState<FreeHomeDashboardData | null>(() => buildData(windowKey, brandKey, countryKey));
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    try {
-      setData(buildData(windowKey, brandKey, countryKey));
+    let cancelled = false;
+    const fallback = buildData(windowKey, brandKey, countryKey);
+    setData(fallback);
+    setIsLoading(true);
+    api.homeDashboard({
+      window: windowKey,
+      brand: brandKey,
+      country: countryKey,
+    }).then((next) => {
+      if (cancelled) return;
+      setData(next);
       setError(null);
-    } catch (err) {
+    }).catch((err) => {
+      if (cancelled) return;
+      setData(fallback);
       setError(String((err as Error)?.message || err));
-    }
+    }).finally(() => {
+      if (cancelled) return;
+      setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [windowKey, brandKey, countryKey, nonce]);
 
   return useMemo(() => ({
     data,
-    isLoading: false,
+    isLoading,
     error,
     reload: () => setNonce((value) => value + 1),
-  }), [data, error]);
+  }), [data, error, isLoading]);
 }
 
 export const FREE_HOME_WINDOW_OPTIONS = HOME_WINDOW_OPTIONS.map((option) => ({ key: option.key, label: option.label }));

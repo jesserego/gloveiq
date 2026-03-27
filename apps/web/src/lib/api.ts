@@ -70,6 +70,55 @@ type SalesOptions = {
   globalIds?: string[];
 };
 
+export type HomeDashboardData = {
+  global: {
+    totalValue: number;
+    totalCount: number;
+    countries: Array<{
+      country: string;
+      value: number;
+      count: number;
+      change_pct: number;
+    }>;
+  };
+  marketSnapshot: {
+    sold: { value: number; deltaPct: number; spark: number[] };
+    active: { value: number; deltaPct: number; spark: number[] };
+    sellThrough: { value: number; deltaPct: number; spark: number[] };
+  };
+  priceOverview: {
+    currentMedian: number;
+    medianWindow: number;
+    p10: number;
+    p90: number;
+    deltaPct: number;
+  };
+  salesTrend: {
+    series: Array<{
+      label: string;
+      medianPrice: number;
+      salesCount: number;
+      p10: number;
+      p90: number;
+    }>;
+    windowMedian: number;
+    windowSales: number;
+  };
+  brandModelInsights: {
+    brands: Array<{ brand: string; volume: number }>;
+    trending: Array<{ model: string; trendPct: number }>;
+    fastest: Array<{ model: string; avgDaysToSell: number }>;
+  };
+  listings: Array<{
+    title: string;
+    price: number;
+    source: string;
+    country: string;
+    date: string;
+    url: string;
+  }>;
+};
+
 export type AppraisalAnalyzeResponse = {
   artifactId?: string;
   uploads: Array<{ name: string; photoId: string; deduped: boolean }>;
@@ -276,6 +325,14 @@ export const api = {
     if (opts?.globalIds?.length) params.set("global_ids", opts.globalIds.join(","));
     const suffix = params.toString();
     return json<SaleRecord[]>(`${API_BASE}/sales${suffix ? `?${suffix}` : ""}`);
+  },
+  homeDashboard: (opts?: { window?: string; brand?: string; country?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.window) params.set("window", opts.window);
+    if (opts?.brand) params.set("brand", opts.brand);
+    if (opts?.country) params.set("country", opts.country);
+    const suffix = params.toString();
+    return json<HomeDashboardData>(`${API_BASE}/api/home/dashboard${suffix ? `?${suffix}` : ""}`);
   },
   artifacts: (
     q?: string,

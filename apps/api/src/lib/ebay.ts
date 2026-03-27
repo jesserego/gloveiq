@@ -38,6 +38,9 @@ type CatalogGlove = {
   itemNumber: string | null;
   pattern: string | null;
   canonicalName: string | null;
+  series: string | null;
+  sizeIn: number | null;
+  throwingHand: string | null;
 };
 
 export const EBAY_GLOBAL_IDS = ["EBAY-US", "EBAY-GB", "EBAY-DE", "EBAY-JP", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"];
@@ -46,12 +49,27 @@ function normalizeToken(value: string | null | undefined) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function normalizeBrandKey(value: string | null | undefined) {
+  return normalizeToken(String(value || "").replace(/_(us|jp|dtc|vintage)$/i, ""));
+}
+
 function tokenize(value: string | null | undefined) {
   return String(value || "")
     .toLowerCase()
     .split(/[^a-z0-9]+/g)
     .map((token) => token.trim())
     .filter((token) => token.length >= 3);
+}
+
+function modelCodeCandidates(value: string | null | undefined) {
+  const matches = String(value || "")
+    .toUpperCase()
+    .match(/[A-Z0-9-]{3,}/g) || [];
+  return [...new Set(
+    matches
+      .map((token) => token.replace(/[^A-Z0-9]/g, ""))
+      .filter((token) => /[A-Z]/.test(token) && /\d/.test(token) && token.length >= 3),
+  )];
 }
 
 function inferBrandKeyFromTitle(title: string, brands: BrandSeed[]): string {
@@ -309,7 +327,10 @@ async function loadCatalogGloves(prisma: PrismaClient): Promise<CatalogGlove[]> 
       b.slug AS "brandSlug",
       g.item_number AS "itemNumber",
       g.pattern,
-      g.canonical_name AS "canonicalName"
+      g.canonical_name AS "canonicalName",
+      g.series,
+      g.size_in::float8 AS "sizeIn",
+      g.throwing_hand AS "throwingHand"
     FROM gloves g
     LEFT JOIN brands b ON b.id = g.manufacturer_brand_id
   `);
@@ -320,30 +341,60 @@ function buildMatcher(gloves: CatalogGlove[], brands: BrandSeed[]) {
     const titleNorm = normalizeToken(row.title);
     const titleTokens = new Set(tokenize(row.title));
     const inferredBrand = row.brandKey !== "UNKNOWN" ? row.brandKey : inferBrandKeyFromTitle(row.title, brands);
+    const inferredBrandNorm = normalizeBrandKey(inferredBrand);
+    const titleModelCodes = new Set(modelCodeCandidates(row.title));
 
     const scored = gloves
       .map((glove) => {
         let score = 0;
-        const gloveBrandNorm = normalizeToken(glove.brandName || glove.brandSlug || "");
+        const gloveBrandNorm = normalizeBrandKey(glove.brandName || glove.brandSlug || "");
         const itemNumberNorm = normalizeToken(glove.itemNumber);
         const patternNorm = normalizeToken(glove.pattern);
-        const canonicalTokens = tokenize(glove.canonicalName).filter((token) => !["baseball", "glove"].includes(token));
+        const seriesNorm = normalizeToken(glove.series);
+        const canonicalTokens = tokenize(glove.canonicalName).filter((token) => !["baseball", "glove", "series", "model"].includes(token));
+        const seriesTokens = tokenize(glove.series);
+        const itemNumberTokens = tokenize(String(glove.itemNumber || "").replace(/-/g, " "));
+        const canonicalModelCodes = modelCodeCandidates(glove.canonicalName);
+        const sizeToken = glove.sizeIn ? String(glove.sizeIn).replace(/\.0$/, "") : "";
+        const handToken = String(glove.throwingHand || "").toLowerCase();
 
-        if (inferredBrand !== "UNKNOWN" && gloveBrandNorm && gloveBrandNorm.includes(normalizeToken(inferredBrand))) score += 2;
+        if (inferredBrandNorm && gloveBrandNorm && inferredBrandNorm === gloveBrandNorm) {
+          score += 6;
+        } else if (inferredBrandNorm && gloveBrandNorm && inferredBrandNorm !== gloveBrandNorm) {
+          score -= 4;
+        }
+
         if (itemNumberNorm && titleNorm.includes(itemNumberNorm)) score += 10;
         if (patternNorm && titleNorm.includes(patternNorm)) score += 4;
+        if (seriesNorm && titleNorm.includes(seriesNorm)) score += 4;
+        if (sizeToken && titleTokens.has(sizeToken)) score += 1;
+        if (handToken && titleTokens.has(handToken)) score += 1;
+
+        let codeOverlap = 0;
+        for (const code of canonicalModelCodes) {
+          if (titleModelCodes.has(code)) codeOverlap += 1;
+        }
+        if (codeOverlap > 0) score += 12 + Math.min(4, codeOverlap);
 
         let tokenOverlap = 0;
-        for (const token of canonicalTokens) {
+        for (const token of [...canonicalTokens, ...seriesTokens, ...itemNumberTokens]) {
           if (titleTokens.has(token)) tokenOverlap += 1;
         }
-        score += Math.min(3, tokenOverlap);
+        score += Math.min(6, tokenOverlap);
+
+        if (!itemNumberNorm && !patternNorm && !seriesNorm && codeOverlap === 0 && tokenOverlap < 2) {
+          score -= 2;
+        }
 
         return {
           gloveId: glove.id,
           score,
-          basis: itemNumberNorm && titleNorm.includes(itemNumberNorm)
+          basis: codeOverlap > 0
+            ? "model_code"
+            : itemNumberNorm && titleNorm.includes(itemNumberNorm)
             ? "item_number"
+            : seriesNorm && titleNorm.includes(seriesNorm)
+              ? "series"
             : patternNorm && titleNorm.includes(patternNorm)
               ? "pattern"
               : tokenOverlap > 0

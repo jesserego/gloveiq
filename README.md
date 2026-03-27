@@ -159,6 +159,10 @@ The eBay sync path supports:
 - `EBAY_SYNC_GLOBAL_IDS`
 - `EBAY_SYNC_MODE=active|sold`
 
+Recommended multi-region value:
+
+- `EBAY_SYNC_GLOBAL_IDS=EBAY-US,EBAY-JP,EBAY-GB,EBAY-DE,EBAY-AU,EBAY-CA,EBAY-FR,EBAY-IT,EBAY-ES`
+
 It writes marketplace data into:
 
 - `raw_listing_payloads`
@@ -188,30 +192,30 @@ B2_SIGNING_BASE_URL=https://api.dev.gloveiq.info
 VITE_API_BASE=https://api.dev.gloveiq.info
 ```
 
-## Railway deploy
+## Render deploy
 
-This repo now includes a root-level [railway.json](/Users/jesserego/Documents/GitHub/gloveiq/railway.json) for deploying the API service from the monorepo root.
+This repo now includes a root-level [render.yaml](/Users/jesserego/Documents/GitHub/gloveiq/render.yaml) blueprint for deploying the API service from the monorepo root.
 
-Recommended Railway setup:
+Recommended Render setup:
 
-1. Create a Railway service from this GitHub repo.
+1. Create a Render `Web Service` from this GitHub repo.
 2. Keep the service rooted at the repo root so workspace packages remain available.
-3. Railway will use:
+3. Render will use:
    - build command: `npm install && npm run build:api`
    - start command: `npm run start:api`
-4. Add your API env vars in Railway, especially:
+4. Add your API env vars in Render, especially:
    - `PUBLIC_BASE_URL=https://api.dev.gloveiq.info`
    - `WEB_APP_URL=https://dev.gloveiq.info`
    - `ALLOWED_ORIGINS=https://dev.gloveiq.info`
    - database, Supabase, Backblaze, OpenAI, and eBay secrets
-5. In Railway, add the custom domain `api.dev.gloveiq.info`
+5. In Render, add the custom domain `api.dev.gloveiq.info`
 6. In GoDaddy DNS, point:
    - `Type`: `CNAME`
    - `Name`: `api.dev`
-   - `Value`: the Railway-provided hostname
+   - `Value`: the Render-provided hostname
    - `TTL`: default / 1 hour
 
-Once Railway issues SSL and the domain resolves, eBay webhook validation should use:
+Now that the custom domain is active, eBay webhook validation should use:
 
 - endpoint: `https://api.dev.gloveiq.info/api/integrations/ebay/notifications`
 - verification token: `gloveanalytics_gloveanalytics_2026`

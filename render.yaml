@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: gloveiq-api
+    env: node
+    repo: https://github.com/jesserego/gloveiq
+    branch: main
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start:api
+    plan: free

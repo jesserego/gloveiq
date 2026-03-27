@@ -32,6 +32,26 @@ type ArtifactLike = {
   listing_url?: string | null;
 };
 
+type DbMarketListing = {
+  listingId: string;
+  brandName: string | null;
+  canonicalName: string | null;
+  itemNumber: string | null;
+  series: string | null;
+  title: string | null;
+  priceAmount: number;
+  available: boolean;
+  updatedAt: string;
+};
+
+type DbMarketMetrics = {
+  currentMedian: number | null;
+  p10: number | null;
+  p90: number | null;
+  activeListingsCount: number;
+  lastUpdatedAt: string | null;
+};
+
 type AuthContext = {
   userId: string;
   tier: Tier;
@@ -102,6 +122,29 @@ const INSPECTION_WEIGHTS: Record<(typeof INSPECTION_FACTOR_ORDER)[number], numbe
 
 function normalize(s: unknown): string {
   return String(s || "").trim().toLowerCase();
+}
+
+function normalizeCompact(s: unknown): string {
+  return normalize(s).replace(/[^a-z0-9]+/g, "");
+}
+
+function tokenizeText(s: unknown): string[] {
+  return String(s || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+}
+
+function modelCodeCandidates(value: string | null | undefined) {
+  const matches = String(value || "")
+    .toUpperCase()
+    .match(/[A-Z0-9-]{3,}/g) || [];
+  return [...new Set(
+    matches
+      .map((token) => token.replace(/[^A-Z0-9]/g, ""))
+      .filter((token) => /[A-Z]/.test(token) && /\d/.test(token) && token.length >= 3),
+  )];
 }
 
 function requireAuth(req: RequestWithAuth, res: express.Response, next: express.NextFunction) {
@@ -216,6 +259,100 @@ function calcMetrics(args: {
     salesCount30d: sales30d.length,
     activeListingsCount,
   };
+}
+
+function calcDbMarketMetricsForVariant(variant: VariantLike | undefined, rows: DbMarketListing[]): DbMarketMetrics | null {
+  if (!variant || !rows.length) return null;
+
+  const brandNorm = normalizeCompact(variant.brand_key);
+  const modelCodes = new Set([
+    ...modelCodeCandidates(variant.model_code),
+    ...modelCodeCandidates(variant.display_name),
+  ]);
+  const variantTokens = new Set(
+    tokenizeText(variant.display_name).filter((token) => !["baseball", "glove", "softball"].includes(token)),
+  );
+
+  const matchedRows = rows
+    .map((row) => {
+      let score = 0;
+      const rowBrandNorm = normalizeCompact(row.brandName);
+      const rowCodes = new Set([
+        ...modelCodeCandidates(row.canonicalName),
+        ...modelCodeCandidates(row.itemNumber),
+        ...modelCodeCandidates(row.series),
+        ...modelCodeCandidates(row.title),
+      ]);
+      const rowTokens = new Set([
+        ...tokenizeText(row.canonicalName),
+        ...tokenizeText(row.series),
+        ...tokenizeText(row.title),
+      ]);
+
+      if (brandNorm && rowBrandNorm && brandNorm === rowBrandNorm) score += 4;
+      else if (brandNorm && rowBrandNorm && brandNorm !== rowBrandNorm) score -= 4;
+
+      let codeOverlap = 0;
+      for (const code of modelCodes) if (rowCodes.has(code)) codeOverlap += 1;
+      if (codeOverlap > 0) score += 10 + Math.min(4, codeOverlap);
+
+      let tokenOverlap = 0;
+      for (const token of variantTokens) if (rowTokens.has(token)) tokenOverlap += 1;
+      score += Math.min(4, tokenOverlap);
+
+      return { row, score, codeOverlap, tokenOverlap };
+    })
+    .filter((candidate) => candidate.score >= 8 && (candidate.codeOverlap > 0 || candidate.tokenOverlap >= 2))
+    .map((candidate) => candidate.row);
+
+  if (!matchedRows.length) return null;
+
+  const activeRows = matchedRows.filter((row) => row.available);
+  const activePrices = activeRows.map((row) => Number(row.priceAmount || 0)).filter((price) => price > 0);
+  const prices = (activePrices.length ? activePrices : matchedRows.map((row) => Number(row.priceAmount || 0))).filter((price) => price > 0);
+  const lastUpdatedAt = matchedRows
+    .map((row) => Date.parse(row.updatedAt))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0];
+
+  return {
+    currentMedian: median(prices),
+    p10: percentile(prices, 0.1),
+    p90: percentile(prices, 0.9),
+    activeListingsCount: activeRows.length,
+    lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? new Date(lastUpdatedAt).toISOString() : null,
+  };
+}
+
+async function buildDbMarketOverlay(variants: VariantLike[], prisma: PrismaClient) {
+  if (!variants.length) return new Map<string, DbMarketMetrics>();
+
+  const rows = await prisma.$queryRawUnsafe<DbMarketListing[]>(`
+    SELECT
+      l.id::text AS "listingId",
+      b.name AS "brandName",
+      g.canonical_name AS "canonicalName",
+      g.item_number AS "itemNumber",
+      g.series,
+      l.title,
+      l.price_amount::float8 AS "priceAmount",
+      l.available,
+      l.updated_at::text AS "updatedAt"
+    FROM listing_glove_links lgl
+    INNER JOIN listings l ON l.id = lgl.listing_id
+    INNER JOIN gloves g ON g.id = lgl.glove_id
+    LEFT JOIN brands b ON b.id = g.manufacturer_brand_id
+    LEFT JOIN sources s ON s.id = l.source_id
+    WHERE l.price_amount IS NOT NULL
+      AND COALESCE(s.source_type, '') = 'marketplace'
+  `);
+
+  const overlay = new Map<string, DbMarketMetrics>();
+  for (const variant of variants) {
+    const metrics = calcDbMarketMetricsForVariant(variant, rows);
+    if (metrics) overlay.set(variant.variant_id, metrics);
+  }
+  return overlay;
 }
 
 function csvSplit(line: string): string[] {
@@ -436,12 +573,21 @@ function buildInspectionPayload(body: any) {
   };
 }
 
-function mapCollectionItem(item: CollectionItemRecord | UserCollectionItem, deps: CollectionDeps) {
+function mapCollectionItem(
+  item: CollectionItemRecord | UserCollectionItem,
+  deps: CollectionDeps,
+  dbMarketOverlay?: Map<string, DbMarketMetrics>,
+) {
   const variantById = new Map(deps.variants.map((v) => [v.variant_id, v]));
   const patternsById = new Map(deps.patterns.map((p) => [p.pattern_id, p]));
   const variant = variantById.get(item.variantId);
   const metrics = calcMetrics({ variantId: item.variantId, variant, sales: deps.sales, artifacts: deps.artifacts });
-  const marketValueCents = metrics.currentMedian == null ? null : Math.round(metrics.currentMedian * 100);
+  const dbMetrics = dbMarketOverlay?.get(item.variantId) || null;
+  const currentMedian = dbMetrics?.currentMedian ?? metrics.currentMedian;
+  const p10 = dbMetrics?.p10 ?? metrics.p10;
+  const p90 = dbMetrics?.p90 ?? metrics.p90;
+  const activeListingsCount = dbMetrics?.activeListingsCount ?? metrics.activeListingsCount;
+  const marketValueCents = currentMedian == null ? null : Math.round(currentMedian * 100);
   const quantity = Math.max(1, item.quantity || 1);
   const positionValue = marketValueCents == null ? null : marketValueCents * quantity;
   const acquisition = item.acquisitionPriceCents == null ? null : item.acquisitionPriceCents * quantity;
@@ -468,13 +614,13 @@ function mapCollectionItem(item: CollectionItemRecord | UserCollectionItem, deps
       ma7Cents: metrics.ma7 == null ? null : Math.round(metrics.ma7 * 100),
       ma30Cents: metrics.ma30 == null ? null : Math.round(metrics.ma30 * 100),
       ma90Cents: metrics.ma90 == null ? null : Math.round(metrics.ma90 * 100),
-      p10Cents: metrics.p10 == null ? null : Math.round(metrics.p10 * 100),
-      p90Cents: metrics.p90 == null ? null : Math.round(metrics.p90 * 100),
+      p10Cents: p10 == null ? null : Math.round(p10 * 100),
+      p90Cents: p90 == null ? null : Math.round(p90 * 100),
       salesCount30d: metrics.salesCount30d,
-      activeListingsCount: metrics.activeListingsCount,
+      activeListingsCount,
       positionValueCents: positionValue,
       pnlCents: acquisition == null || positionValue == null ? null : positionValue - acquisition,
-      lastUpdatedAt: new Date().toISOString(),
+      lastUpdatedAt: dbMetrics?.lastUpdatedAt || new Date().toISOString(),
     },
   };
 }
@@ -507,8 +653,14 @@ function buildCollectionRouter(deps: CollectionDeps) {
           },
         },
       });
+      const dbMarketOverlay = await buildDbMarketOverlay(
+        items
+          .map((item) => deps.variants.find((variant) => variant.variant_id === item.variantId))
+          .filter(Boolean) as VariantLike[],
+        deps.prisma,
+      );
       return res.json({
-        items: items.map((item) => mapCollectionItem(item, deps)),
+        items: items.map((item) => mapCollectionItem(item, deps, dbMarketOverlay)),
       });
     } catch (error) {
       return res.status(500).json({ error: String((error as Error).message || error) });
@@ -540,7 +692,11 @@ function buildCollectionRouter(deps: CollectionDeps) {
           location: body.location ? String(body.location) : null,
         },
       });
-      return res.status(201).json(mapCollectionItem(item, deps));
+      const dbMarketOverlay = await buildDbMarketOverlay(
+        deps.variants.filter((variant) => variant.variant_id === item.variantId),
+        deps.prisma,
+      );
+      return res.status(201).json(mapCollectionItem(item, deps, dbMarketOverlay));
     } catch (error) {
       return res.status(500).json({ error: String((error as Error).message || error) });
     }
@@ -571,8 +727,11 @@ function buildCollectionRouter(deps: CollectionDeps) {
           variantId: body.variantId ? String(body.variantId) : undefined,
         },
       });
-
-      return res.json(mapCollectionItem(updated, deps));
+      const dbMarketOverlay = await buildDbMarketOverlay(
+        deps.variants.filter((variant) => variant.variant_id === updated.variantId),
+        deps.prisma,
+      );
+      return res.json(mapCollectionItem(updated, deps, dbMarketOverlay));
     } catch (error) {
       return res.status(500).json({ error: String((error as Error).message || error) });
     }

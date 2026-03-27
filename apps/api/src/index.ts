@@ -220,6 +220,360 @@ type LiveSaleRow = {
   is_referral: boolean;
 };
 
+type HomeWindowKey = "1mo" | "3mo" | "6mo" | "1yr" | "ytd" | "all";
+
+type HomeDashboardRow = {
+  listing_id: string;
+  title: string | null;
+  price_amount: number | null;
+  price_currency: string | null;
+  available: boolean | null;
+  listing_url: string | null;
+  updated_at: Date | string | null;
+  created_at: Date | string | null;
+  source_name: string | null;
+  marketplace_id: string | null;
+  canonical_name: string | null;
+  brand_name: string | null;
+};
+
+const HOME_WINDOW_MS: Record<Exclude<HomeWindowKey, "ytd" | "all">, number> = {
+  "1mo": 30 * 24 * 60 * 60 * 1000,
+  "3mo": 90 * 24 * 60 * 60 * 1000,
+  "6mo": 180 * 24 * 60 * 60 * 1000,
+  "1yr": 365 * 24 * 60 * 60 * 1000,
+};
+
+const EBAY_COUNTRY_BY_MARKETPLACE: Record<string, string> = {
+  "EBAY-US": "US",
+  "EBAY-JP": "Japan",
+  "EBAY-DE": "Germany",
+  "EBAY-AU": "Australia",
+  "EBAY-FR": "France",
+  "EBAY-IT": "Italy",
+  "EBAY-ES": "Spain",
+  "EBAY-CA": "Canada",
+  "EBAY-GB": "United Kingdom",
+};
+
+function parseHomeWindowKey(value: string | null | undefined): HomeWindowKey {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "3mo" || normalized === "6mo" || normalized === "1yr" || normalized === "ytd" || normalized === "all") return normalized;
+  return "1mo";
+}
+
+function normalizeCompact(value: string | null | undefined) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function homeWindowRange(windowKey: HomeWindowKey, anchor = new Date()) {
+  const end = new Date(anchor);
+  if (windowKey === "all") return { start: new Date(0), end };
+  if (windowKey === "ytd") return { start: new Date(anchor.getFullYear(), 0, 1), end };
+  return { start: new Date(anchor.getTime() - HOME_WINDOW_MS[windowKey]), end };
+}
+
+function previousHomeWindowRange(windowKey: HomeWindowKey, anchor = new Date()) {
+  if (windowKey === "all") {
+    const current = homeWindowRange("1yr", anchor);
+    const span = current.end.getTime() - current.start.getTime();
+    return {
+      start: new Date(current.start.getTime() - span),
+      end: current.start,
+    };
+  }
+  if (windowKey === "ytd") {
+    const start = new Date(anchor.getFullYear() - 1, 0, 1);
+    const end = new Date(anchor.getFullYear(), 0, 1);
+    return { start, end };
+  }
+  const current = homeWindowRange(windowKey, anchor);
+  const span = current.end.getTime() - current.start.getTime();
+  return {
+    start: new Date(current.start.getTime() - span),
+    end: current.start,
+  };
+}
+
+function asDate(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function numericValues(rows: Array<{ price_amount: number | null }>) {
+  return rows
+    .map((row) => Number(row.price_amount))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function median(values: number[]) {
+  return percentileNumberSet(values, 0.5);
+}
+
+function percentileNumberSet(values: number[], p: number) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = (sorted.length - 1) * p;
+  const low = Math.floor(index);
+  const high = Math.ceil(index);
+  if (low === high) return sorted[low];
+  const weight = index - low;
+  return sorted[low] * (1 - weight) + sorted[high] * weight;
+}
+
+function percentDelta(current: number, previous: number) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return 0;
+  if (previous <= 0) return current > 0 ? 100 : 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function round1(value: number) {
+  return Number(value.toFixed(1));
+}
+
+function bucketCounts(rows: HomeDashboardRow[], params: { start: Date; end: Date; soldOnly?: boolean; availableOnly?: boolean; buckets?: number }) {
+  const buckets = params.buckets || 24;
+  const spanMs = Math.max(1, params.end.getTime() - params.start.getTime());
+  const out = Array<number>(buckets).fill(0);
+  for (const row of rows) {
+    if (params.soldOnly && row.available !== false) continue;
+    if (params.availableOnly && row.available !== true) continue;
+    const seenAt = asDate(row.updated_at) || asDate(row.created_at);
+    if (!seenAt) continue;
+    const ts = seenAt.getTime();
+    if (ts < params.start.getTime() || ts >= params.end.getTime()) continue;
+    const rawIndex = Math.floor(((ts - params.start.getTime()) / spanMs) * buckets);
+    const index = Math.max(0, Math.min(buckets - 1, rawIndex));
+    out[index] += 1;
+  }
+  return out;
+}
+
+function countryFromMarketplace(value: string | null | undefined) {
+  const key = String(value || "").trim().toUpperCase();
+  return EBAY_COUNTRY_BY_MARKETPLACE[key] || key.replace(/^EBAY-/, "") || "Unknown";
+}
+
+function inferDashboardBrand(title: string | null | undefined, brandSeeds: BrandConfig[]) {
+  const lower = String(title || "").toLowerCase();
+  for (const brand of brandSeeds) {
+    const key = String(brand.brand_key || "").toLowerCase().replace(/_/g, " ");
+    const display = String(brand.display_name || "").toLowerCase();
+    if ((display && lower.includes(display)) || (key && lower.includes(key))) {
+      return brand.display_name || brand.brand_key;
+    }
+  }
+  return "Unknown";
+}
+
+async function loadHomeDashboardRows(prisma: PrismaClient): Promise<HomeDashboardRow[]> {
+  return prisma.$queryRawUnsafe<HomeDashboardRow[]>(`
+    SELECT
+      l.id::text AS listing_id,
+      l.title,
+      l.price_amount::float8 AS price_amount,
+      l.price_currency,
+      l.available,
+      l.url AS listing_url,
+      l.updated_at,
+      l.created_at,
+      s.name AS source_name,
+      MAX(CASE WHEN lsr.spec_key = 'marketplace_id' THEN lsr.spec_value ELSE NULL END) AS marketplace_id,
+      g.canonical_name,
+      b.name AS brand_name
+    FROM listings l
+    INNER JOIN sources s ON s.id = l.source_id
+    LEFT JOIN listing_specs_raw lsr ON lsr.listing_id = l.id
+    LEFT JOIN listing_glove_links lgl ON lgl.listing_id = l.id
+    LEFT JOIN gloves g ON g.id = lgl.glove_id
+    LEFT JOIN brands b ON b.id = g.manufacturer_brand_id
+    WHERE s.name ILIKE 'eBay %'
+    GROUP BY l.id, s.name, g.canonical_name, b.name
+  `);
+}
+
+function buildHomeDashboardPayload(rows: HomeDashboardRow[], params: {
+  windowKey: HomeWindowKey;
+  brandKey: string;
+  countryKey: string;
+}) {
+  const nowTs = new Date();
+  const currentRange = homeWindowRange(params.windowKey, nowTs);
+  const previousRange = previousHomeWindowRange(params.windowKey, nowTs);
+  const normalizedBrand = normalizeCompact(params.brandKey);
+  const normalizedCountry = String(params.countryKey || "all").trim();
+
+  const decorate = rows.map((row) => {
+    const country = countryFromMarketplace(row.marketplace_id || row.source_name);
+    const brand = row.brand_name || inferDashboardBrand(row.title, brands);
+    const title = String(row.title || row.canonical_name || "");
+    const model = String(row.canonical_name || row.title || "Unknown");
+    return { ...row, country, brand, title, model };
+  });
+
+  const filtered = decorate.filter((row) => {
+    if (normalizedBrand && normalizedBrand !== "all") {
+      const haystack = normalizeCompact(`${row.brand} ${row.title} ${row.model}`);
+      if (!haystack.includes(normalizedBrand)) return false;
+    }
+    if (normalizedCountry && normalizedCountry !== "all" && row.country !== normalizedCountry) return false;
+    return true;
+  });
+
+  const inRange = (date: Date | null, range: { start: Date; end: Date }) => {
+    if (!date) return false;
+    const ts = date.getTime();
+    return ts >= range.start.getTime() && ts < range.end.getTime();
+  };
+
+  const currentRows = filtered.filter((row) => inRange(asDate(row.updated_at) || asDate(row.created_at), currentRange));
+  const previousRows = filtered.filter((row) => inRange(asDate(row.updated_at) || asDate(row.created_at), previousRange));
+  const soldCurrent = currentRows.filter((row) => row.available === false);
+  const soldPrevious = previousRows.filter((row) => row.available === false);
+  const activeCurrent = currentRows.filter((row) => row.available === true);
+  const activePrevious = previousRows.filter((row) => row.available === true);
+
+  const soldPrices = numericValues(soldCurrent);
+  const soldPrevPrices = numericValues(soldPrevious);
+  const activePrices = numericValues(activeCurrent);
+  const displayPrices = soldPrices.length ? soldPrices : numericValues(currentRows);
+  const priceMedianWindow = median(displayPrices);
+  const prevMedianWindow = median(soldPrevPrices.length ? soldPrevPrices : numericValues(previousRows));
+
+  const countriesMap = new Map<string, { country: string; value: number; count: number; prevValue: number }>();
+  for (const row of filtered) {
+    const date = asDate(row.updated_at) || asDate(row.created_at);
+    if (!date) continue;
+    const price = Number(row.price_amount || 0);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    const slot = countriesMap.get(row.country) || { country: row.country, value: 0, count: 0, prevValue: 0 };
+    if (inRange(date, currentRange)) {
+      slot.value += price;
+      slot.count += 1;
+    } else if (inRange(date, previousRange)) {
+      slot.prevValue += price;
+    }
+    countriesMap.set(row.country, slot);
+  }
+  const countries = [...countriesMap.values()]
+    .filter((row) => row.count > 0 || row.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((row) => ({
+      country: row.country,
+      value: Math.round(row.value),
+      count: row.count,
+      change_pct: round1(percentDelta(row.value, row.prevValue)),
+    }));
+
+  const trendingByModel = new Map<string, { current: number; previous: number }>();
+  for (const row of [...soldCurrent, ...soldPrevious]) {
+    const slot = trendingByModel.get(row.model) || { current: 0, previous: 0 };
+    if (soldCurrent.includes(row)) slot.current += 1;
+    else slot.previous += 1;
+    trendingByModel.set(row.model, slot);
+  }
+
+  const trendBuckets = params.windowKey === "1mo" ? 30 : 12;
+  const trendSpanMs = Math.max(1, currentRange.end.getTime() - currentRange.start.getTime());
+  const trendSeries = Array.from({ length: trendBuckets }).map((_, index) => {
+    const bucketStart = new Date(currentRange.start.getTime() + ((trendSpanMs / trendBuckets) * index));
+    const bucketEnd = new Date(currentRange.start.getTime() + ((trendSpanMs / trendBuckets) * (index + 1)));
+    const bucketRows = soldCurrent.filter((row) => {
+      const date = asDate(row.updated_at) || asDate(row.created_at);
+      return date && date >= bucketStart && date < bucketEnd;
+    });
+    const prices = numericValues(bucketRows);
+    return {
+      label: bucketStart.toLocaleDateString("en-US", params.windowKey === "1mo" ? { month: "short", day: "numeric" } : { month: "short", day: "numeric" }),
+      medianPrice: Math.round(median(prices)),
+      salesCount: bucketRows.length,
+      p10: Math.round(percentileNumberSet(prices, 0.1)),
+      p90: Math.round(percentileNumberSet(prices, 0.9)),
+    };
+  });
+
+  return {
+    global: {
+      totalValue: countries.reduce((sum, row) => sum + row.value, 0),
+      totalCount: countries.reduce((sum, row) => sum + row.count, 0),
+      countries,
+    },
+    marketSnapshot: {
+      sold: {
+        value: soldCurrent.length,
+        deltaPct: round1(percentDelta(soldCurrent.length, soldPrevious.length)),
+        spark: bucketCounts(filtered, { ...currentRange, soldOnly: true }),
+      },
+      active: {
+        value: activeCurrent.length,
+        deltaPct: round1(percentDelta(activeCurrent.length, activePrevious.length)),
+        spark: bucketCounts(filtered, { ...currentRange, availableOnly: true }),
+      },
+      sellThrough: {
+        value: Number(((soldCurrent.length / Math.max(activeCurrent.length, 1)) * 100).toFixed(1)),
+        deltaPct: round1(percentDelta(
+          (soldCurrent.length / Math.max(activeCurrent.length, 1)) * 100,
+          (soldPrevious.length / Math.max(activePrevious.length, 1)) * 100,
+        )),
+        spark: bucketCounts(filtered, { ...currentRange, soldOnly: true }).map((count, index) => {
+          const activeCount = bucketCounts(filtered, { ...currentRange, availableOnly: true })[index] || 0;
+          return Number(((count / Math.max(activeCount, 1)) * 100).toFixed(1));
+        }),
+      },
+    },
+    priceOverview: {
+      currentMedian: Math.round(median(activePrices.length ? activePrices : displayPrices)),
+      medianWindow: Math.round(priceMedianWindow),
+      p10: Math.round(percentileNumberSet(displayPrices, 0.1)),
+      p90: Math.round(percentileNumberSet(displayPrices, 0.9)),
+      deltaPct: round1(percentDelta(priceMedianWindow, prevMedianWindow)),
+    },
+    salesTrend: {
+      series: trendSeries,
+      windowMedian: Math.round(priceMedianWindow),
+      windowSales: soldCurrent.length,
+    },
+    brandModelInsights: {
+      brands: [...new Map(
+        soldCurrent.reduce<Array<[string, number]>>((acc, row) => {
+          const key = String(row.brand || "Unknown");
+          const prev = acc.find((entry) => entry[0] === key);
+          if (prev) prev[1] += 1;
+          else acc.push([key, 1]);
+          return acc;
+        }, []),
+      )]
+        .map(([brand, volume]) => ({ brand, volume }))
+        .sort((a, b) => b.volume - a.volume)
+        .slice(0, 5),
+      trending: [...trendingByModel.entries()]
+        .map(([model, counts]) => ({ model, trendPct: round1(percentDelta(counts.current, counts.previous)) }))
+        .sort((a, b) => b.trendPct - a.trendPct)
+        .slice(0, 4),
+      fastest: trendSeries
+        .filter((row) => row.salesCount > 0)
+        .slice(0, 4)
+        .map((row, index) => ({
+          model: soldCurrent[index]?.model || soldCurrent[index]?.title || `Model ${index + 1}`,
+          avgDaysToSell: Number((Math.max(1, 30 / Math.max(row.salesCount, 1))).toFixed(1)),
+        })),
+    },
+    listings: filtered
+      .filter((row) => Number(row.price_amount || 0) > 0)
+      .sort((a, b) => (asDate(b.updated_at)?.getTime() || 0) - (asDate(a.updated_at)?.getTime() || 0))
+      .slice(0, 8)
+      .map((row) => ({
+        title: row.title || row.model || "Unknown listing",
+        price: Math.round(Number(row.price_amount || 0)),
+        source: row.source_name || "eBay",
+        country: row.country,
+        date: (asDate(row.updated_at) || asDate(row.created_at) || new Date()).toISOString().slice(0, 10),
+        url: row.listing_url || "#",
+      })),
+  };
+}
+
 function conditionScoreFromText(condition: string | null): number | null {
   const text = String(condition || "").toLowerCase();
   if (!text) return null;
@@ -1061,6 +1415,18 @@ app.get("/sales", async (req, res) => {
   const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
   res.setHeader("x-total-count", String(rows.length));
   res.json(paged);
+});
+
+app.get("/api/home/dashboard", async (req, res) => {
+  try {
+    const windowKey = parseHomeWindowKey(String(req.query.window || req.query.window_key || "1mo"));
+    const brandKey = String(req.query.brand || "all");
+    const countryKey = String(req.query.country || "all");
+    const rows = await loadHomeDashboardRows(prisma);
+    return res.json(buildHomeDashboardPayload(rows, { windowKey, brandKey, countryKey }));
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
 });
 
 app.post("/api/ops/sync/ebay", async (req, res) => {
