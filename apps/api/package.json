@@ -17,6 +17,8 @@
     "library:ingest:db": "node ./scripts/libraryIngestToDb.mjs",
     "library:retry-images": "node ./scripts/retryFailedLibraryImages.mjs",
     "ebay:sync": "tsx ./scripts/ebaySync.ts",
+    "market:recompute": "tsx ./scripts/recomputeGloveMarketSummaries.ts",
+    "market:refresh": "tsx ./scripts/ebaySync.ts && tsx ./scripts/recomputeGloveMarketSummaries.ts",
     "contract:check": "tsx scripts/checkContracts.ts",
     "test:contracts": "tsx --test tests/contracts/*.test.ts",
     "ci:contracts": "npm run contract:check && npm run test:contracts",

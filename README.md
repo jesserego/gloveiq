@@ -147,6 +147,18 @@ To sync eBay marketplace data into the database from `apps/api`:
 npm run ebay:sync
 ```
 
+To recompute the per-glove market summary layer from persisted listings:
+
+```bash
+npm run market:recompute
+```
+
+To run the recommended scheduled market refresh flow locally:
+
+```bash
+npm run market:refresh
+```
+
 The eBay sync path supports:
 
 - `EBAY_ENV=production|sandbox`
@@ -158,6 +170,7 @@ The eBay sync path supports:
 - `EBAY_SYNC_PAGES`
 - `EBAY_SYNC_GLOBAL_IDS`
 - `EBAY_SYNC_MODE=active|sold`
+- `EBAY_SYNC_SCHEDULE` for your host scheduler / cron metadata
 
 Recommended multi-region value:
 
@@ -170,6 +183,13 @@ It writes marketplace data into:
 - `listings`
 - `listing_specs_raw`
 - `listing_glove_links` when a best-effort catalog match is found
+- `glove_market_summaries` after recompute / refresh
+
+Recommended runtime shape:
+
+- run active marketplace sync twice daily
+- recompute glove summaries after each sync
+- only do on-demand single-glove refresh when a user opens a record and asks for a deeper read
 
 Sandbox keys are useful for verifying the integration flow, but they may return little or no live inventory. Real market population requires production eBay access.
 
@@ -218,6 +238,7 @@ Recommended Render setup:
 Now that the custom domain is active, eBay webhook validation should use:
 
 - endpoint: `https://api.dev.gloveiq.info/api/integrations/ebay/notifications`
+- The Render blueprint also includes a `gloveiq-market-refresh` cron job set to `0 */12 * * *` for twice-daily market refreshes.
 - verification token: `gloveanalytics_gloveanalytics_2026`
 
 ## Private B2 image handling

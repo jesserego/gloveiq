@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
+import { computeGloveMarketSummary } from "./lib/gloveMarketSummary.js";
 
 type ListingRow = {
   listing_pk: string;
@@ -86,12 +87,25 @@ export type LibraryGloveDetail = {
   metrics: {
     listings_count: number;
     available_count: number;
+    sold_count: number;
     price_min: number | null;
     price_max: number | null;
     price_avg: number | null;
+    current_median: number | null;
+    p10: number | null;
+    p90: number | null;
+    last_sale_price: number | null;
+    last_sale_date: string | null;
+    ma7: number | null;
+    ma30: number | null;
+    ma90: number | null;
+    regions: Array<{ region: string; count: number }>;
+    sources: Array<{ source: string; count: number }>;
+    affiliate_offers: Array<{ source: string; label: string; url: string; count: number }>;
+    refreshed_at: string | null;
   };
   images: Array<{ listing_id: string; role: string; url: string }>;
-  listings: Array<{ id: string; title: string | null; price: number | null; currency: string | null; url: string | null; source: string }>;
+  listings: Array<{ id: string; title: string | null; price: number | null; currency: string | null; url: string | null; source: string; available?: boolean; seen_at?: string | null }>;
 };
 
 export type LibraryListingDetail = {
@@ -292,13 +306,34 @@ function buildFileStore(params: { exportDir: string; env: NodeJS.ProcessEnv }): 
         market_origin: glove.market_origin,
         normalized_specs: glove.normalized_specs,
         confidence: glove.confidence,
-        metrics: {
-          listings_count: listings.length,
-          available_count: listings.length,
-          price_min: prices.length ? Math.min(...prices) : null,
-          price_max: prices.length ? Math.max(...prices) : null,
-          price_avg: prices.length ? Math.round((prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100) / 100 : null,
-        },
+        metrics: (() => {
+          const computed = computeGloveMetrics(listings.map((listing) => ({
+            price: typeof listing.price === "number" ? listing.price : null,
+            available: true,
+            seen_at: listing.seen_at || listing.created_at || null,
+            source: listing.source,
+          })));
+          return {
+            listings_count: listings.length,
+            available_count: listings.length,
+            sold_count: computed.sold_count,
+            price_min: prices.length ? Math.min(...prices) : null,
+            price_max: prices.length ? Math.max(...prices) : null,
+            price_avg: prices.length ? Math.round((prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100) / 100 : null,
+            current_median: computed.current_median,
+            p10: computed.p10,
+            p90: computed.p90,
+            last_sale_price: computed.last_sale_price,
+            last_sale_date: computed.last_sale_date,
+            ma7: computed.ma7,
+            ma30: computed.ma30,
+            ma90: computed.ma90,
+            regions: computed.regions,
+            sources: computed.sources,
+            affiliate_offers: computed.affiliate_offers,
+            refreshed_at: computed.refreshed_at,
+          };
+        })(),
         images,
         listings: listings.map((listing) => ({
           id: listing.listing_pk,
@@ -307,6 +342,8 @@ function buildFileStore(params: { exportDir: string; env: NodeJS.ProcessEnv }): 
           currency: listing.currency || null,
           url: listing.url || null,
           source: listing.source,
+          available: true,
+          seen_at: listing.seen_at || listing.created_at || null,
         })),
       };
     },
@@ -395,6 +432,27 @@ type DbGloveCore = {
   price_avg: number | null;
 };
 
+type DbGloveSummaryRow = {
+  listings_count: number | bigint | null;
+  available_count: number | bigint | null;
+  sold_count: number | bigint | null;
+  price_min: number | null;
+  price_max: number | null;
+  price_avg: number | null;
+  current_median: number | null;
+  p10: number | null;
+  p90: number | null;
+  last_sale_price: number | null;
+  last_sale_date: Date | string | null;
+  ma7: number | null;
+  ma30: number | null;
+  ma90: number | null;
+  source_mix: Array<{ source: string; count: number }> | null;
+  region_mix: Array<{ region: string; count: number }> | null;
+  affiliate_offers: Array<{ source: string; label: string; url: string; count: number }> | null;
+  computed_at: Date | string | null;
+};
+
 type DbGloveImageRow = {
   listing_id: string;
   role: string;
@@ -409,6 +467,8 @@ type DbGloveListingRow = {
   currency: string | null;
   url: string | null;
   source: string | null;
+  available: boolean | null;
+  updated_at: Date | string | null;
 };
 
 type DbListingCore = {
@@ -452,6 +512,31 @@ function toIsoString(value: Date | string | null | undefined) {
   if (!value) return null;
   if (typeof value === "string") return value;
   return value.toISOString();
+}
+
+function computeGloveMetrics(listings: Array<{ price: number | null; available?: boolean | null; seen_at?: string | null; source?: string | null }>) {
+  const computed = computeGloveMarketSummary(listings.map((listing) => ({
+    gloveId: "computed",
+    price: asNullableNumber(listing.price),
+    available: listing.available,
+    seenAt: listing.seen_at || null,
+    source: listing.source,
+  })));
+  return {
+    sold_count: computed.sold_count,
+    current_median: computed.current_median,
+    p10: computed.p10,
+    p90: computed.p90,
+    last_sale_price: computed.last_sale_price,
+    last_sale_date: computed.last_sale_date,
+    ma7: computed.ma7,
+    ma30: computed.ma30,
+    ma90: computed.ma90,
+    regions: computed.region_mix,
+    sources: computed.source_mix,
+    affiliate_offers: computed.affiliate_offers,
+    refreshed_at: computed.computed_at,
+  };
 }
 
 export function loadLibraryStore(params: {
@@ -635,13 +720,48 @@ export function loadLibraryStore(params: {
           l.price_amount::float8 AS price,
           l.price_currency AS currency,
           l.url,
-          s.name AS source
+          s.name AS source,
+          l.available,
+          l.updated_at
         FROM listing_glove_links lgl
         JOIN listings l ON l.id = lgl.listing_id
         LEFT JOIN sources s ON s.id = l.source_id
         WHERE lgl.glove_id::text = $1
         ORDER BY l.updated_at DESC NULLS LAST, l.created_at DESC NULLS LAST
       `, id);
+
+      const summaryRows = await params.prisma.$queryRawUnsafe<DbGloveSummaryRow[]>(`
+        SELECT
+          listings_count,
+          available_count,
+          sold_count,
+          price_min::float8 AS price_min,
+          price_max::float8 AS price_max,
+          price_avg::float8 AS price_avg,
+          current_median::float8 AS current_median,
+          p10::float8 AS p10,
+          p90::float8 AS p90,
+          last_sale_price::float8 AS last_sale_price,
+          last_sale_date,
+          ma7::float8 AS ma7,
+          ma30::float8 AS ma30,
+          ma90::float8 AS ma90,
+          source_mix,
+          region_mix,
+          affiliate_offers,
+          computed_at
+        FROM glove_market_summaries
+        WHERE glove_id::text = $1
+        LIMIT 1
+      `, id);
+
+      const computed = computeGloveMetrics(listings.map((listing) => ({
+        price: asNullableNumber(listing.price),
+        available: listing.available,
+        seen_at: toIsoString(listing.updated_at),
+        source: listing.source,
+      })));
+      const summary = summaryRows[0];
 
       return {
         id: core.id,
@@ -659,11 +779,24 @@ export function loadLibraryStore(params: {
         normalized_specs: core.normalized_specs || {},
         confidence: core.confidence || {},
         metrics: {
-          listings_count: Number(core.listings_count || 0),
-          available_count: Number(core.available_count || 0),
-          price_min: asNullableNumber(core.price_min),
-          price_max: asNullableNumber(core.price_max),
-          price_avg: asNullableNumber(core.price_avg),
+          listings_count: Number(summary?.listings_count ?? core.listings_count ?? 0),
+          available_count: Number(summary?.available_count ?? core.available_count ?? 0),
+          sold_count: Number(summary?.sold_count ?? computed.sold_count ?? 0),
+          price_min: asNullableNumber(summary?.price_min ?? core.price_min),
+          price_max: asNullableNumber(summary?.price_max ?? core.price_max),
+          price_avg: asNullableNumber(summary?.price_avg ?? core.price_avg),
+          current_median: asNullableNumber(summary?.current_median ?? computed.current_median),
+          p10: asNullableNumber(summary?.p10 ?? computed.p10),
+          p90: asNullableNumber(summary?.p90 ?? computed.p90),
+          last_sale_price: asNullableNumber(summary?.last_sale_price ?? computed.last_sale_price),
+          last_sale_date: toIsoString(summary?.last_sale_date ?? computed.last_sale_date),
+          ma7: asNullableNumber(summary?.ma7 ?? computed.ma7),
+          ma30: asNullableNumber(summary?.ma30 ?? computed.ma30),
+          ma90: asNullableNumber(summary?.ma90 ?? computed.ma90),
+          regions: summary?.region_mix || computed.regions,
+          sources: summary?.source_mix || computed.sources,
+          affiliate_offers: summary?.affiliate_offers || computed.affiliate_offers,
+          refreshed_at: toIsoString(summary?.computed_at ?? computed.refreshed_at),
         },
         images: images.map((image) => ({
           listing_id: image.listing_id,
@@ -677,6 +810,8 @@ export function loadLibraryStore(params: {
           currency: listing.currency,
           url: listing.url,
           source: listing.source || "Unknown",
+          available: listing.available ?? undefined,
+          seen_at: toIsoString(listing.updated_at),
         })),
       };
     },

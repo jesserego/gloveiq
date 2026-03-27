@@ -119,6 +119,20 @@ export type HomeDashboardData = {
   }>;
 };
 
+export type UnmatchedMarketplaceRow = {
+  listing_id: string;
+  title: string | null;
+  price_amount: number | null;
+  price_currency: string | null;
+  listing_url: string | null;
+  available: boolean | null;
+  source_name: string | null;
+  marketplace_id: string | null;
+  updated_at: string | null;
+  external_listing_id: string | null;
+  raw_payload_json: unknown;
+};
+
 export type AppraisalAnalyzeResponse = {
   artifactId?: string;
   uploads: Array<{ name: string; photoId: string; deduped: boolean }>;
@@ -173,12 +187,25 @@ export type LibraryGlove = {
   metrics: {
     listings_count: number;
     available_count: number;
+    sold_count: number;
     price_min: number | null;
     price_max: number | null;
     price_avg: number | null;
+    current_median: number | null;
+    p10: number | null;
+    p90: number | null;
+    last_sale_price: number | null;
+    last_sale_date: string | null;
+    ma7: number | null;
+    ma30: number | null;
+    ma90: number | null;
+    regions: Array<{ region: string; count: number }>;
+    sources: Array<{ source: string; count: number }>;
+    affiliate_offers: Array<{ source: string; label: string; url: string; count: number }>;
+    refreshed_at: string | null;
   };
   images: Array<{ listing_id: string; role: string; url: string }>;
-  listings: Array<{ id: string; title: string | null; price: number | null; currency: string | null; url: string | null; source: string }>;
+  listings: Array<{ id: string; title: string | null; price: number | null; currency: string | null; url: string | null; source: string; available?: boolean; seen_at?: string | null }>;
 };
 
 export type LibraryListing = {
@@ -334,6 +361,13 @@ export const api = {
     const suffix = params.toString();
     return json<HomeDashboardData>(`${API_BASE}/api/home/dashboard${suffix ? `?${suffix}` : ""}`);
   },
+  unmatchedMarketplace: (opts?: { limit?: number; source?: string }) => {
+    const params = new URLSearchParams();
+    if (typeof opts?.limit === "number") params.set("limit", String(opts.limit));
+    if (opts?.source) params.set("source", opts.source);
+    const suffix = params.toString();
+    return json<{ items: UnmatchedMarketplaceRow[] }>(`${API_BASE}/api/ops/market/unmatched${suffix ? `?${suffix}` : ""}`);
+  },
   artifacts: (
     q?: string,
     opts?: { photoMode?: "none" | "hero" | "full"; limit?: number; offset?: number },
@@ -362,6 +396,9 @@ export const api = {
     return out.results || [];
   },
   libraryGlove: (id: string) => json<LibraryGlove>(`${API_BASE}/api/library/gloves/${encodeURIComponent(id)}`),
+  refreshLibraryGlove: (id: string) => json<LibraryGlove>(`${API_BASE}/api/library/gloves/${encodeURIComponent(id)}/refresh-market`, {
+    method: "POST",
+  }),
   libraryListing: (id: string) => json<LibraryListing>(`${API_BASE}/api/library/listings/${encodeURIComponent(id)}`),
   meCollection: (status: CollectionStatus, tier?: Tier) => {
     return json<{ items: CollectionItem[] }>(`${API_BASE}/api/me/collection?status=${status}`, { headers: authHeaders(tier) });

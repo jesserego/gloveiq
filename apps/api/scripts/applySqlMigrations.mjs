@@ -29,10 +29,9 @@ function loadEnvFile(filePath) {
 loadEnvFile(path.join(apiRoot, ".env"));
 loadEnvFile(path.join(path.resolve(apiRoot, "..", ".."), ".env"));
 
-const migrationFiles = [
-  "0001_gloveiq_library.sql",
-  "0002_gloveiq_ingestion.sql",
-];
+const migrationFiles = fs.readdirSync(sqlDir)
+  .filter((fileName) => /^\d+_.+\.sql$/i.test(fileName))
+  .sort((a, b) => a.localeCompare(b));
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is required to apply SQL migrations.");

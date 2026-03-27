@@ -7,3 +7,12 @@ services:
     buildCommand: npm install && npm run build:api
     startCommand: npm run start:api
     plan: free
+  - type: cron
+    name: gloveiq-market-refresh
+    env: node
+    repo: https://github.com/jesserego/gloveiq
+    branch: main
+    buildCommand: npm install && npm run build:api
+    startCommand: npm --workspace apps/api run market:refresh
+    schedule: "0 */12 * * *"
+    plan: free

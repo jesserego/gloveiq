@@ -12,6 +12,7 @@ import { loadLibraryStore } from "./libraryStore.js";
 import { mountCollectionRoutes } from "./collectionRoutes.js";
 import { downloadFromBackblazeByKey, uploadToBackblaze } from "./lib/backblaze.js";
 import { EBAY_GLOBAL_IDS, fetchEbayMarketplaceRows, persistEbayRows as persistEbayListings } from "./lib/ebay.js";
+import { recomputeGloveMarketSummaries } from "./lib/gloveMarketSummary.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -256,6 +257,9 @@ const EBAY_COUNTRY_BY_MARKETPLACE: Record<string, string> = {
   "EBAY-GB": "United Kingdom",
 };
 
+const HOME_ANALYTICS_MIN_PRICE = 10;
+const HOME_ANALYTICS_MAX_PRICE = 2500;
+
 function parseHomeWindowKey(value: string | null | undefined): HomeWindowKey {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "3mo" || normalized === "6mo" || normalized === "1yr" || normalized === "ytd" || normalized === "all") return normalized;
@@ -304,7 +308,7 @@ function asDate(value: Date | string | null | undefined) {
 function numericValues(rows: Array<{ price_amount: number | null }>) {
   return rows
     .map((row) => Number(row.price_amount))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .filter((value) => Number.isFinite(value) && value >= HOME_ANALYTICS_MIN_PRICE && value <= HOME_ANALYTICS_MAX_PRICE);
 }
 
 function median(values: number[]) {
@@ -437,16 +441,18 @@ function buildHomeDashboardPayload(rows: HomeDashboardRow[], params: {
   const soldPrices = numericValues(soldCurrent);
   const soldPrevPrices = numericValues(soldPrevious);
   const activePrices = numericValues(activeCurrent);
-  const displayPrices = soldPrices.length ? soldPrices : numericValues(currentRows);
+  const currentPrices = numericValues(currentRows);
+  const previousPrices = numericValues(previousRows);
+  const displayPrices = soldPrices.length ? soldPrices : currentPrices;
   const priceMedianWindow = median(displayPrices);
-  const prevMedianWindow = median(soldPrevPrices.length ? soldPrevPrices : numericValues(previousRows));
+  const prevMedianWindow = median(soldPrevPrices.length ? soldPrevPrices : previousPrices);
 
   const countriesMap = new Map<string, { country: string; value: number; count: number; prevValue: number }>();
   for (const row of filtered) {
     const date = asDate(row.updated_at) || asDate(row.created_at);
     if (!date) continue;
     const price = Number(row.price_amount || 0);
-    if (!Number.isFinite(price) || price <= 0) continue;
+    if (!Number.isFinite(price) || price < HOME_ANALYTICS_MIN_PRICE || price > HOME_ANALYTICS_MAX_PRICE) continue;
     const slot = countriesMap.get(row.country) || { country: row.country, value: 0, count: 0, prevValue: 0 };
     if (inRange(date, currentRange)) {
       slot.value += price;
@@ -466,10 +472,20 @@ function buildHomeDashboardPayload(rows: HomeDashboardRow[], params: {
       change_pct: round1(percentDelta(row.value, row.prevValue)),
     }));
 
+  const insightsRows = soldCurrent.length ? soldCurrent : currentRows.filter((row) => {
+    const price = Number(row.price_amount || 0);
+    return Number.isFinite(price) && price >= HOME_ANALYTICS_MIN_PRICE && price <= HOME_ANALYTICS_MAX_PRICE;
+  });
+
   const trendingByModel = new Map<string, { current: number; previous: number }>();
-  for (const row of [...soldCurrent, ...soldPrevious]) {
+  const trendSourceCurrent = soldCurrent.length ? soldCurrent : insightsRows;
+  const trendSourcePrevious = soldPrevious.length ? soldPrevious : previousRows.filter((row) => {
+    const price = Number(row.price_amount || 0);
+    return Number.isFinite(price) && price >= HOME_ANALYTICS_MIN_PRICE && price <= HOME_ANALYTICS_MAX_PRICE;
+  });
+  for (const row of [...trendSourceCurrent, ...trendSourcePrevious]) {
     const slot = trendingByModel.get(row.model) || { current: 0, previous: 0 };
-    if (soldCurrent.includes(row)) slot.current += 1;
+    if (trendSourceCurrent.includes(row)) slot.current += 1;
     else slot.previous += 1;
     trendingByModel.set(row.model, slot);
   }
@@ -536,7 +552,7 @@ function buildHomeDashboardPayload(rows: HomeDashboardRow[], params: {
     },
     brandModelInsights: {
       brands: [...new Map(
-        soldCurrent.reduce<Array<[string, number]>>((acc, row) => {
+        insightsRows.reduce<Array<[string, number]>>((acc, row) => {
           const key = String(row.brand || "Unknown");
           const prev = acc.find((entry) => entry[0] === key);
           if (prev) prev[1] += 1;
@@ -555,12 +571,15 @@ function buildHomeDashboardPayload(rows: HomeDashboardRow[], params: {
         .filter((row) => row.salesCount > 0)
         .slice(0, 4)
         .map((row, index) => ({
-          model: soldCurrent[index]?.model || soldCurrent[index]?.title || `Model ${index + 1}`,
+          model: trendSourceCurrent[index]?.model || trendSourceCurrent[index]?.title || `Model ${index + 1}`,
           avgDaysToSell: Number((Math.max(1, 30 / Math.max(row.salesCount, 1))).toFixed(1)),
         })),
     },
     listings: filtered
-      .filter((row) => Number(row.price_amount || 0) > 0)
+      .filter((row) => {
+        const price = Number(row.price_amount || 0);
+        return Number.isFinite(price) && price >= HOME_ANALYTICS_MIN_PRICE && price <= HOME_ANALYTICS_MAX_PRICE;
+      })
       .sort((a, b) => (asDate(b.updated_at)?.getTime() || 0) - (asDate(a.updated_at)?.getTime() || 0))
       .slice(0, 8)
       .map((row) => ({
@@ -1292,6 +1311,100 @@ app.get(`${libraryApiBasePath}/gloves/:id`, async (req, res) => {
   if (!detail) return res.status(404).json({ error: "Glove not found" });
   return res.json(detail);
 });
+app.post(`${libraryApiBasePath}/gloves/:id/refresh-market`, async (req, res) => {
+  try {
+    const gloveId = String(req.params.id || "");
+    if (!gloveId) return res.status(400).json({ error: "Glove id is required" });
+
+    const gloveRows = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      canonical_name: string | null;
+      item_number: string | null;
+      pattern: string | null;
+      series: string | null;
+      size_in: number | null;
+      brand: string | null;
+    }>>(
+      `
+        SELECT
+          g.id::text AS id,
+          g.canonical_name,
+          g.item_number,
+          g.pattern,
+          g.series,
+          g.size_in::float8 AS size_in,
+          b.name AS brand
+        FROM gloves g
+        LEFT JOIN brands b ON b.id = g.manufacturer_brand_id
+        WHERE g.id::text = $1
+        LIMIT 1
+      `,
+      gloveId,
+    );
+    const glove = gloveRows[0];
+    if (!glove) return res.status(404).json({ error: "Glove not found" });
+
+    const query = [
+      glove.brand,
+      glove.item_number && glove.item_number !== "Unknown" ? glove.item_number : null,
+      glove.series,
+      glove.pattern,
+      glove.canonical_name,
+      glove.size_in ? `${String(glove.size_in).replace(/\.0$/, "")}"` : null,
+      "baseball glove",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const globalIds = String(process.env.EBAY_SYNC_GLOBAL_IDS || EBAY_GLOBAL_IDS.join(","))
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+
+    const activeRows = await fetchEbayMarketplaceRows({
+      env: process.env,
+      brands,
+      query,
+      perMarket: Math.min(25, Math.max(10, Number(process.env.EBAY_SYNC_PER_MARKET || 20))),
+      pages: 1,
+      globalIds: globalIds.length ? globalIds : EBAY_GLOBAL_IDS,
+      mode: "active",
+    });
+
+    let soldRows: Awaited<ReturnType<typeof fetchEbayMarketplaceRows>> = [];
+    try {
+      soldRows = await fetchEbayMarketplaceRows({
+        env: process.env,
+        brands,
+        query,
+        perMarket: 10,
+        pages: 1,
+        globalIds: globalIds.length ? globalIds : EBAY_GLOBAL_IDS,
+        mode: "sold",
+      });
+    } catch (error) {
+      console.warn("[library-refresh] sold sync skipped", error);
+    }
+
+    const persisted = await persistEbayListings({
+      prisma,
+      env: process.env,
+      brands,
+      rows: [...activeRows, ...soldRows],
+      query,
+      mode: soldRows.length ? "sold" : "active",
+    });
+    await recomputeGloveMarketSummaries(prisma, [gloveId, ...(persisted.gloveIds || [])]);
+
+    const detail = await libraryStore.gloveDetail(gloveId);
+    if (!detail) return res.status(404).json({ error: "Glove not found after refresh" });
+    return res.json(detail);
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
+});
 app.get(`${libraryApiBasePath}/listings/:id`, async (req, res) => {
   const detail = await libraryStore.listingDetail(String(req.params.id || ""));
   if (!detail) return res.status(404).json({ error: "Listing not found" });
@@ -1476,6 +1589,58 @@ app.get("/api/ops/ingest/overview", async (_req, res) => {
       ),
     ]);
     return res.json({ runs: latestRuns, imageStatuses, recentErrors });
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
+});
+
+app.get("/api/ops/market/unmatched", async (req, res) => {
+  try {
+    const limit = Math.max(10, Math.min(200, Number(req.query.limit || 50)));
+    const source = String(req.query.source || "").trim();
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      listing_id: string;
+      title: string | null;
+      price_amount: number | null;
+      price_currency: string | null;
+      listing_url: string | null;
+      available: boolean | null;
+      source_name: string | null;
+      marketplace_id: string | null;
+      updated_at: string | null;
+      external_listing_id: string | null;
+      raw_payload_json: unknown;
+    }>>(
+      `
+        SELECT
+          l.id::text AS listing_id,
+          l.title,
+          l.price_amount,
+          l.price_currency,
+          l.listing_url,
+          l.available,
+          s.name AS source_name,
+          s.marketplace_id,
+          l.updated_at::text,
+          l.external_listing_id,
+          rlp.raw_payload_json
+        FROM listings l
+        LEFT JOIN sources s ON s.id = l.source_id
+        LEFT JOIN raw_listing_payloads rlp
+          ON rlp.source_id = l.source_id
+         AND rlp.external_listing_id = l.external_listing_id
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM listing_glove_links lgl
+          WHERE lgl.listing_id = l.id
+        )
+        ${source ? "AND COALESCE(s.name, '') = $2" : ""}
+        ORDER BY l.updated_at DESC NULLS LAST
+        LIMIT $1
+      `,
+      ...(source ? [limit, source] : [limit]),
+    );
+    return res.json({ items: rows });
   } catch (error) {
     return res.status(500).json({ error: String((error as Error).message || error) });
   }

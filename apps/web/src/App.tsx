@@ -8,6 +8,7 @@ import {
   type LibrarySearchRow,
   type PatternRecord,
   type SaleRecord,
+  type UnmatchedMarketplaceRow,
   type VariantRecord,
 } from "./lib/api";
 import { Tier, canAccess } from "@gloveiq/shared";
@@ -138,6 +139,13 @@ function money(n: number | null | undefined) {
   catch { return `$${v}`; }
 }
 
+function shortDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function confidenceBandFromScore(score: number): "Low" | "Medium" | "High" {
   if (score >= 0.78) return "High";
   if (score >= 0.5) return "Medium";
@@ -176,12 +184,6 @@ function pathFromRoute(route: Route): string {
   if (route.name === "account") return "/account";
   if (route.name === "pricing") return "/pricing";
   return "/search";
-}
-
-function routeForSearchResult(record: SearchResult): Route {
-  if (record.record_type === "variant") return { name: "variantProfile", variantId: record.id };
-  if (record.record_type === "artifact") return { name: "gloveProfile", gloveId: record.id };
-  return { name: "gloveProfile", gloveId: record.id };
 }
 
 const PAGE_CONTAINER_SX = {
@@ -812,24 +814,23 @@ function GlobalStatisticsDialog({
 }
 
 function SearchResultsPage({
-  variants,
-  gloves,
-  sales,
   initialQuery,
-  onNavigate,
-  onOpenBrandProfile,
 }: {
-  variants: VariantRecord[];
-  gloves: Artifact[];
-  sales: SaleRecord[];
   initialQuery: string;
-  onNavigate: (route: Route) => void;
-  onOpenBrandProfile: (brandKey: string) => void;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resultsPage, setResultsPage] = useState(1);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+  const [libraryRows, setLibraryRows] = useState<LibrarySearchRow[]>([]);
+  const [libraryDetailOpen, setLibraryDetailOpen] = useState<LibraryGlove | null>(null);
+  const [libraryDetailLoadingId, setLibraryDetailLoadingId] = useState<string | null>(null);
+  const [libraryDetailRefreshingId, setLibraryDetailRefreshingId] = useState<string | null>(null);
+  const [unmatchedRows, setUnmatchedRows] = useState<UnmatchedMarketplaceRow[]>([]);
+  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
+  const [unmatchedError, setUnmatchedError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
@@ -861,16 +862,53 @@ function SearchResultsPage({
     };
   };
 
-  const rows = useMemo<SearchResultRow[]>(() => {
-    const normalizeToken = (value: string | null | undefined) => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const salesByVariant = new Map<string, SaleRecord[]>();
-    for (const sale of sales) {
-      const list = salesByVariant.get(sale.variant_id) || [];
-      list.push(sale);
-      salesByVariant.set(sale.variant_id, list);
-    }
-    salesByVariant.forEach((list) => list.sort((a, b) => b.sale_date.localeCompare(a.sale_date)));
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const results = await api.librarySearch(query);
+        if (!cancelled) setLibraryRows(results);
+      } catch (error: any) {
+        if (!cancelled) {
+          setLibraryRows([]);
+          setLoadError(String(error?.message || error));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setUnmatchedLoading(true);
+      setUnmatchedError(null);
+      try {
+        const out = await api.unmatchedMarketplace({ limit: 12 });
+        if (!cancelled) setUnmatchedRows(out.items || []);
+      } catch (error: any) {
+        if (!cancelled) {
+          setUnmatchedRows([]);
+          setUnmatchedError(String(error?.message || error));
+        }
+      } finally {
+        if (!cancelled) setUnmatchedLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rows = useMemo<SearchResultRow[]>(() => {
     const seriesFromModel = (model: string | null | undefined) => {
       const raw = String(model || "").trim();
       if (!raw) return "Unknown";
@@ -930,85 +968,39 @@ function SearchResultsPage({
       return "Other";
     };
 
-    const variantRows: SearchResultRow[] = variants.map((v) => ({
-      id: v.variant_id,
-      record_type: "variant",
-      title: v.display_name,
-      subtitle: `${v.brand_key} • ${v.model_code || "model n/a"}`,
+    const mappedRows: SearchResultRow[] = libraryRows.map((row) => ({
+      id: row.id,
+      record_type: row.record_type,
+      title: row.canonical_name,
+      subtitle: `${row.brand || "Unknown"} • ${row.item_number || row.pattern || row.series || row.id}`,
       chips: [
-        tidyTag(v.made_in),
-        tidyTag(v.leather),
-        tidyTag(v.web),
+        tidyTag(row.brand),
+        tidyTag(row.throwing_hand),
+        row.size_in != null ? `${row.size_in}` : "Unknown",
+        tidyTag(row.pattern),
+        tidyTag(row.series),
       ].filter(Boolean),
+      thumbnail: row.hero_image_url || undefined,
       meta: {
-        brand: v.brand_key,
-        region: regionFromOrigin(v.made_in),
-        hand: handFromLabel(v.variant_label),
-        size: "Unknown",
-        web: webBucket(v.web),
-        source: "catalog",
-        year: String(v.year || "Unknown"),
-        sport: sportFromText(v.variant_label),
-        condition: "Other",
-        position: "Other",
-        series: seriesFromModel(v.model_code),
-        priceBucket: "Unknown",
-        avgSalePrice: (() => {
-          const variantSales = salesByVariant.get(v.variant_id) || [];
-          return variantSales.length
-            ? variantSales.reduce((sum, sale) => sum + Number(sale.price_usd || 0), 0) / variantSales.length
-            : null;
-        })(),
-        trendPct: (() => {
-          const variantSales = salesByVariant.get(v.variant_id) || [];
-          const latestSale = variantSales[0] || null;
-          const previousSale = variantSales[1] || null;
-          if (!latestSale || !previousSale || previousSale.price_usd <= 0) return 0;
-          return Number((((latestSale.price_usd - previousSale.price_usd) / previousSale.price_usd) * 100).toFixed(1));
-        })(),
-        activeListings: (() => {
-          const modelToken = normalizeToken(v.model_code);
-          return gloves.filter((g) => {
-            if (!v.brand_key || !v.model_code) return false;
-            return String(g.brand_key || "").toUpperCase() === String(v.brand_key || "").toUpperCase()
-              && normalizeToken(g.model_code) === modelToken;
-          }).length;
-        })(),
-        recordType: "variant",
-      },
-    }));
-    const gloveRows: SearchResultRow[] = gloves.map((g) => ({
-      id: g.id,
-      record_type: "artifact",
-      title: g.model_code || g.id,
-      subtitle: `${g.brand_key || "Unknown"} • ${g.source || "source"}`,
-      chips: [
-        tidyTag(g.made_in),
-        tidyTag(null),
-        tidyTag(webBucket(g.model_code)),
-      ].filter(Boolean),
-      thumbnail: g.photos?.[0]?.url,
-      meta: {
-        brand: String(g.brand_key || "Unknown"),
-        region: regionFromOrigin(g.made_in),
-        hand: "Other",
-        size: g.size_in ? `${g.size_in}` : "Unknown",
-        web: webBucket(g.model_code),
-        source: String(g.source || "Unknown"),
+        brand: String(row.brand || "Unknown"),
+        region: "Global",
+        hand: handFromLabel(row.throwing_hand),
+        size: row.size_in != null ? `${row.size_in}` : "Unknown",
+        web: webBucket(row.pattern || row.item_number || row.canonical_name),
+        source: row.record_type,
         year: "Unknown",
-        sport: sportFromText(`${g.position || ""} ${g.model_code || ""}`),
-        condition: conditionBucket(g.condition_score),
-        position: positionBucket(g.position),
-        series: seriesFromModel(g.model_code),
-        priceBucket: priceBucket(g.valuation_estimate || g.valuation_high || g.valuation_low),
-        avgSalePrice: g.valuation_estimate ?? null,
+        sport: sportFromText(row.sport),
+        condition: "Other",
+        position: positionBucket(row.pattern || row.canonical_name),
+        series: seriesFromModel(row.series || row.item_number || row.canonical_name),
+        priceBucket: priceBucket(row.price_summary.avg),
+        avgSalePrice: row.price_summary.avg ?? null,
         trendPct: 0,
-        activeListings: 1,
-        recordType: "artifact",
+        activeListings: row.price_summary.count,
+        recordType: row.record_type,
       },
     }));
-    const merged = [...variantRows, ...gloveRows];
-    if (!merged.length) {
+    if (!mappedRows.length && !loading && !loadError) {
       return MOCK_SEARCH_RESULTS.map((row) => ({
         ...row,
         meta: {
@@ -1031,8 +1023,8 @@ function SearchResultsPage({
         },
       }));
     }
-    return merged;
-  }, [variants, gloves, sales]);
+    return mappedRows;
+  }, [libraryRows, loading, loadError]);
   const searchOptions = useMemo(
     () =>
       rows
@@ -1094,6 +1086,35 @@ function SearchResultsPage({
   const resultsPageSize = 15;
   const pageCount = Math.max(1, Math.ceil(filtered.length / resultsPageSize));
   const pagedRows = filtered.slice((resultsPage - 1) * resultsPageSize, resultsPage * resultsPageSize);
+  const unmatchedPreviewRows = useMemo(
+    () =>
+      unmatchedRows.map((row) => {
+        const fold = (value: string) =>
+          value
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase();
+        const title = String(row.title || "");
+        const modelCodes = Array.from(
+          new Set(
+            (fold(title).match(/[A-Z0-9-]{3,}/g) || [])
+              .map((token) => token.replace(/[^A-Z0-9]/g, ""))
+              .filter((token) => /[A-Z]/.test(token) && /\d/.test(token) && token.length >= 4),
+          ),
+        ).slice(0, 3);
+        const brand =
+          ["RAWLINGS", "WILSON", "MIZUNO", "NOKONA", "MARUCCI", "EASTON", "SSK", "ZETT", "ATOMS", "AKADEMA"]
+            .find((token) => fold(title).includes(token)) || null;
+        const searchHint = [brand, modelCodes[0]].filter(Boolean).join(" ") || title.split(/\s+/).slice(0, 6).join(" ");
+        return {
+          ...row,
+          modelCodes,
+          searchHint,
+          previewSource: row.marketplace_id || row.source_name || "Marketplace",
+        };
+      }),
+    [unmatchedRows],
+  );
 
   return (
     <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
@@ -1208,6 +1229,12 @@ function SearchResultsPage({
             </Box>
           </Popover>
           <Divider sx={{ my: 1.2 }} />
+          {loadError ? (
+            <Typography color="error" variant="body2" sx={{ mb: 1.2 }}>
+              Failed to load library data: {loadError}
+            </Typography>
+          ) : null}
+          {loading ? <LinearProgress sx={{ mb: 1.2 }} /> : null}
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Results</Typography>
             <Stack direction="row" spacing={0.8}>
@@ -1235,9 +1262,17 @@ function SearchResultsPage({
           <ResultsGrid
             rows={pagedRows}
             selectedId={selectedId}
-            onSelect={(row) => {
+            onSelect={async (row) => {
               setSelectedId(row.id);
-              onNavigate(routeForSearchResult(row));
+              try {
+                setLibraryDetailLoadingId(row.id);
+                const detail = await api.libraryGlove(row.id);
+                setLibraryDetailOpen(detail);
+              } catch (error) {
+                console.error(error);
+              } finally {
+                setLibraryDetailLoadingId(null);
+              }
             }}
           />
           {filtered.length > resultsPageSize ? (
@@ -1251,6 +1286,249 @@ function SearchResultsPage({
               />
             </Stack>
           ) : null}
+          <Accordion
+            disableGutters
+            sx={{
+              mt: 1.5,
+              borderRadius: 2,
+              overflow: "hidden",
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.paper",
+              "&:before": { display: "none" },
+            }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                  Internal Review
+                </Typography>
+                <Chip size="small" label={`${unmatchedRows.length} unmatched`} />
+                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", md: "block" } }}>
+                  Review unmatched marketplace titles and pivot directly back into the library search.
+                </Typography>
+              </Stack>
+            </AccordionSummary>
+            <AccordionDetails sx={{ pt: 0.2 }}>
+              {unmatchedError ? (
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                  Failed to load unmatched marketplace rows: {unmatchedError}
+                </Alert>
+              ) : null}
+              {unmatchedLoading ? <LinearProgress sx={{ mb: 1.2 }} /> : null}
+              {!unmatchedLoading && !unmatchedPreviewRows.length && !unmatchedError ? (
+                <Typography variant="body2" color="text.secondary">
+                  No unmatched marketplace rows are waiting for review.
+                </Typography>
+              ) : null}
+              <Stack spacing={1}>
+                {unmatchedPreviewRows.map((row) => (
+                  <Box
+                    key={row.listing_id}
+                    sx={{
+                      p: 1.15,
+                      borderRadius: 1.6,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "background.default",
+                    }}
+                  >
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1}
+                      justifyContent="space-between"
+                      alignItems={{ xs: "flex-start", md: "center" }}
+                    >
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                          {row.title || row.external_listing_id || row.listing_id}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {row.previewSource} • {row.price_currency || "USD"} {row.price_amount ?? "—"} • {row.available === false ? "Sold" : "Active"} • {row.updated_at ? shortDate(row.updated_at) : "No timestamp"}
+                        </Typography>
+                        <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap", mt: 0.8 }}>
+                          {row.modelCodes.length ? row.modelCodes.map((code) => (
+                            <Chip key={`${row.listing_id}-${code}`} size="small" variant="outlined" label={code} />
+                          )) : <Chip size="small" variant="outlined" label="No model code found" />}
+                          <Chip size="small" label={`Search: ${row.searchHint}`} />
+                        </Stack>
+                      </Box>
+                      <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                        <Button
+                          size="small"
+                          color="inherit"
+                          variant="outlined"
+                          onClick={() => setQuery(row.searchHint)}
+                        >
+                          Search library
+                        </Button>
+                        <Button
+                          size="small"
+                          color="inherit"
+                          variant="outlined"
+                          startIcon={<ContentCopyRoundedIcon fontSize="inherit" />}
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(row.title || row.searchHint);
+                            } catch (error) {
+                              console.error(error);
+                            }
+                          }}
+                        >
+                          Copy title
+                        </Button>
+                        {row.listing_url ? (
+                          <Button
+                            size="small"
+                            color="inherit"
+                            endIcon={<OpenInNewIcon fontSize="inherit" />}
+                            onClick={() => window.open(row.listing_url || "", "_blank", "noopener,noreferrer")}
+                          >
+                            Listing
+                          </Button>
+                        ) : null}
+                      </Stack>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+          <Dialog
+            open={Boolean(libraryDetailOpen)}
+            onClose={() => setLibraryDetailOpen(null)}
+            maxWidth="md"
+            fullWidth
+          >
+            {libraryDetailOpen ? (
+              <Box sx={{ p: 1.4 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{libraryDetailOpen.canonical_name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {libraryDetailOpen.item_number || "Unknown item"} • {libraryDetailOpen.pattern || "Unknown pattern"} • {libraryDetailOpen.size_in || "?"}" • {libraryDetailOpen.throwing_hand || "Unknown hand"}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      color="inherit"
+                      disabled={libraryDetailRefreshingId === libraryDetailOpen.id}
+                      onClick={async () => {
+                        try {
+                          setLibraryDetailRefreshingId(libraryDetailOpen.id);
+                          const refreshed = await api.refreshLibraryGlove(libraryDetailOpen.id);
+                          setLibraryDetailOpen(refreshed);
+                        } catch (error) {
+                          console.error(error);
+                        } finally {
+                          setLibraryDetailRefreshingId(null);
+                        }
+                      }}
+                    >
+                      {libraryDetailRefreshingId === libraryDetailOpen.id ? "Refreshing..." : "Refresh market"}
+                    </Button>
+                    <Button color="inherit" onClick={() => setLibraryDetailOpen(null)}>Close</Button>
+                  </Stack>
+                </Stack>
+                <Divider sx={{ my: 1.2 }} />
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px 1fr" }, gap: 1.25 }}>
+                  <Box
+                    component="img"
+                    src={libraryDetailOpen.images[0]?.url || glovePlaceholderImage}
+                    alt={libraryDetailOpen.canonical_name}
+                    sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", aspectRatio: "4 / 3", objectFit: "cover" }}
+                  />
+                  <Stack spacing={1}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 1 }}>
+                      {[
+                        {
+                          label: "Last sale",
+                          value: libraryDetailOpen.metrics.last_sale_price != null ? money(libraryDetailOpen.metrics.last_sale_price) : "—",
+                          caption: libraryDetailOpen.metrics.last_sale_date ? shortDate(libraryDetailOpen.metrics.last_sale_date) : "No sold comp yet",
+                        },
+                        {
+                          label: "Ask median",
+                          value: libraryDetailOpen.metrics.current_median != null ? money(libraryDetailOpen.metrics.current_median) : "—",
+                          caption: `${libraryDetailOpen.metrics.available_count} active listings`,
+                        },
+                        {
+                          label: "30d sold avg",
+                          value: libraryDetailOpen.metrics.ma30 != null ? money(libraryDetailOpen.metrics.ma30) : "—",
+                          caption: `${libraryDetailOpen.metrics.sold_count} sold comps linked`,
+                        },
+                        {
+                          label: "Band",
+                          value: libraryDetailOpen.metrics.p10 != null && libraryDetailOpen.metrics.p90 != null
+                            ? `${money(libraryDetailOpen.metrics.p10)} - ${money(libraryDetailOpen.metrics.p90)}`
+                            : "—",
+                          caption: "P10 to P90",
+                        },
+                      ].map((metric) => (
+                        <Box key={metric.label} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.4, bgcolor: "background.default" }}>
+                          <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                          <Typography sx={{ fontWeight: 900, mt: 0.3 }}>{metric.value}</Typography>
+                          <Typography variant="caption" color="text.secondary">{metric.caption}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                      <Chip size="small" label={`Listings ${libraryDetailOpen.metrics.listings_count}`} />
+                      <Chip size="small" label={`Available ${libraryDetailOpen.metrics.available_count}`} />
+                      <Chip size="small" label={`Avg ${libraryDetailOpen.metrics.price_avg != null ? money(libraryDetailOpen.metrics.price_avg) : "—"}`} />
+                      {libraryDetailOpen.metrics.ma7 != null ? <Chip size="small" label={`7d ${money(libraryDetailOpen.metrics.ma7)}`} /> : null}
+                      {libraryDetailOpen.metrics.ma90 != null ? <Chip size="small" label={`90d ${money(libraryDetailOpen.metrics.ma90)}`} /> : null}
+                      {libraryDetailOpen.metrics.refreshed_at ? <Chip size="small" variant="outlined" label={`Refreshed ${shortDate(libraryDetailOpen.metrics.refreshed_at)}`} /> : null}
+                    </Stack>
+                    {libraryDetailOpen.metrics.regions.length ? (
+                      <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                        {libraryDetailOpen.metrics.regions.slice(0, 6).map((region) => (
+                          <Chip key={region.region} size="small" variant="outlined" label={`${region.region} ${region.count}`} />
+                        ))}
+                      </Stack>
+                    ) : null}
+                    {libraryDetailOpen.metrics.affiliate_offers.length ? (
+                      <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                        {libraryDetailOpen.metrics.affiliate_offers.slice(0, 4).map((offer) => (
+                          <Button
+                            key={`${offer.source}-${offer.url}`}
+                            size="small"
+                            color="inherit"
+                            variant="outlined"
+                            endIcon={<OpenInNewIcon fontSize="inherit" />}
+                            onClick={() => window.open(offer.url, "_blank", "noopener,noreferrer")}
+                          >
+                            {offer.label} ({offer.count})
+                          </Button>
+                        ))}
+                      </Stack>
+                    ) : null}
+                    <Typography variant="body2" color="text.secondary">
+                      {libraryDetailOpen.normalized_specs.description || "No description available yet."}
+                    </Typography>
+                    <Stack spacing={0.8}>
+                      {libraryDetailOpen.listings.slice(0, 8).map((listing) => (
+                        <Box key={listing.id} sx={{ p: 0.9, borderRadius: 1.2, border: "1px solid", borderColor: "divider" }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{listing.title || listing.id}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {listing.source} • {listing.currency || "USD"} {listing.price ?? "—"} • {listing.available === false ? "Sold" : "Active"}
+                              </Typography>
+                            </Box>
+                            {listing.url ? (
+                              <Button size="small" color="inherit" endIcon={<OpenInNewIcon fontSize="inherit" />} onClick={() => window.open(listing.url || "", "_blank", "noopener,noreferrer")}>
+                                Listing
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Box>
+              </Box>
+            ) : null}
+          </Dialog>
         </Box>
       </Stack>
     </Container>
@@ -3779,6 +4057,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   const [variantPreviewImage, setVariantPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [libraryDetailOpen, setLibraryDetailOpen] = useState<LibraryGlove | null>(null);
   const [libraryDetailLoadingId, setLibraryDetailLoadingId] = useState<string | null>(null);
+  const [libraryDetailRefreshingId, setLibraryDetailRefreshingId] = useState<string | null>(null);
   const [verificationStep, setVerificationStep] = useState(0);
   const [submittedVerificationSummary, setSubmittedVerificationSummary] = useState<Record<string, unknown> | null>(null);
   const [listingLink, setListingLink] = useState("");
@@ -3815,12 +4094,11 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
   async function refresh(query?: string) {
     setLoading(true); setErr(null);
     try {
-      const [artifactData, libraryData] = await Promise.all([
-        api.artifacts(query, { photoMode: "none" }),
-        api.librarySearch(query || ""),
-      ]);
-      setRows(artifactData);
+      const libraryData = await api.librarySearch(query || "");
       setLibraryRows(libraryData);
+      setRows([]);
+      setCompRows([]);
+      setSaleRows([]);
     }
     catch (e: any) { setErr(String(e?.message || e)); }
     finally { setLoading(false); }
@@ -3828,12 +4106,12 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
 
   useEffect(() => { refresh(""); }, []);
   useEffect(() => {
-    api.brands().then(setBrandRows).catch(() => setBrandRows([]));
-    api.variants().then(setVariantRows).catch(() => setVariantRows([]));
-    api.families().then(setFamilyRows).catch(() => setFamilyRows([]));
-    api.patterns().then(setPatternRows).catch(() => setPatternRows([]));
-    api.comps().then(setCompRows).catch(() => setCompRows([]));
-    api.sales().then(setSaleRows).catch(() => setSaleRows([]));
+    setBrandRows([]);
+    setVariantRows([]);
+    setFamilyRows([]);
+    setPatternRows([]);
+    setCompRows([]);
+    setSaleRows([]);
   }, []);
 
   const topSearchOptions = useMemo(() => {
@@ -4849,7 +5127,26 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                         {libraryDetailOpen.item_number || "Unknown item"} • {libraryDetailOpen.pattern || "Unknown pattern"} • {libraryDetailOpen.size_in || "?"}" • {libraryDetailOpen.throwing_hand || "Unknown hand"}
                       </Typography>
                     </Box>
-                    <Button color="inherit" onClick={() => setLibraryDetailOpen(null)}>Close</Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        color="inherit"
+                        disabled={libraryDetailRefreshingId === libraryDetailOpen.id}
+                        onClick={async () => {
+                          try {
+                            setLibraryDetailRefreshingId(libraryDetailOpen.id);
+                            const refreshed = await api.refreshLibraryGlove(libraryDetailOpen.id);
+                            setLibraryDetailOpen(refreshed);
+                          } catch (error) {
+                            console.error(error);
+                          } finally {
+                            setLibraryDetailRefreshingId(null);
+                          }
+                        }}
+                      >
+                        {libraryDetailRefreshingId === libraryDetailOpen.id ? "Refreshing..." : "Refresh market"}
+                      </Button>
+                      <Button color="inherit" onClick={() => setLibraryDetailOpen(null)}>Close</Button>
+                    </Stack>
                   </Stack>
                   <Divider sx={{ my: 1.2 }} />
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px 1fr" }, gap: 1.25 }}>
@@ -4860,11 +5157,69 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                       sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", aspectRatio: "4 / 3", objectFit: "cover" }}
                     />
                     <Stack spacing={1}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 1 }}>
+                        {[
+                          {
+                            label: "Last sale",
+                            value: libraryDetailOpen.metrics.last_sale_price != null ? money(libraryDetailOpen.metrics.last_sale_price) : "—",
+                            caption: libraryDetailOpen.metrics.last_sale_date ? shortDate(libraryDetailOpen.metrics.last_sale_date) : "No sold comp yet",
+                          },
+                          {
+                            label: "Ask median",
+                            value: libraryDetailOpen.metrics.current_median != null ? money(libraryDetailOpen.metrics.current_median) : "—",
+                            caption: `${libraryDetailOpen.metrics.available_count} active listings`,
+                          },
+                          {
+                            label: "30d sold avg",
+                            value: libraryDetailOpen.metrics.ma30 != null ? money(libraryDetailOpen.metrics.ma30) : "—",
+                            caption: `${libraryDetailOpen.metrics.sold_count} sold comps linked`,
+                          },
+                          {
+                            label: "Band",
+                            value: libraryDetailOpen.metrics.p10 != null && libraryDetailOpen.metrics.p90 != null
+                              ? `${money(libraryDetailOpen.metrics.p10)} - ${money(libraryDetailOpen.metrics.p90)}`
+                              : "—",
+                            caption: "P10 to P90",
+                          },
+                        ].map((metric) => (
+                          <Box key={metric.label} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.4, bgcolor: "background.default" }}>
+                            <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                            <Typography sx={{ fontWeight: 900, mt: 0.3 }}>{metric.value}</Typography>
+                            <Typography variant="caption" color="text.secondary">{metric.caption}</Typography>
+                          </Box>
+                        ))}
+                      </Box>
                       <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
                         <Chip size="small" label={`Listings ${libraryDetailOpen.metrics.listings_count}`} />
                         <Chip size="small" label={`Available ${libraryDetailOpen.metrics.available_count}`} />
                         <Chip size="small" label={`Avg ${libraryDetailOpen.metrics.price_avg != null ? money(libraryDetailOpen.metrics.price_avg) : "—"}`} />
+                        {libraryDetailOpen.metrics.ma7 != null ? <Chip size="small" label={`7d ${money(libraryDetailOpen.metrics.ma7)}`} /> : null}
+                        {libraryDetailOpen.metrics.ma90 != null ? <Chip size="small" label={`90d ${money(libraryDetailOpen.metrics.ma90)}`} /> : null}
+                        {libraryDetailOpen.metrics.refreshed_at ? <Chip size="small" variant="outlined" label={`Refreshed ${shortDate(libraryDetailOpen.metrics.refreshed_at)}`} /> : null}
                       </Stack>
+                      {libraryDetailOpen.metrics.regions.length ? (
+                        <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                          {libraryDetailOpen.metrics.regions.slice(0, 6).map((region) => (
+                            <Chip key={region.region} size="small" variant="outlined" label={`${region.region} ${region.count}`} />
+                          ))}
+                        </Stack>
+                      ) : null}
+                      {libraryDetailOpen.metrics.affiliate_offers.length ? (
+                        <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                          {libraryDetailOpen.metrics.affiliate_offers.slice(0, 4).map((offer) => (
+                            <Button
+                              key={`${offer.source}-${offer.url}`}
+                              size="small"
+                              color="inherit"
+                              variant="outlined"
+                              endIcon={<OpenInNewIcon fontSize="inherit" />}
+                              onClick={() => window.open(offer.url, "_blank", "noopener,noreferrer")}
+                            >
+                              {offer.label} ({offer.count})
+                            </Button>
+                          ))}
+                        </Stack>
+                      ) : null}
                       <Typography variant="body2" color="text.secondary">
                         {libraryDetailOpen.normalized_specs.description || "No description available yet."}
                       </Typography>
@@ -4875,7 +5230,7 @@ function ArtifactsScreen({ locale, onOpenArtifact }: { locale: Locale; onOpenArt
                               <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{listing.title || listing.id}</Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                  {listing.source} • {listing.currency || "USD"} {listing.price ?? "—"}
+                                  {listing.source} • {listing.currency || "USD"} {listing.price ?? "—"} • {listing.available === false ? "Sold" : "Active"}
                                 </Typography>
                               </Box>
                               {listing.url ? (
@@ -6223,6 +6578,146 @@ function ArtifactDetail({ locale, artifact }: { locale: Locale; artifact: Artifa
   );
 }
 
+function LibraryArtifactDetailPage({
+  glove,
+  locale,
+  onBack,
+  refreshing,
+  onRefresh,
+}: {
+  glove: LibraryGlove;
+  locale: Locale;
+  onBack: () => void;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  return (
+    <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>
+      <Stack spacing={2}>
+        <Card><CardContent>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="overline" color="text.secondary">
+                {glove.sport || "UNKNOWN"} • {glove.size_in ? `${glove.size_in}"` : "—"} • {glove.market_origin || "Market origin unknown"}
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900 }} noWrap>{glove.canonical_name}</Typography>
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+                <Chip label={glove.record_type === "variant" ? "Variant" : "Artifact"} />
+                <Chip label={`Pattern: ${glove.pattern || "Unknown"}`} />
+                <Chip label={`Hand: ${glove.throwing_hand || "Unknown"}`} />
+              </Stack>
+            </Box>
+            <Stack direction={{ xs: "row", md: "column" }} spacing={1} alignItems={{ xs: "center", md: "flex-end" }}>
+              <Button color="inherit" onClick={onBack}>Back</Button>
+              <Button onClick={onRefresh} disabled={refreshing}>
+                {refreshing ? "Refreshing..." : "Refresh market"}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent></Card>
+
+        <Card><CardContent>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px 1fr" }, gap: 1.5 }}>
+            <Box
+              component="img"
+              src={glove.images[0]?.url || glovePlaceholderImage}
+              alt={glove.canonical_name}
+              sx={{ width: "100%", borderRadius: 1.5, border: "1px solid", borderColor: "divider", display: "block", aspectRatio: "4 / 3", objectFit: "cover" }}
+            />
+            <Stack spacing={1.2}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: 1 }}>
+                {[
+                  {
+                    label: "Last sale",
+                    value: glove.metrics.last_sale_price != null ? money(glove.metrics.last_sale_price) : "—",
+                    caption: glove.metrics.last_sale_date ? shortDate(glove.metrics.last_sale_date) : "No sold comp yet",
+                  },
+                  {
+                    label: "Ask median",
+                    value: glove.metrics.current_median != null ? money(glove.metrics.current_median) : "—",
+                    caption: `${glove.metrics.available_count} active listings`,
+                  },
+                  {
+                    label: "30d sold avg",
+                    value: glove.metrics.ma30 != null ? money(glove.metrics.ma30) : "—",
+                    caption: `${glove.metrics.sold_count} sold comps linked`,
+                  },
+                  {
+                    label: "Band",
+                    value: glove.metrics.p10 != null && glove.metrics.p90 != null
+                      ? `${money(glove.metrics.p10)} - ${money(glove.metrics.p90)}`
+                      : "—",
+                    caption: "P10 to P90",
+                  },
+                ].map((metric) => (
+                  <Box key={metric.label} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1.4, bgcolor: "background.default" }}>
+                    <Typography variant="caption" color="text.secondary">{metric.label}</Typography>
+                    <Typography sx={{ fontWeight: 900, mt: 0.3 }}>{metric.value}</Typography>
+                    <Typography variant="caption" color="text.secondary">{metric.caption}</Typography>
+                  </Box>
+                ))}
+              </Box>
+              <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                <Chip size="small" label={`Listings ${glove.metrics.listings_count}`} />
+                <Chip size="small" label={`Available ${glove.metrics.available_count}`} />
+                <Chip size="small" label={`Avg ${glove.metrics.price_avg != null ? money(glove.metrics.price_avg) : "—"}`} />
+                {glove.metrics.ma7 != null ? <Chip size="small" label={`7d ${money(glove.metrics.ma7)}`} /> : null}
+                {glove.metrics.ma90 != null ? <Chip size="small" label={`90d ${money(glove.metrics.ma90)}`} /> : null}
+                {glove.metrics.refreshed_at ? <Chip size="small" variant="outlined" label={`Refreshed ${shortDate(glove.metrics.refreshed_at)}`} /> : null}
+              </Stack>
+              {glove.metrics.regions.length ? (
+                <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                  {glove.metrics.regions.slice(0, 8).map((region) => (
+                    <Chip key={region.region} size="small" variant="outlined" label={`${region.region} ${region.count}`} />
+                  ))}
+                </Stack>
+              ) : null}
+              {glove.metrics.affiliate_offers.length ? (
+                <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
+                  {glove.metrics.affiliate_offers.slice(0, 6).map((offer) => (
+                    <Button
+                      key={`${offer.source}-${offer.url}`}
+                      size="small"
+                      color="inherit"
+                      variant="outlined"
+                      endIcon={<OpenInNewIcon fontSize="inherit" />}
+                      onClick={() => window.open(offer.url, "_blank", "noopener,noreferrer")}
+                    >
+                      {offer.label} ({offer.count})
+                    </Button>
+                  ))}
+                </Stack>
+              ) : null}
+              <Typography variant="body2" color="text.secondary">
+                {glove.normalized_specs.description || "No description available yet."}
+              </Typography>
+              <Stack spacing={0.8}>
+                {glove.listings.slice(0, 12).map((listing) => (
+                  <Box key={listing.id} sx={{ p: 0.9, borderRadius: 1.2, border: "1px solid", borderColor: "divider" }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>{listing.title || listing.id}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {listing.source} • {listing.currency || "USD"} {listing.price ?? "—"} • {listing.available === false ? "Sold" : "Active"}
+                        </Typography>
+                      </Box>
+                      {listing.url ? (
+                        <Button size="small" color="inherit" endIcon={<OpenInNewIcon fontSize="inherit" />} onClick={() => window.open(listing.url || "", "_blank", "noopener,noreferrer")}>
+                          Listing
+                        </Button>
+                      ) : null}
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          </Box>
+        </CardContent></Card>
+      </Stack>
+    </Container>
+  );
+}
+
 function PricingScreen({ locale, onStartFree }: { locale: Locale; onStartFree: () => void; }) {
   const plans = [
     {
@@ -6361,7 +6856,8 @@ export default function App() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [gloves, setGloves] = useState<Artifact[]>([]);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
-  const [lastArtifactId, setLastArtifactId] = useState<string | null>(null);
+  const [libraryArtifact, setLibraryArtifact] = useState<LibraryGlove | null>(null);
+  const [libraryArtifactRefreshing, setLibraryArtifactRefreshing] = useState(false);
   const [iqModeOpen, setIqModeOpen] = useState(false);
   const [iqModeSeedQuery, setIqModeSeedQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -6390,10 +6886,16 @@ export default function App() {
   }, [leftRailCollapsed]);
   useEffect(() => {
     if (route.name === "artifactDetail") {
-      setLastArtifactId(route.artifactId);
-      api.artifact(route.artifactId).then(setArtifact).catch(() => setArtifact(null));
+      setArtifact(null);
+      setLibraryArtifact(null);
+      api.libraryGlove(route.artifactId)
+        .then(setLibraryArtifact)
+        .catch(() => {
+          api.artifact(route.artifactId).then(setArtifact).catch(() => setArtifact(null));
+        });
     } else {
       setArtifact(null);
+      setLibraryArtifact(null);
     }
   }, [route]);
   useEffect(() => {
@@ -6709,19 +7211,13 @@ export default function App() {
                       selectedBrand={homeSelectedBrand}
                       selectedCountry={homeSelectedCountry}
                       onOpenArtifact={(id) => {
-                        setLastArtifactId(id);
                         setRoute({ name: "artifactDetail", artifactId: id });
                       }}
                       onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
                     />
                   ) : route.name === "artifacts" ? (
                     <SearchResultsPage
-                      variants={variants}
-                      gloves={gloves}
-                      sales={sales}
                       initialQuery={searchQuery}
-                      onNavigate={(next) => setRoute(next)}
-                      onOpenBrandProfile={(brandKey) => setRoute({ name: "brandProfile", brandKey })}
                     />
                   ) : route.name === "appraisal" ? (
                     <AppraisalScreen locale={locale} />
@@ -6732,7 +7228,23 @@ export default function App() {
                   ) : route.name === "account" ? (
                     <AccountScreen locale={locale} />
                   ) : route.name === "artifactDetail" ? (
-                    artifact ? (
+                    libraryArtifact ? (
+                      <LibraryArtifactDetailPage
+                        locale={locale}
+                        glove={libraryArtifact}
+                        refreshing={libraryArtifactRefreshing}
+                        onRefresh={async () => {
+                          try {
+                            setLibraryArtifactRefreshing(true);
+                            const refreshed = await api.refreshLibraryGlove(libraryArtifact.id);
+                            setLibraryArtifact(refreshed);
+                          } finally {
+                            setLibraryArtifactRefreshing(false);
+                          }
+                        }}
+                        onBack={() => setRoute({ name: "artifacts" })}
+                      />
+                    ) : artifact ? (
                       <ArtifactDetail locale={locale} artifact={artifact} />
                     ) : (
                       <Container maxWidth="lg" sx={PAGE_CONTAINER_SX}>

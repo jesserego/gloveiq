@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { recomputeGloveMarketSummaries } from "./gloveMarketSummary.js";
 
 type BrandSeed = {
   brand_key: string;
@@ -45,8 +46,75 @@ type CatalogGlove = {
 
 export const EBAY_GLOBAL_IDS = ["EBAY-US", "EBAY-GB", "EBAY-DE", "EBAY-JP", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"];
 
+const EBAY_EXCLUDED_TITLE_TERMS = [
+  "card",
+  "cards",
+  "trading card",
+  "pokemon",
+  "yugioh",
+  "magic the gathering",
+  "mtg",
+  "poster",
+  "photo",
+  "photograph",
+  "dvd",
+  "blu ray",
+  "vhs",
+  "book",
+  "magazine",
+  "comic",
+  "comic book",
+  "sticker",
+  "patch",
+  "pin",
+  "keychain",
+  "wallet",
+  "helmet",
+  "bat",
+  "ball only",
+  "baseball ball",
+  "golf glove",
+  "batting glove",
+  "batting gloves",
+  "football glove",
+  "football gloves",
+  "hockey glove",
+  "hockey gloves",
+  "boxing glove",
+  "boxing gloves",
+  "mma glove",
+  "mma gloves",
+  "oven glove",
+  "work glove",
+  "lace kit",
+  "lace repair",
+  "glove lace",
+  "glove laces",
+  "repair kit",
+  "display stand",
+  "figurine",
+  "toy",
+  "plush",
+];
+
+const EBAY_REQUIRED_HINT_TERMS = [
+  "glove",
+  "mitt",
+  "baseball",
+  "softball",
+  "infield",
+  "outfield",
+  "pitcher",
+  "catcher",
+  "first base",
+];
+
 function normalizeToken(value: string | null | undefined) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 function normalizeBrandKey(value: string | null | undefined) {
@@ -55,10 +123,57 @@ function normalizeBrandKey(value: string | null | undefined) {
 
 function tokenize(value: string | null | undefined) {
   return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .split(/[^a-z0-9]+/g)
     .map((token) => token.trim())
     .filter((token) => token.length >= 3);
+}
+
+function extractSizeCandidates(value: string | null | undefined) {
+  const text = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const out = new Set<string>();
+  for (const match of text.matchAll(/(\d{1,2})\s*[\.,]\s*(\d)/g)) {
+    out.add(`${match[1]}.${match[2]}`);
+  }
+  for (const match of text.matchAll(/(\d{1,2})\s+1\/2/g)) {
+    out.add(`${match[1]}.5`);
+  }
+  for (const match of text.matchAll(/(\d{1,2}(?:\.\d)?)\s*(?:\"|inch|inches|in\b|pulgadas?|cm\b)/g)) {
+    const numeric = Number(match[1].replace(",", "."));
+    if (Number.isFinite(numeric) && numeric >= 8 && numeric <= 35) {
+      out.add(numeric.toFixed(1).replace(/\.0$/, ""));
+    }
+  }
+  return out;
+}
+
+function normalizeHandToken(value: string | null | undefined) {
+  const text = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (
+    text.includes("rht") ||
+    text.includes("right") ||
+    text.includes("right hand throw") ||
+    text.includes("mano derecha") ||
+    text.includes("derecha") ||
+    text.includes("diestro")
+  ) return "rh";
+  if (
+    text.includes("lht") ||
+    text.includes("left") ||
+    text.includes("left hand throw") ||
+    text.includes("mano izquierda") ||
+    text.includes("izquierda") ||
+    text.includes("zurdo")
+  ) return "lh";
+  return "";
 }
 
 function modelCodeCandidates(value: string | null | undefined) {
@@ -80,6 +195,36 @@ function inferBrandKeyFromTitle(title: string, brands: BrandSeed[]): string {
     if ((display && lower.includes(display)) || (key && lower.includes(key))) return brand.brand_key;
   }
   return "UNKNOWN";
+}
+
+function looksLikeGloveListing(title: string, brands: BrandSeed[]) {
+  const lower = String(title || "").toLowerCase();
+  if (!lower.trim()) return false;
+  if (EBAY_EXCLUDED_TITLE_TERMS.some((term) => lower.includes(term))) return false;
+  if (EBAY_REQUIRED_HINT_TERMS.some((term) => lower.includes(term))) return true;
+
+  const inferredBrand = inferBrandKeyFromTitle(title, brands);
+  if (inferredBrand !== "UNKNOWN") {
+    const tokens = tokenize(title);
+    const titleCodes = modelCodeCandidates(title);
+    if (tokens.length >= 3) return true;
+    if (titleCodes.length > 0) return true;
+  }
+  return false;
+}
+
+function buildQueryVariants(query: string, mode: EbaySyncMode) {
+  const base = String(query || "baseball glove").trim() || "baseball glove";
+  const variants = new Set<string>([base]);
+  if (mode === "sold") {
+    variants.add("baseball glove");
+    variants.add("baseball mitt");
+    variants.add("softball glove");
+    variants.add("rawlings glove");
+    variants.add("wilson glove");
+    variants.add("mizuno glove");
+  }
+  return [...variants];
 }
 
 function marketplaceSuffix(globalId: string) {
@@ -188,7 +333,7 @@ async function fetchBrowseRowsPerMarket(params: {
       payload: item,
       source,
     };
-  });
+  }).filter((row: EbayListingRow) => looksLikeGloveListing(row.title, brands));
 }
 
 async function fetchFindingSoldRowsPerMarket(params: {
@@ -216,14 +361,24 @@ async function fetchFindingSoldRowsPerMarket(params: {
   url.searchParams.set("paginationInput.pageNumber", String(pageNumber));
   url.searchParams.set("itemFilter(0).name", "SoldItemsOnly");
   url.searchParams.set("itemFilter(0).value", "true");
+  url.searchParams.set("itemFilter(1).name", "HideDuplicateItems");
+  url.searchParams.set("itemFilter(1).value", "true");
 
   const rsp = await fetch(url.toString(), { headers: { Accept: "application/json" } });
   if (!rsp.ok) return [];
 
   const data = await rsp.json() as any;
+  const errors = data?.errorMessage?.[0]?.error || [];
+  if (Array.isArray(errors) && errors.length) {
+    const rateLimited = errors.some((error: any) => String(error?.errorId?.[0] || "") === "10001");
+    if (rateLimited) {
+      console.warn(`[ebay:sold] rate limited for ${globalId} query="${query}"`);
+    }
+    return [];
+  }
   const items = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || [];
 
-  return items.map((item: any): EbayListingRow => {
+  const rows: EbayListingRow[] = items.map((item: any): EbayListingRow => {
     const itemId = String(item?.itemId?.[0] || "");
     const title = String(item?.title?.[0] || "");
     const primaryImage = String(item?.galleryURL?.[0] || "");
@@ -245,6 +400,8 @@ async function fetchFindingSoldRowsPerMarket(params: {
       source,
     };
   });
+
+  return rows.filter((row) => looksLikeGloveListing(row.title, brands));
 }
 
 export async function fetchEbayMarketplaceRows(params: {
@@ -267,29 +424,32 @@ export async function fetchEbayMarketplaceRows(params: {
   if (mode === "sold" && !appId) return [];
 
   const allRows: EbayListingRow[] = [];
+  const queryVariants = buildQueryVariants(params.query, mode);
   for (const globalId of params.globalIds) {
-    for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-      const rows = mode === "sold"
-        ? await fetchFindingSoldRowsPerMarket({
-            env: params.env,
-            appId,
-            globalId,
-            query: params.query,
-            pageSize: params.perMarket,
-            pageNumber: pageIndex + 1,
-            brands: params.brands,
-          })
-        : await fetchBrowseRowsPerMarket({
-            env: params.env,
-            token: token!,
-            globalId,
-            query: params.query,
-            pageSize: params.perMarket,
-            offset: pageIndex * params.perMarket,
-            brands: params.brands,
-          });
-      allRows.push(...rows);
-      if (rows.length < params.perMarket) break;
+    for (const queryVariant of queryVariants) {
+      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+        const rows = mode === "sold"
+          ? await fetchFindingSoldRowsPerMarket({
+              env: params.env,
+              appId,
+              globalId,
+              query: queryVariant,
+              pageSize: params.perMarket,
+              pageNumber: pageIndex + 1,
+              brands: params.brands,
+            })
+          : await fetchBrowseRowsPerMarket({
+              env: params.env,
+              token: token!,
+              globalId,
+              query: queryVariant,
+              pageSize: params.perMarket,
+              offset: pageIndex * params.perMarket,
+              brands: params.brands,
+            });
+        allRows.push(...rows);
+        if (rows.length < params.perMarket) break;
+      }
     }
   }
 
@@ -343,6 +503,8 @@ function buildMatcher(gloves: CatalogGlove[], brands: BrandSeed[]) {
     const inferredBrand = row.brandKey !== "UNKNOWN" ? row.brandKey : inferBrandKeyFromTitle(row.title, brands);
     const inferredBrandNorm = normalizeBrandKey(inferredBrand);
     const titleModelCodes = new Set(modelCodeCandidates(row.title));
+    const titleSizes = extractSizeCandidates(row.title);
+    const titleHand = normalizeHandToken(row.title);
 
     const scored = gloves
       .map((glove) => {
@@ -356,7 +518,7 @@ function buildMatcher(gloves: CatalogGlove[], brands: BrandSeed[]) {
         const itemNumberTokens = tokenize(String(glove.itemNumber || "").replace(/-/g, " "));
         const canonicalModelCodes = modelCodeCandidates(glove.canonicalName);
         const sizeToken = glove.sizeIn ? String(glove.sizeIn).replace(/\.0$/, "") : "";
-        const handToken = String(glove.throwingHand || "").toLowerCase();
+        const handToken = normalizeHandToken(glove.throwingHand);
 
         if (inferredBrandNorm && gloveBrandNorm && inferredBrandNorm === gloveBrandNorm) {
           score += 6;
@@ -367,8 +529,9 @@ function buildMatcher(gloves: CatalogGlove[], brands: BrandSeed[]) {
         if (itemNumberNorm && titleNorm.includes(itemNumberNorm)) score += 10;
         if (patternNorm && titleNorm.includes(patternNorm)) score += 4;
         if (seriesNorm && titleNorm.includes(seriesNorm)) score += 4;
-        if (sizeToken && titleTokens.has(sizeToken)) score += 1;
-        if (handToken && titleTokens.has(handToken)) score += 1;
+        if (sizeToken && titleSizes.has(sizeToken)) score += 2;
+        if (handToken && titleHand && handToken === titleHand) score += 2;
+        if (handToken && titleHand && handToken !== titleHand) score -= 1;
 
         let codeOverlap = 0;
         for (const code of canonicalModelCodes) {
@@ -430,6 +593,7 @@ export async function persistEbayRows(params: {
   const matcher = buildMatcher(await loadCatalogGloves(params.prisma), params.brands);
   let persisted = 0;
   let matched = 0;
+  const touchedGloveIds = new Set<string>();
 
   for (const row of params.rows) {
     const sourceName = `eBay ${marketplaceSuffix(row.marketplaceId)}`;
@@ -587,6 +751,7 @@ export async function persistEbayRows(params: {
         ON CONFLICT (listing_id) DO UPDATE SET glove_id = EXCLUDED.glove_id
       `, listingId, matchedGlove.gloveId);
       matched += 1;
+      touchedGloveIds.add(matchedGlove.gloveId);
     }
 
     await params.prisma.$executeRawUnsafe(`DELETE FROM images WHERE listing_id = $1::uuid AND b2_key IS NULL`, listingId);
@@ -632,5 +797,9 @@ export async function persistEbayRows(params: {
     persisted += 1;
   }
 
-  return { persisted, matched };
+  if (touchedGloveIds.size) {
+    await recomputeGloveMarketSummaries(params.prisma, [...touchedGloveIds]);
+  }
+
+  return { persisted, matched, gloveIds: [...touchedGloveIds] };
 }
