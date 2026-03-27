@@ -7,47 +7,41 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Artifact, BrandConfig } from "@gloveiq/shared";
 import { PrismaClient } from "@prisma/client";
+import { configReadiness, buildRuntimeConfig } from "./lib/runtimeConfig.js";
 import { loadLibraryStore } from "./libraryStore.js";
 import { mountCollectionRoutes } from "./collectionRoutes.js";
-
-function loadEnvFile(filePath: string) {
-  if (!fs.existsSync(filePath)) return;
-  const raw = fs.readFileSync(filePath, "utf-8");
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx <= 0) continue;
-    const key = trimmed.slice(0, idx).trim();
-    let value = trimmed.slice(idx + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = value;
-  }
-}
-
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+import { downloadFromBackblazeByKey, uploadToBackblaze } from "./lib/backblaze.js";
+import { EBAY_GLOBAL_IDS, fetchEbayMarketplaceRows, persistEbayRows as persistEbayListings } from "./lib/ebay.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
-loadEnvFile(path.resolve(projectRoot, "..", "..", ".env"));
-loadEnvFile(path.resolve(projectRoot, ".env"));
+const runtimeConfig = buildRuntimeConfig({ projectRoot, defaultPort: 8787 });
+const app = express();
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (runtimeConfig.allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: "2mb" }));
+
 const seedDir = path.join(projectRoot, "data", "seed");
 const publicDir = path.join(projectRoot, "public");
 const uploadsDir = path.join(publicDir, "uploads");
 const runtimeDir = path.join(projectRoot, "data", "runtime");
-const runtimeDbPath = path.join(runtimeDir, "appraisal-db.json");
-const libraryExportDir = process.env.LIBRARY_EXPORT_DIR || path.resolve(projectRoot, "..", "..", "data_exports");
+const libraryExportDir = runtimeConfig.libraryExportDir;
 const libraryListingsPath = path.join(libraryExportDir, "listings.normalized.jsonl");
 const libraryManifestPath = path.join(libraryExportDir, "media_manifest.jsonl");
-const resolvedPort = Number(process.env.PORT || 8787);
-const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${resolvedPort}`;
-const b2PublicBaseUrl = (process.env.B2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+const resolvedPort = runtimeConfig.port;
+const publicBaseUrl = runtimeConfig.publicBaseUrl;
+const b2PublicBaseUrl = runtimeConfig.backblaze.publicBaseUrl;
 const libraryApiBasePath = "/api/library";
+const ebayVerificationToken = String(process.env.EBAY_VERIFICATION_TOKEN || "").trim();
+const ebayNotificationPath = "/api/integrations/ebay/notifications";
+const ebayNotificationEndpoint = `${publicBaseUrl.replace(/\/+$/, "")}${ebayNotificationPath}`;
 
 function readOpenAiKey(): string {
   const raw = String(process.env.OPENAI_API_KEY || "").trim();
@@ -60,9 +54,39 @@ if (!readOpenAiKey()) {
   // Visible startup signal so local setup issues are caught before first upload call.
   console.warn("[startup] OPENAI_API_KEY is not configured. Appraisal endpoint will fall back to local heuristic.");
 }
+if (!runtimeConfig.databaseUrl) {
+  console.warn("[startup] DATABASE_URL is not configured. Prisma-backed features will fail until a database connection string is set.");
+}
+if (!runtimeConfig.backblaze.keyId || !runtimeConfig.backblaze.applicationKey || !runtimeConfig.backblaze.bucketName) {
+  console.warn("[startup] Backblaze B2 is not fully configured. Image upload workers are not ready yet.");
+}
 
 app.use("/seed-images", express.static(path.join(publicDir, "seed")));
 app.use("/uploads", express.static(uploadsDir));
+
+app.get(ebayNotificationPath, (req, res) => {
+  const challengeCode = String(req.query.challenge_code || "").trim();
+  if (!challengeCode) {
+    return res.status(400).json({
+      error: "Missing challenge_code",
+      endpoint: ebayNotificationEndpoint,
+    });
+  }
+  if (!ebayVerificationToken) {
+    return res.status(500).json({
+      error: "EBAY_VERIFICATION_TOKEN is not configured",
+      endpoint: ebayNotificationEndpoint,
+    });
+  }
+  return res.json({
+    challengeResponse: buildEbayChallengeResponse(challengeCode, ebayVerificationToken, ebayNotificationEndpoint),
+  });
+});
+
+app.post(ebayNotificationPath, (req, res) => {
+  console.log("[ebay-notification]", JSON.stringify(req.body || {}));
+  return res.status(202).json({ ok: true });
+});
 
 type CacheEntry<T> = { value: T; expiresAt: number };
 const requestCache = new Map<string, CacheEntry<any>>();
@@ -85,45 +109,65 @@ function ensureRuntimeStorage() {
   if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   if (!fs.existsSync(runtimeDir)) fs.mkdirSync(runtimeDir, { recursive: true });
-  if (!fs.existsSync(runtimeDbPath)) {
-    const empty: RuntimeDb = {
-      images: [],
-      artifact_images: [],
-      ai_runs: [],
-      labels_truth: [],
-      valuation_runs: [],
-      corrections: [],
-      verification_events: [],
-    };
-    fs.writeFileSync(runtimeDbPath, JSON.stringify(empty, null, 2));
-  }
 }
 
-function loadRuntimeDb(): RuntimeDb {
-  ensureRuntimeStorage();
-  try {
-    const raw = fs.readFileSync(runtimeDbPath, "utf-8");
-    return JSON.parse(raw) as RuntimeDb;
-  } catch {
-    return {
-      images: [],
-      artifact_images: [],
-      ai_runs: [],
-      labels_truth: [],
-      valuation_runs: [],
-      corrections: [],
-      verification_events: [],
-    };
-  }
+function extensionFromMimeOrName(mime: string | null | undefined, name: string | null | undefined) {
+  const extFromName = path.extname(String(name || "")).toLowerCase();
+  if (extFromName) return extFromName;
+  const normalizedMime = String(mime || "").toLowerCase();
+  if (normalizedMime === "image/png") return ".png";
+  if (normalizedMime === "image/webp") return ".webp";
+  if (normalizedMime === "image/gif") return ".gif";
+  return ".jpg";
 }
 
-function saveRuntimeDb(db: RuntimeDb) {
-  ensureRuntimeStorage();
-  fs.writeFileSync(runtimeDbPath, JSON.stringify(db, null, 2));
+async function persistPhotoUpload(params: {
+  file: Express.Multer.File;
+  photoId: string;
+}): Promise<{ url: string; storage: "local" | "b2"; b2Bucket: string | null; b2Key: string | null }> {
+  const ext = extensionFromMimeOrName(params.file.mimetype, params.file.originalname);
+  const key = `appraisal/photos/${params.photoId}${ext}`;
+
+  if (runtimeConfig.backblaze.keyId && runtimeConfig.backblaze.applicationKey && runtimeConfig.backblaze.bucketName && runtimeConfig.backblaze.bucketId) {
+    try {
+      const upload = await uploadToBackblaze(runtimeConfig, {
+        key,
+        body: params.file.buffer,
+        contentType: params.file.mimetype || "b2/x-auto",
+      });
+      return {
+        url: `${publicBaseUrl}/media/key/${encodeURIComponent(upload.key)}`,
+        storage: "b2",
+        b2Bucket: upload.bucketName,
+        b2Key: upload.key,
+      };
+    } catch (error) {
+      console.warn(`[b2] falling back to local upload storage: ${String((error as Error)?.message || error)}`);
+    }
+  }
+
+  const filename = `${params.photoId}${ext}`;
+  const abs = path.join(uploadsDir, filename);
+  if (!fs.existsSync(abs)) fs.writeFileSync(abs, params.file.buffer);
+  return {
+    url: `${publicBaseUrl}/uploads/${filename}`,
+    storage: "local",
+    b2Bucket: null,
+    b2Key: null,
+  };
 }
 
 function stableHash(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+function buildEbayChallengeResponse(challengeCode: string, verificationToken: string, endpoint: string) {
+  return crypto
+    .createHash("sha256")
+    .update(challengeCode)
+    .update(verificationToken)
+    .update(endpoint)
+    .digest("hex");
 }
 
 function tokenize(text: string) {
@@ -176,19 +220,6 @@ type LiveSaleRow = {
   is_referral: boolean;
 };
 
-const ebayTokenCache: { token: string | null; expiresAt: number } = { token: null, expiresAt: 0 };
-const EBAY_GLOBAL_IDS = ["EBAY-US", "EBAY-GB", "EBAY-DE", "EBAY-JP", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"];
-
-function inferBrandKeyFromTitle(title: string): string {
-  const lower = (title || "").toLowerCase();
-  for (const brand of brands) {
-    const key = String(brand.brand_key || "").toLowerCase().replace(/_/g, " ");
-    const display = String(brand.display_name || "").toLowerCase();
-    if ((display && lower.includes(display)) || (key && lower.includes(key))) return brand.brand_key;
-  }
-  return "UNKNOWN";
-}
-
 function conditionScoreFromText(condition: string | null): number | null {
   const text = String(condition || "").toLowerCase();
   if (!text) return null;
@@ -199,138 +230,6 @@ function conditionScoreFromText(condition: string | null): number | null {
   if (text.includes("fair")) return 0.58;
   if (text.includes("parts")) return 0.3;
   return 0.65;
-}
-
-async function getEbayAccessToken(): Promise<string | null> {
-  const nowTs = Date.now();
-  if (ebayTokenCache.token && ebayTokenCache.expiresAt > nowTs + 60_000) return ebayTokenCache.token;
-
-  const clientId = String(process.env.EBAY_CLIENT_ID || "").trim();
-  const clientSecret = String(process.env.EBAY_CLIENT_SECRET || "").trim();
-  if (!clientId || !clientSecret) return null;
-
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    scope: "https://api.ebay.com/oauth/api_scope",
-  });
-  const rsp = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      "Authorization": `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-  });
-  if (!rsp.ok) return null;
-  const json = await rsp.json() as any;
-  const token = String(json?.access_token || "").trim();
-  const expiresIn = Number(json?.expires_in || 0);
-  if (!token || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
-  ebayTokenCache.token = token;
-  ebayTokenCache.expiresAt = nowTs + (expiresIn * 1000);
-  return token;
-}
-
-async function fetchEbaySoldRowsPerMarket(params: { globalId: string; pageSize: number; query: string; appId?: string; token?: string }): Promise<LiveSaleRow[]> {
-  const { globalId, pageSize, query, appId, token } = params;
-  const source = `ebay_${globalId.replace("EBAY-", "").toLowerCase()}`;
-  if (appId) {
-    const url = new URL("https://svcs.ebay.com/services/search/FindingService/v1");
-    url.searchParams.set("OPERATION-NAME", "findCompletedItems");
-    url.searchParams.set("SERVICE-VERSION", "1.13.0");
-    url.searchParams.set("SECURITY-APPNAME", appId);
-    url.searchParams.set("RESPONSE-DATA-FORMAT", "JSON");
-    url.searchParams.set("REST-PAYLOAD", "true");
-    url.searchParams.set("GLOBAL-ID", globalId);
-    url.searchParams.set("keywords", query);
-    url.searchParams.set("paginationInput.entriesPerPage", String(pageSize));
-    url.searchParams.set("itemFilter(0).name", "SoldItemsOnly");
-    url.searchParams.set("itemFilter(0).value", "true");
-
-    const rsp = await fetch(url.toString(), { headers: { "Accept": "application/json" } });
-    if (!rsp.ok) return [];
-    const data = await rsp.json() as any;
-    const items = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || [];
-    return items.map((item: any): LiveSaleRow => {
-      const itemId = String(item?.itemId?.[0] || "");
-      const title = String(item?.title?.[0] || "");
-      const saleDate = String(item?.listingInfo?.[0]?.endTime?.[0] || new Date().toISOString());
-      const currentPrice = Number(item?.sellingStatus?.[0]?.convertedCurrentPrice?.[0]?.__value__ || item?.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 0);
-      const sourceUrl = String(item?.viewItemURL?.[0] || "");
-      const condition = String(item?.condition?.[0]?.conditionDisplayName?.[0] || "");
-      return {
-        sale_id: `ebay_${globalId}_${itemId}`,
-        variant_id: "unknown_variant",
-        brand_key: inferBrandKeyFromTitle(title),
-        sale_date: saleDate,
-        price_usd: Number.isFinite(currentPrice) ? currentPrice : 0,
-        condition_score_proxy: conditionScoreFromText(condition),
-        source,
-        source_url: sourceUrl || null,
-        is_referral: false,
-      };
-    });
-  }
-
-  if (!token) return [];
-  const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("limit", String(pageSize));
-  url.searchParams.set("sort", "newlyListed");
-  const rsp = await fetch(url.toString(), {
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": globalId,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!rsp.ok) return [];
-  const data = await rsp.json() as any;
-  const items = Array.isArray(data?.itemSummaries) ? data.itemSummaries : [];
-  return items.map((item: any): LiveSaleRow => {
-    const itemId = String(item?.itemId || "");
-    const title = String(item?.title || "");
-    const saleDate = String(item?.itemCreationDate || new Date().toISOString());
-    const price = Number(item?.price?.value || 0);
-    const sourceUrl = String(item?.itemWebUrl || "");
-    const condition = String(item?.condition || "");
-    return {
-      sale_id: `ebay_${globalId}_${itemId}`,
-      variant_id: "unknown_variant",
-      brand_key: inferBrandKeyFromTitle(title),
-      sale_date: saleDate,
-      price_usd: Number.isFinite(price) ? price : 0,
-      condition_score_proxy: conditionScoreFromText(condition),
-      source,
-      source_url: sourceUrl || null,
-      is_referral: false,
-    };
-  });
-}
-
-async function fetchLiveEbaySales(params: { query: string; perMarket: number; globalIds: string[] }): Promise<LiveSaleRow[]> {
-  const appId = String(process.env.EBAY_APP_ID || "").trim();
-  const token = appId ? null : await getEbayAccessToken();
-  if (!appId && !token) return [];
-
-  const allRows: LiveSaleRow[] = [];
-  for (const globalId of params.globalIds) {
-    const rows = await fetchEbaySoldRowsPerMarket({
-      globalId,
-      pageSize: params.perMarket,
-      query: params.query,
-      appId: appId || undefined,
-      token: token || undefined,
-    });
-    allRows.push(...rows);
-  }
-
-  const dedup = new Map<string, LiveSaleRow>();
-  for (const row of allRows) dedup.set(row.sale_id, row);
-  return Array.from(dedup.values())
-    .filter((row) => Number.isFinite(row.price_usd) && row.price_usd > 0)
-    .sort((a, b) => String(b.sale_date).localeCompare(String(a.sale_date)));
 }
 
 function hasEbayLiveConfig() {
@@ -451,16 +350,6 @@ type ExportMediaManifest = {
   source_listing_id: string;
   ordered_image_urls: string[];
   image_mappings: ExportMediaMapping[];
-};
-
-type RuntimeDb = {
-  images: Array<{ image_id: string; sha256: string; name: string; mime: string; bytes: number; url: string; created_at: string }>;
-  artifact_images: Array<{ artifact_id: string; image_id: string; role: string; usable: boolean; bundle_hash: string; created_at: string }>;
-  ai_runs: Array<{ run_id: string; artifact_id: string; bundle_hash: string; stage: string; model: string; input_hash: string; output: any; created_at: string }>;
-  labels_truth: Array<{ artifact_id: string; source: string; payload: any; created_at: string }>;
-  valuation_runs: Array<{ run_id: string; artifact_id: string; bundle_hash: string; mode: string; comps_used: number; output: any; created_at: string }>;
-  corrections: Array<{ correction_id: string; artifact_id: string; note: string; payload: any; created_at: string }>;
-  verification_events: Array<{ event_id: string; artifact_id: string; from: string; to: string; reason: string; created_at: string }>;
 };
 
 type AppraisalMode = "MODE_DISABLED" | "MODE_RANGE_ONLY" | "MODE_ESTIMATE_AND_RANGE" | "DEFER_TO_HUMAN";
@@ -906,22 +795,151 @@ const exportArtifacts: Artifact[] = exportListings
   .filter((row): row is Artifact => Boolean(row));
 
 const artifacts: Artifact[] = exportArtifacts.length ? exportArtifacts : seedArtifacts;
-const libraryStore = loadLibraryStore({ exportDir: libraryExportDir, env: process.env });
 const prisma = new PrismaClient();
+async function findAppraisalImageBySha(sha256: string) {
+  return prisma.appraisalImage.findUnique({ where: { sha256 } });
+}
+
+async function findAppraisalImageByPhotoId(photoId: string) {
+  return prisma.appraisalImage.findUnique({ where: { imageId: photoId } });
+}
+
+async function upsertAppraisalImageRecord(params: {
+  photoId: string;
+  sha256: string;
+  name: string;
+  mime: string;
+  bytes: number;
+  url: string;
+  storage: "local" | "b2";
+  b2Bucket: string | null;
+  b2Key: string | null;
+}) {
+  return prisma.appraisalImage.upsert({
+    where: { imageId: params.photoId },
+    update: {
+      sha256: params.sha256,
+      name: params.name,
+      mime: params.mime,
+      bytes: params.bytes,
+      url: params.url,
+      storage: params.storage.toUpperCase() as any,
+      b2Bucket: params.b2Bucket,
+      b2Key: params.b2Key,
+    },
+    create: {
+      imageId: params.photoId,
+      sha256: params.sha256,
+      name: params.name,
+      mime: params.mime,
+      bytes: params.bytes,
+      url: params.url,
+      storage: params.storage.toUpperCase() as any,
+      b2Bucket: params.b2Bucket,
+      b2Key: params.b2Key,
+    },
+  });
+}
+
+async function recordAppraisalArtifactImages(params: {
+  artifactId: string;
+  bundleHash: string;
+  uploads: Array<{ photoId: string }>;
+  roles: Array<{ role: string; usable: boolean }>;
+}) {
+  for (let i = 0; i < params.uploads.length; i += 1) {
+    const image = await findAppraisalImageByPhotoId(params.uploads[i].photoId);
+    if (!image) continue;
+    await prisma.appraisalArtifactImage.create({
+      data: {
+        artifactId: params.artifactId,
+        imageId: image.id,
+        role: params.roles[i].role,
+        usable: params.roles[i].usable,
+        bundleHash: params.bundleHash,
+      },
+    });
+  }
+}
+
+async function recordAppraisalRuns(params: {
+  artifactId: string;
+  bundleHash: string;
+  identifyInputHash: string;
+  identifyStage: any;
+  evidenceStage: any;
+  valuationStage: any;
+  recommendationStage: any;
+  nowIso: string;
+  compsCount: number;
+  routeMode: string;
+  routeReason: string;
+}) {
+  await prisma.appraisalAiRun.create({
+    data: {
+      runId: `run_${stableHash(`${params.artifactId}_${params.nowIso}_identify`).slice(0, 12)}`,
+      artifactId: params.artifactId,
+      bundleHash: params.bundleHash,
+      stage: "identify",
+      model: process.env.OPENAI_APPRAISAL_MODEL || "gpt-4.1",
+      inputHash: params.identifyInputHash,
+      output: params.identifyStage,
+    },
+  });
+  await prisma.appraisalAiRun.create({
+    data: {
+      runId: `run_${stableHash(`${params.artifactId}_${params.nowIso}_evidence`).slice(0, 12)}`,
+      artifactId: params.artifactId,
+      bundleHash: params.bundleHash,
+      stage: "evidence",
+      model: "rules+vision",
+      inputHash: stableHash(`evidence|${params.bundleHash}`),
+      output: params.evidenceStage,
+    },
+  });
+  await prisma.appraisalValuationRun.create({
+    data: {
+      runId: `vrun_${stableHash(`${params.artifactId}_${params.nowIso}`).slice(0, 12)}`,
+      artifactId: params.artifactId,
+      bundleHash: params.bundleHash,
+      mode: params.routeMode,
+      compsUsed: params.compsCount,
+      output: { valuationStage: params.valuationStage, recommendationStage: params.recommendationStage },
+    },
+  });
+  await prisma.appraisalVerificationEvent.create({
+    data: {
+      eventId: `vev_${stableHash(`${params.artifactId}_${params.nowIso}_${params.routeMode}`).slice(0, 12)}`,
+      artifactId: params.artifactId,
+      fromState: "unverified",
+      toState: params.routeMode,
+      reason: params.routeReason,
+    },
+  });
+}
+
+const libraryStore = loadLibraryStore({ exportDir: libraryExportDir, env: process.env, prisma });
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
-app.get(`${libraryApiBasePath}/health`, (_req, res) => res.json({ ok: true, stats: libraryStore.stats }));
-app.get(`${libraryApiBasePath}/search`, (req, res) => {
+app.get("/api/system/config", (_req, res) => res.json({
+  ok: true,
+  publicBaseUrl: runtimeConfig.publicBaseUrl,
+  webAppUrl: runtimeConfig.webAppUrl,
+  allowedOrigins: runtimeConfig.allowedOrigins,
+  readiness: configReadiness(runtimeConfig),
+}));
+app.get(`${libraryApiBasePath}/health`, async (_req, res) => res.json({ ok: true, stats: await libraryStore.stats() }));
+app.get(`${libraryApiBasePath}/search`, async (req, res) => {
   const q = String(req.query.q || "");
-  return res.json({ results: libraryStore.search(q) });
+  return res.json({ results: await libraryStore.search(q) });
 });
-app.get(`${libraryApiBasePath}/gloves/:id`, (req, res) => {
-  const detail = libraryStore.gloveDetail(String(req.params.id || ""));
+app.get(`${libraryApiBasePath}/gloves/:id`, async (req, res) => {
+  const detail = await libraryStore.gloveDetail(String(req.params.id || ""));
   if (!detail) return res.status(404).json({ error: "Glove not found" });
   return res.json(detail);
 });
-app.get(`${libraryApiBasePath}/listings/:id`, (req, res) => {
-  const detail = libraryStore.listingDetail(String(req.params.id || ""));
+app.get(`${libraryApiBasePath}/listings/:id`, async (req, res) => {
+  const detail = await libraryStore.listingDetail(String(req.params.id || ""));
   if (!detail) return res.status(404).json({ error: "Listing not found" });
   return res.json(detail);
 });
@@ -930,7 +948,7 @@ app.get("/media/key/:encoded(*)", (req, res) => {
   const sourceUrl = String(req.query.source_url || "");
   const exp = String(req.query.exp || "");
   const sig = String(req.query.sig || "");
-  const signingSecret = String(process.env.B2_SIGNING_SECRET || "").trim();
+  const signingSecret = runtimeConfig.backblaze.signingSecret;
   if (!key) return res.status(400).json({ error: "Missing media key" });
   if (signingSecret) {
     const expInt = Number(exp);
@@ -941,6 +959,21 @@ app.get("/media/key/:encoded(*)", (req, res) => {
     if (!sig || sig !== expected) return res.status(401).json({ error: "Invalid media signature" });
   }
   if (b2PublicBaseUrl) return res.redirect(302, `${b2PublicBaseUrl}/${key}`);
+  if (runtimeConfig.backblaze.bucketName && runtimeConfig.backblaze.bucketId && runtimeConfig.backblaze.keyId && runtimeConfig.backblaze.applicationKey) {
+    downloadFromBackblazeByKey(runtimeConfig, key)
+      .then((file) => {
+        res.setHeader("Content-Type", file.contentType);
+        if (file.contentLength) res.setHeader("Content-Length", file.contentLength);
+        if (file.etag) res.setHeader("ETag", file.etag);
+        if (file.cacheControl) res.setHeader("Cache-Control", file.cacheControl);
+        return res.status(200).send(file.body);
+      })
+      .catch(() => {
+        if (/^https?:\/\//i.test(sourceUrl)) return res.redirect(302, sourceUrl);
+        return res.status(404).json({ error: "Media not found in Backblaze." });
+      });
+    return;
+  }
   if (/^https?:\/\//i.test(sourceUrl)) return res.redirect(302, sourceUrl);
   return res.status(404).json({ error: "Media not resolvable. Set B2_PUBLIC_BASE_URL or provide source fallback." });
 });
@@ -994,7 +1027,26 @@ app.get("/sales", async (req, res) => {
       res.setHeader("x-live-count", "0");
     } else {
       try {
-        liveRows = await fetchLiveEbaySales({ query: queryText, perMarket, globalIds: marketIds });
+        const ebayRows = await fetchEbayMarketplaceRows({
+          env: process.env,
+          brands,
+          query: queryText,
+          perMarket,
+          globalIds: marketIds,
+          pages: 1,
+          mode: "active",
+        });
+        liveRows = ebayRows.map((row) => ({
+          sale_id: `ebay_${row.marketplaceId}_${row.externalListingId}`,
+          variant_id: "unknown_variant",
+          brand_key: row.brandKey,
+          sale_date: row.fetchedAt,
+          price_usd: Number(row.priceAmount || 0),
+          condition_score_proxy: conditionScoreFromText(row.condition),
+          source: row.source,
+          source_url: row.listingUrl,
+          is_referral: false,
+        }));
         res.setHeader("x-live-source", "ebay");
         res.setHeader("x-live-count", String(liveRows.length));
       } catch {
@@ -1009,6 +1061,80 @@ app.get("/sales", async (req, res) => {
   const paged = limit > 0 ? rows.slice(offset, offset + limit) : rows;
   res.setHeader("x-total-count", String(rows.length));
   res.json(paged);
+});
+
+app.post("/api/ops/sync/ebay", async (req, res) => {
+  try {
+    const query = String(req.body?.query || req.query.query || "baseball glove");
+    const perMarket = Math.min(100, Math.max(5, Number(req.body?.perMarket || req.query.per_market || 25)));
+    const pages = Math.max(1, Math.min(10, Number(req.body?.pages || req.query.pages || 1)));
+    const mode = String(req.body?.mode || req.query.mode || "active").toLowerCase() === "sold" ? "sold" : "active";
+    const globalIds = String(req.body?.globalIds || req.query.global_ids || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+    const rows = await fetchEbayMarketplaceRows({
+      env: process.env,
+      brands,
+      query,
+      perMarket,
+      pages,
+      globalIds: globalIds.length ? globalIds : EBAY_GLOBAL_IDS,
+      mode,
+    });
+    const persisted = await persistEbayListings({ prisma, env: process.env, brands, rows, query, mode });
+    return res.json({
+      ok: true,
+      query,
+      mode,
+      fetched: rows.length,
+      persisted: persisted.persisted,
+      matched: persisted.matched,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
+});
+
+app.get("/api/ops/ingest/overview", async (_req, res) => {
+  try {
+    const [latestRuns, imageStatuses, recentErrors] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{ id: string; run_type: string; status: string; started_at: string | null; completed_at: string | null; metrics: unknown; error_summary: string | null }>>(
+        `SELECT id::text AS id, run_type, status::text AS status, started_at, completed_at, metrics, error_summary FROM ingest_runs ORDER BY created_at DESC LIMIT 10`,
+      ),
+      prisma.$queryRawUnsafe<Array<{ fetch_status: string; count: number }>>(
+        `SELECT fetch_status::text AS fetch_status, COUNT(*)::int AS count FROM raw_listing_images GROUP BY fetch_status ORDER BY fetch_status`,
+      ),
+      prisma.$queryRawUnsafe<Array<{ created_at: string; phase: string; severity: string; code: string | null; message: string }>>(
+        `SELECT created_at, phase, severity, code, message FROM ingest_errors ORDER BY created_at DESC LIMIT 20`,
+      ),
+    ]);
+    return res.json({ runs: latestRuns, imageStatuses, recentErrors });
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
+});
+
+app.post("/api/ops/ingest/runs/:runId/retry-failed-images", async (req, res) => {
+  try {
+    const runId = String(req.params.runId || "");
+    if (!runId) return res.status(400).json({ error: "runId is required" });
+    const result = await prisma.$executeRawUnsafe(`
+      UPDATE raw_listing_images
+      SET fetch_status = 'PENDING',
+          last_error = NULL,
+          updated_at = now()
+      WHERE raw_listing_id IN (
+        SELECT rlp.id
+        FROM raw_listing_payloads rlp
+        WHERE rlp.ingest_run_id = $1::uuid
+      )
+      AND fetch_status = 'FAILED'
+    `, runId);
+    return res.json({ ok: true, resetRows: Number(result || 0) });
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
 });
 
 app.get("/artifacts", (req, res) => {
@@ -1044,16 +1170,38 @@ app.get("/artifact/:id", (req, res) => {
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 const uploadMany = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 10 } });
 
-app.post("/photos/upload", upload.single("file"), (req, res) => {
+app.post("/photos/upload", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Missing file" });
 
   const sha = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
   const hit = getCache(photoHashCache, sha);
   if (hit) return res.json({ photo_id: hit.photo_id, deduped: true });
 
+  const existing = await findAppraisalImageBySha(sha);
+  if (existing) {
+    setCache(photoHashCache, sha, { photo_id: existing.imageId }, 24 * 60 * 60 * 1000);
+    return res.json({ photo_id: existing.imageId, deduped: true });
+  }
+
   const photo_id = "ph_" + sha.slice(0, 10);
   setCache(photoHashCache, sha, { photo_id }, 24 * 60 * 60 * 1000);
-  res.json({ photo_id, deduped: false });
+  try {
+    const persisted = await persistPhotoUpload({ file: req.file, photoId: photo_id });
+    await upsertAppraisalImageRecord({
+      photoId: photo_id,
+      sha256: sha,
+      name: req.file.originalname,
+      mime: req.file.mimetype,
+      bytes: req.file.size,
+      url: persisted.url,
+      storage: persisted.storage,
+      b2Bucket: persisted.b2Bucket,
+      b2Key: persisted.b2Key,
+    });
+    return res.json({ photo_id, deduped: false });
+  } catch (error) {
+    return res.status(500).json({ error: String((error as Error).message || error) });
+  }
 });
 
 app.post("/appraisal/analyze", uploadMany.array("files", 10), async (req, res) => {
@@ -1063,32 +1211,63 @@ app.post("/appraisal/analyze", uploadMany.array("files", 10), async (req, res) =
     const hint = String(req.body?.hint || "");
     const artifactId = String(req.body?.artifact_id || `art_live_${stableHash(`${hint}_${Date.now()}`).slice(0, 10)}`);
     const nowIso = new Date().toISOString();
-    const db = loadRuntimeDb();
 
-    const uploads = files.map((file) => {
+    const uploads = await Promise.all(files.map(async (file) => {
       const sha = crypto.createHash("sha256").update(file.buffer).digest("hex");
       const hit = getCache(photoHashCache, sha);
       if (hit) {
-        const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
-        const filename = `${hit.photo_id}${ext}`;
-        const abs = path.join(uploadsDir, filename);
-        if (!fs.existsSync(abs)) fs.writeFileSync(abs, file.buffer);
-        const url = `${publicBaseUrl}/uploads/${filename}`;
-        if (!db.images.find((x) => x.image_id === hit.photo_id)) {
-          db.images.push({ image_id: hit.photo_id, sha256: sha, name: file.originalname, mime: file.mimetype, bytes: file.size, url, created_at: nowIso });
+        const existing = await findAppraisalImageByPhotoId(hit.photo_id);
+        if (existing) {
+          return {
+            name: file.originalname,
+            photoId: hit.photo_id,
+            deduped: true,
+            sha256: sha,
+            url: existing.url,
+          };
         }
-        return { name: file.originalname, photoId: hit.photo_id, deduped: true, sha256: sha, url };
+        const persisted = await persistPhotoUpload({ file, photoId: hit.photo_id });
+        await upsertAppraisalImageRecord({
+          photoId: hit.photo_id,
+          sha256: sha,
+          name: file.originalname,
+          mime: file.mimetype,
+          bytes: file.size,
+          url: persisted.url,
+          storage: persisted.storage,
+          b2Bucket: persisted.b2Bucket,
+          b2Key: persisted.b2Key,
+        });
+        return {
+          name: file.originalname,
+          photoId: hit.photo_id,
+          deduped: true,
+          sha256: sha,
+          url: persisted.url,
+        };
       }
       const photo_id = "ph_" + sha.slice(0, 10);
       setCache(photoHashCache, sha, { photo_id }, 24 * 60 * 60 * 1000);
-      const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
-      const filename = `${photo_id}${ext}`;
-      const abs = path.join(uploadsDir, filename);
-      fs.writeFileSync(abs, file.buffer);
-      const url = `${publicBaseUrl}/uploads/${filename}`;
-      db.images.push({ image_id: photo_id, sha256: sha, name: file.originalname, mime: file.mimetype, bytes: file.size, url, created_at: nowIso });
-      return { name: file.originalname, photoId: photo_id, deduped: false, sha256: sha, url };
-    });
+      const persisted = await persistPhotoUpload({ file, photoId: photo_id });
+      await upsertAppraisalImageRecord({
+        photoId: photo_id,
+        sha256: sha,
+        name: file.originalname,
+        mime: file.mimetype,
+        bytes: file.size,
+        url: persisted.url,
+        storage: persisted.storage,
+        b2Bucket: persisted.b2Bucket,
+        b2Key: persisted.b2Key,
+      });
+      return {
+        name: file.originalname,
+        photoId: photo_id,
+        deduped: false,
+        sha256: sha,
+        url: persisted.url,
+      };
+    }));
     const roles = uploads.map((u, idx) => {
       const q = qualityScoresForFile(files[idx]);
       return { name: u.name, role: classifyRoleByName(u.name), usable: q.usable, quality: q };
@@ -1214,54 +1393,20 @@ app.post("/appraisal/analyze", uploadMany.array("files", 10), async (req, res) =
       vectorNeighbors: topVariantNeighbors.slice(0, 6),
     };
 
-    for (let i = 0; i < uploads.length; i += 1) {
-      db.artifact_images.push({
-        artifact_id: artifactId,
-        image_id: uploads[i].photoId,
-        role: roles[i].role,
-        usable: roles[i].usable,
-        bundle_hash: bundleHash,
-        created_at: nowIso,
-      });
-    }
-    db.ai_runs.push({
-      run_id: `run_${stableHash(`${artifactId}_${nowIso}_identify`).slice(0, 12)}`,
-      artifact_id: artifactId,
-      bundle_hash: bundleHash,
-      stage: "identify",
-      model: process.env.OPENAI_APPRAISAL_MODEL || "gpt-4.1",
-      input_hash: identifyInputHash,
-      output: identifyStage,
-      created_at: nowIso,
+    await recordAppraisalArtifactImages({ artifactId, bundleHash, uploads, roles });
+    await recordAppraisalRuns({
+      artifactId,
+      bundleHash,
+      identifyInputHash,
+      identifyStage,
+      evidenceStage,
+      valuationStage,
+      recommendationStage,
+      nowIso,
+      compsCount,
+      routeMode: route.mode,
+      routeReason: route.reason,
     });
-    db.ai_runs.push({
-      run_id: `run_${stableHash(`${artifactId}_${nowIso}_evidence`).slice(0, 12)}`,
-      artifact_id: artifactId,
-      bundle_hash: bundleHash,
-      stage: "evidence",
-      model: "rules+vision",
-      input_hash: stableHash(`evidence|${bundleHash}`),
-      output: evidenceStage,
-      created_at: nowIso,
-    });
-    db.valuation_runs.push({
-      run_id: `vrun_${stableHash(`${artifactId}_${nowIso}`).slice(0, 12)}`,
-      artifact_id: artifactId,
-      bundle_hash: bundleHash,
-      mode: route.mode,
-      comps_used: compsCount,
-      output: { valuationStage, recommendationStage },
-      created_at: nowIso,
-    });
-    db.verification_events.push({
-      event_id: `vev_${stableHash(`${artifactId}_${nowIso}_${route.mode}`).slice(0, 12)}`,
-      artifact_id: artifactId,
-      from: "unverified",
-      to: route.mode,
-      reason: route.reason,
-      created_at: nowIso,
-    });
-    saveRuntimeDb(db);
 
     const appraisal = {
       mode: valuationStage.mode,
@@ -1308,16 +1453,32 @@ app.post("/appraisal/analyze", uploadMany.array("files", 10), async (req, res) =
   }
 });
 
-app.get("/appraisal/runs", (_req, res) => {
-  const db = loadRuntimeDb();
+app.get("/appraisal/runs", async (_req, res) => {
+  const [
+    images,
+    artifactImages,
+    aiRuns,
+    valuationRuns,
+    verificationEvents,
+    latestAiRuns,
+    latestValuationRuns,
+  ] = await Promise.all([
+    prisma.appraisalImage.count(),
+    prisma.appraisalArtifactImage.count(),
+    prisma.appraisalAiRun.count(),
+    prisma.appraisalValuationRun.count(),
+    prisma.appraisalVerificationEvent.count(),
+    prisma.appraisalAiRun.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.appraisalValuationRun.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
+  ]);
   res.json({
-    images: db.images.length,
-    artifact_images: db.artifact_images.length,
-    ai_runs: db.ai_runs.length,
-    valuation_runs: db.valuation_runs.length,
-    verification_events: db.verification_events.length,
-    latest_ai_runs: db.ai_runs.slice(-10),
-    latest_valuation_runs: db.valuation_runs.slice(-10),
+    images,
+    artifact_images: artifactImages,
+    ai_runs: aiRuns,
+    valuation_runs: valuationRuns,
+    verification_events: verificationEvents,
+    latest_ai_runs: latestAiRuns,
+    latest_valuation_runs: latestValuationRuns,
   });
 });
 

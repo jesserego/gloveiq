@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { canAccess, isTier, Tier } from "@gloveiq/shared";
+import { canAccess, isTier, Tier, scoreGloveCondition } from "@gloveiq/shared";
 import { Prisma, PrismaClient, type CollectionItemStatus, type UserCollectionItem } from "@prisma/client";
 
 type VariantLike = {
@@ -12,6 +12,7 @@ type VariantLike = {
   variant_label: string;
   year: number;
   web: string | null;
+  leather?: string | null;
 };
 
 type PatternLike = {
@@ -46,6 +47,20 @@ type CollectionDeps = {
   artifacts: ArtifactLike[];
 };
 
+type InspectionRecord = Prisma.GloveInspectionGetPayload<{
+  include: {
+    factorScores: true;
+    photos: true;
+  };
+}>;
+
+type CollectionItemRecord = UserCollectionItem & {
+  gloveProfile?: {
+    id: string;
+    inspections: InspectionRecord[];
+  } | null;
+};
+
 type ImportInputRow = {
   rowIndex: number;
   variant_id?: string;
@@ -76,6 +91,14 @@ type ItemMetrics = {
 };
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
+const INSPECTION_FACTOR_ORDER = ["STRUCTURE", "LEATHER", "PALM", "LACES", "COSMETICS"] as const;
+const INSPECTION_WEIGHTS: Record<(typeof INSPECTION_FACTOR_ORDER)[number], number> = {
+  STRUCTURE: 0.30,
+  LEATHER: 0.25,
+  PALM: 0.20,
+  LACES: 0.15,
+  COSMETICS: 0.10,
+};
 
 function normalize(s: unknown): string {
   return String(s || "").trim().toLowerCase();
@@ -284,7 +307,136 @@ function parseCurrencyToCents(value: unknown): number | null {
   return Math.round(n * 100);
 }
 
-function mapCollectionItem(item: UserCollectionItem, deps: CollectionDeps) {
+function decimalToNumber(value: Prisma.Decimal | number | string | null | undefined): number | null {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function mapInspectionSummary(inspection: InspectionRecord | null) {
+  if (!inspection) return null;
+  return {
+    id: inspection.id,
+    inspectorType: inspection.inspectorType,
+    inspectionSource: inspection.inspectionSource,
+    notes: inspection.notes,
+    rawScore: decimalToNumber(inspection.rawScore),
+    conditionScore: decimalToNumber(inspection.conditionScore),
+    conditionLabel: inspection.conditionLabel,
+    confidenceScore: decimalToNumber(inspection.confidenceScore),
+    restorationNeeded: inspection.restorationNeeded,
+    rarityPreservationFlag: inspection.rarityPreservationFlag,
+    factorScores: inspection.factorScores
+      .map((factor: InspectionRecord["factorScores"][number]) => ({
+        factorName: factor.factorName,
+        factorScore: decimalToNumber(factor.factorScore),
+        weight: decimalToNumber(factor.weight),
+        weightedPoints: decimalToNumber(factor.weightedPoints),
+        observations: factor.observations,
+      }))
+      .sort((a: { factorName: string }, b: { factorName: string }) => INSPECTION_FACTOR_ORDER.indexOf(a.factorName as any) - INSPECTION_FACTOR_ORDER.indexOf(b.factorName as any)),
+    photos: inspection.photos.map((photo: InspectionRecord["photos"][number]) => ({
+      id: photo.id,
+      photoUrl: photo.photoUrl,
+      photoType: photo.photoType,
+      createdAt: photo.createdAt,
+    })),
+    createdAt: inspection.createdAt,
+    updatedAt: inspection.updatedAt,
+  };
+}
+
+async function syncCollectionItemConditionFromLatestInspection(itemId: string, gloveId: string, deps: CollectionDeps) {
+  const latestInspection = await deps.prisma.gloveInspection.findFirst({
+    where: { gloveId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  await deps.prisma.userCollectionItem.update({
+    where: { id: itemId },
+    data: {
+      normalizedCondition: latestInspection?.conditionLabel || null,
+    },
+  });
+
+  return latestInspection;
+}
+
+async function ensureCollectionGlove(item: UserCollectionItem, deps: CollectionDeps) {
+  const existing = await deps.prisma.collectionGlove.findUnique({ where: { collectionItemId: item.id } });
+  if (existing) return existing;
+  const variant = deps.variants.find((v) => v.variant_id === item.variantId);
+  const pattern = variant?.pattern_id ? deps.patterns.find((p) => p.pattern_id === variant.pattern_id) : undefined;
+  return deps.prisma.collectionGlove.create({
+    data: {
+      ownerUserId: item.userId,
+      collectionItemId: item.id,
+      brand: variant?.brand_key || "Unknown",
+      model: variant?.model_code || null,
+      handThrow: String(variant?.variant_label || "").toUpperCase().includes("LHT") ? "LHT" : "RHT",
+      sizeInches: pattern?.canonical_size_in == null ? undefined : new Prisma.Decimal(pattern.canonical_size_in),
+      year: variant?.year || null,
+      leatherType: variant?.leather || null,
+    },
+  });
+}
+
+function buildInspectionPayload(body: any) {
+  const factorsInput = Array.isArray(body?.factorScores) ? body.factorScores : [];
+  const factorMap = new Map<string, { factorName: string; factorScore: number; observations: string | null }>();
+  for (const row of factorsInput) {
+    const factorName = String(row?.factorName || "").trim().toUpperCase();
+    if (!INSPECTION_FACTOR_ORDER.includes(factorName as any)) continue;
+    const factorScore = Number(row?.factorScore);
+    if (!Number.isFinite(factorScore)) continue;
+    factorMap.set(factorName, {
+      factorName,
+      factorScore: Math.max(1, Math.min(10, factorScore)),
+      observations: row?.observations ? String(row.observations) : null,
+    });
+  }
+  if (factorMap.size !== INSPECTION_FACTOR_ORDER.length) {
+    throw new Error("All 5 inspection factors are required: structure, leather, palm, laces, cosmetics.");
+  }
+
+  const scored = scoreGloveCondition({
+    structure: factorMap.get("STRUCTURE")!.factorScore,
+    leather: factorMap.get("LEATHER")!.factorScore,
+    palm: factorMap.get("PALM")!.factorScore,
+    laces: factorMap.get("LACES")!.factorScore,
+    cosmetics: factorMap.get("COSMETICS")!.factorScore,
+  });
+
+  return {
+    inspectorType: String(body?.inspectorType || "USER").toUpperCase(),
+    inspectionSource: body?.inspectionSource ? String(body.inspectionSource).toUpperCase() : null,
+    notes: body?.notes ? String(body.notes) : null,
+    confidenceScore: body?.confidenceScore == null ? null : Math.max(0, Math.min(1, Number(body.confidenceScore))),
+    restorationNeeded: Boolean(body?.restorationNeeded),
+    rarityPreservationFlag: Boolean(body?.rarityPreservationFlag),
+    factorScores: INSPECTION_FACTOR_ORDER.map((factorName) => {
+      const factor = factorMap.get(factorName)!;
+      return {
+        factorName,
+        factorScore: factor.factorScore,
+        weight: INSPECTION_WEIGHTS[factorName],
+        weightedPoints: scored.weightedPoints[factorName.toLowerCase() as keyof typeof scored.weightedPoints],
+        observations: factor.observations,
+      };
+    }),
+    photos: Array.isArray(body?.photos)
+      ? body.photos
+          .filter((photo: any) => photo?.photoUrl)
+          .map((photo: any) => ({
+            photoUrl: String(photo.photoUrl),
+            photoType: photo?.photoType ? String(photo.photoType) : null,
+          }))
+      : [],
+    score: scored,
+  };
+}
+
+function mapCollectionItem(item: CollectionItemRecord | UserCollectionItem, deps: CollectionDeps) {
   const variantById = new Map(deps.variants.map((v) => [v.variant_id, v]));
   const patternsById = new Map(deps.patterns.map((p) => [p.pattern_id, p]));
   const variant = variantById.get(item.variantId);
@@ -293,6 +445,7 @@ function mapCollectionItem(item: UserCollectionItem, deps: CollectionDeps) {
   const quantity = Math.max(1, item.quantity || 1);
   const positionValue = marketValueCents == null ? null : marketValueCents * quantity;
   const acquisition = item.acquisitionPriceCents == null ? null : item.acquisitionPriceCents * quantity;
+  const latestInspection = "gloveProfile" in item ? item.gloveProfile?.inspections?.[0] || null : null;
 
   return {
     id: item.id,
@@ -309,6 +462,7 @@ function mapCollectionItem(item: UserCollectionItem, deps: CollectionDeps) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     variant: getVariantSummary(variant, patternsById),
+    inspection: latestInspection ? mapInspectionSummary(latestInspection) : null,
     market: {
       currentMedianCents: marketValueCents,
       ma7Cents: metrics.ma7 == null ? null : Math.round(metrics.ma7 * 100),
@@ -338,6 +492,20 @@ function buildCollectionRouter(deps: CollectionDeps) {
       const items = await deps.prisma.userCollectionItem.findMany({
         where: { userId: req.auth!.userId, status },
         orderBy: { updatedAt: "desc" },
+        include: {
+          gloveProfile: {
+            include: {
+              inspections: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                include: {
+                  factorScores: true,
+                  photos: true,
+                },
+              },
+            },
+          },
+        },
       });
       return res.json({
         items: items.map((item) => mapCollectionItem(item, deps)),
@@ -405,6 +573,138 @@ function buildCollectionRouter(deps: CollectionDeps) {
       });
 
       return res.json(mapCollectionItem(updated, deps));
+    } catch (error) {
+      return res.status(500).json({ error: String((error as Error).message || error) });
+    }
+  });
+
+  router.get("/collection/:id/inspections", requireTier(Tier.COLLECTOR), async (req: RequestWithAuth, res) => {
+    try {
+      const id = String(req.params.id || "");
+      const item = await deps.prisma.userCollectionItem.findFirst({ where: { id, userId: req.auth!.userId } });
+      if (!item) return res.status(404).json({ error: "Collection item not found" });
+      const glove = await ensureCollectionGlove(item, deps);
+      const inspections = await deps.prisma.gloveInspection.findMany({
+        where: { gloveId: glove.id },
+        orderBy: { createdAt: "desc" },
+        include: { factorScores: true, photos: true },
+      });
+      return res.json({
+        gloveId: glove.id,
+        inspections: inspections.map(mapInspectionSummary),
+      });
+    } catch (error) {
+      return res.status(500).json({ error: String((error as Error).message || error) });
+    }
+  });
+
+  router.post("/collection/:id/inspections", requireTier(Tier.COLLECTOR), async (req: RequestWithAuth, res) => {
+    try {
+      const id = String(req.params.id || "");
+      const item = await deps.prisma.userCollectionItem.findFirst({ where: { id, userId: req.auth!.userId } });
+      if (!item) return res.status(404).json({ error: "Collection item not found" });
+      const glove = await ensureCollectionGlove(item, deps);
+      const payload = buildInspectionPayload(req.body || {});
+      const inspection = await deps.prisma.gloveInspection.create({
+        data: {
+          gloveId: glove.id,
+          inspectorType: payload.inspectorType as any,
+          inspectionSource: payload.inspectionSource as any,
+          notes: payload.notes,
+          rawScore: new Prisma.Decimal(payload.score.rawScore),
+          conditionScore: new Prisma.Decimal(payload.score.conditionScore),
+          conditionLabel: payload.score.label,
+          confidenceScore: payload.confidenceScore == null ? null : new Prisma.Decimal(payload.confidenceScore),
+          restorationNeeded: payload.restorationNeeded,
+          rarityPreservationFlag: payload.rarityPreservationFlag,
+          factorScores: {
+            create: payload.factorScores.map((factor) => ({
+              factorName: factor.factorName as any,
+              factorScore: new Prisma.Decimal(factor.factorScore),
+              weight: new Prisma.Decimal(factor.weight),
+              weightedPoints: new Prisma.Decimal(factor.weightedPoints),
+              observations: factor.observations,
+            })),
+          },
+          photos: {
+            create: payload.photos,
+          },
+        },
+        include: { factorScores: true, photos: true },
+      });
+      await syncCollectionItemConditionFromLatestInspection(item.id, glove.id, deps);
+      return res.status(201).json(mapInspectionSummary(inspection));
+    } catch (error) {
+      return res.status(500).json({ error: String((error as Error).message || error) });
+    }
+  });
+
+  router.patch("/collection/:id/inspections/:inspectionId", requireTier(Tier.COLLECTOR), async (req: RequestWithAuth, res) => {
+    try {
+      const id = String(req.params.id || "");
+      const inspectionId = String(req.params.inspectionId || "");
+      const item = await deps.prisma.userCollectionItem.findFirst({
+        where: { id, userId: req.auth!.userId },
+        include: { gloveProfile: true },
+      });
+      if (!item?.gloveProfile) return res.status(404).json({ error: "Collection glove not found" });
+      const existing = await deps.prisma.gloveInspection.findFirst({
+        where: { id: inspectionId, gloveId: item.gloveProfile.id },
+      });
+      if (!existing) return res.status(404).json({ error: "Inspection not found" });
+      const payload = buildInspectionPayload(req.body || {});
+      await deps.prisma.inspectionFactorScore.deleteMany({ where: { inspectionId } });
+      await deps.prisma.inspectionPhoto.deleteMany({ where: { inspectionId } });
+      const inspection = await deps.prisma.gloveInspection.update({
+        where: { id: inspectionId },
+        data: {
+          inspectorType: payload.inspectorType as any,
+          inspectionSource: payload.inspectionSource as any,
+          notes: payload.notes,
+          rawScore: new Prisma.Decimal(payload.score.rawScore),
+          conditionScore: new Prisma.Decimal(payload.score.conditionScore),
+          conditionLabel: payload.score.label,
+          confidenceScore: payload.confidenceScore == null ? null : new Prisma.Decimal(payload.confidenceScore),
+          restorationNeeded: payload.restorationNeeded,
+          rarityPreservationFlag: payload.rarityPreservationFlag,
+          factorScores: {
+            create: payload.factorScores.map((factor) => ({
+              factorName: factor.factorName as any,
+              factorScore: new Prisma.Decimal(factor.factorScore),
+              weight: new Prisma.Decimal(factor.weight),
+              weightedPoints: new Prisma.Decimal(factor.weightedPoints),
+              observations: factor.observations,
+            })),
+          },
+          photos: {
+            create: payload.photos,
+          },
+        },
+        include: { factorScores: true, photos: true },
+      });
+      await syncCollectionItemConditionFromLatestInspection(item.id, item.gloveProfile.id, deps);
+      return res.json(mapInspectionSummary(inspection));
+    } catch (error) {
+      return res.status(500).json({ error: String((error as Error).message || error) });
+    }
+  });
+
+  router.delete("/collection/:id/inspections/:inspectionId", requireTier(Tier.COLLECTOR), async (req: RequestWithAuth, res) => {
+    try {
+      const id = String(req.params.id || "");
+      const inspectionId = String(req.params.inspectionId || "");
+      const item = await deps.prisma.userCollectionItem.findFirst({
+        where: { id, userId: req.auth!.userId },
+        include: { gloveProfile: true },
+      });
+      if (!item?.gloveProfile) return res.status(404).json({ error: "Collection glove not found" });
+      const existing = await deps.prisma.gloveInspection.findFirst({
+        where: { id: inspectionId, gloveId: item.gloveProfile.id },
+      });
+      if (!existing) return res.status(404).json({ error: "Inspection not found" });
+      await deps.prisma.gloveInspection.delete({ where: { id: inspectionId } });
+      await syncCollectionItemConditionFromLatestInspection(item.id, item.gloveProfile.id, deps);
+      return res.json({ ok: true });
     } catch (error) {
       return res.status(500).json({ error: String((error as Error).message || error) });
     }

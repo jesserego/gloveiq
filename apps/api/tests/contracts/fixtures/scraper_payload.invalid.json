@@ -1,0 +1,28 @@
+[
+  {
+    "source": "JBG",
+    "source_listing_id": "",
+    "url": "https://www.justballgloves.com/product/example/10028/",
+    "title": "Bad Row Missing ID",
+    "manufacturer": "Wilson",
+    "brand": "Wilson",
+    "market": "US",
+    "record_type": "variant",
+    "model_number": 1786,
+    "canonical_sku": null,
+    "price": "299.99",
+    "currency": "USD",
+    "condition": "New",
+    "sport": "Baseball",
+    "throw_hand": "RIGHT",
+    "observed_at": "not-a-date",
+    "normalized_specs": [],
+    "b2_images": [
+      {
+        "b2_bucket": "",
+        "b2_key": null,
+        "url": ""
+      }
+    ]
+  }
+]

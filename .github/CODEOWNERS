@@ -1,0 +1,9 @@
+# API/Data domain
+/apps/api/ @jesserego
+/apps/api/db/ @jesserego
+
+# Scraper domain
+/scrapers/ @jesserego
+
+# Contracts require explicit review
+/docs/contracts/ @jesserego

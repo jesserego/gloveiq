@@ -835,7 +835,14 @@ function PortfolioOverviewPanel({ selectedWindow, onWindow }: { selectedWindow: 
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Collection value</Typography><Typography sx={{ fontWeight: 900 }}>{money(PORTFOLIO_OVERVIEW.totalValue)}</Typography></Box>
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Gain/Loss</Typography><Typography sx={{ fontWeight: 900, color: "success.main" }}>+{money(PORTFOLIO_OVERVIEW.gainLoss)}</Typography></Box>
           <Box sx={{ p: 0.9, border: "1px solid", borderColor: "divider", borderRadius: 1.1 }}><Typography variant="caption" color="text.secondary">Appreciation</Typography><Typography sx={{ fontWeight: 900 }}>{PORTFOLIO_OVERVIEW.appreciationRatePct}%</Typography></Box>
-          <Button sx={{ minHeight: 0, py: 0.6 }}>Insurance Export</Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            size="small"
+            sx={{ minHeight: 28, px: 1.4, py: 0.35, justifySelf: "start" }}
+          >
+            Insurance Export
+          </Button>
         </Box>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.3fr 1fr" }, gap: 0.8 }}>
           <ThemedLineChart

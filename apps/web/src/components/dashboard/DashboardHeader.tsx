@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Autocomplete,
   Avatar,
   Badge,
   Box,
@@ -12,6 +13,7 @@ import {
   Menu,
   MenuItem,
   Stack,
+  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -33,123 +35,212 @@ const tierStyles: Record<Tier, { label: string; color: string }> = {
   [Tier.DEALER]: { label: "DEALER", color: "#F59E0B" },
 };
 
+export type HeaderSearchOption = {
+  id: string;
+  title: string;
+  subtitle: string;
+  keywords?: string[];
+  onSelect: () => void;
+};
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function scoreSearchOption(option: HeaderSearchOption, query: string) {
+  if (!query) return 1;
+  const normalizedQuery = normalizeSearchText(query);
+  const title = normalizeSearchText(option.title);
+  const subtitle = normalizeSearchText(option.subtitle);
+  const keywords = normalizeSearchText((option.keywords || []).join(" "));
+  const combined = `${title} ${subtitle} ${keywords}`.trim();
+  if (!combined) return -1;
+
+  let score = 0;
+  if (title.startsWith(normalizedQuery)) score += 140;
+  if (title.includes(normalizedQuery)) score += 100;
+  if (subtitle.includes(normalizedQuery)) score += 55;
+  if (keywords.includes(normalizedQuery)) score += 48;
+
+  for (const token of normalizedQuery.split(" ").filter(Boolean)) {
+    if (title.includes(token)) score += 16;
+    if (subtitle.includes(token)) score += 8;
+    if (keywords.includes(token)) score += 6;
+  }
+
+  return score;
+}
+
 export function SearchInput({
-  onActivate,
   onOpenGlobe,
   onOpenBaseball,
   onOpenIQMode,
   selectedCountryLabel,
   selectedBrandLabel,
+  value,
+  options,
+  onValueChange,
+  onSubmit,
 }: {
-  onActivate: () => void;
   onOpenGlobe: (event: React.MouseEvent<HTMLElement>) => void;
   onOpenBaseball: (event: React.MouseEvent<HTMLElement>) => void;
   onOpenIQMode: () => void;
   selectedCountryLabel: string;
   selectedBrandLabel: string;
+  value: string;
+  options: HeaderSearchOption[];
+  onValueChange: (value: string) => void;
+  onSubmit: (query: string) => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const filteredOptions = React.useMemo(() => {
+    const query = value.trim();
+    return [...options]
+      .map((option) => ({ option, score: scoreSearchOption(option, query) }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score || a.option.title.localeCompare(b.option.title))
+      .slice(0, 8)
+      .map((row) => row.option);
+  }, [options, value]);
 
   return (
-    <Box
+    <Autocomplete
+      freeSolo
+      autoHighlight
+      blurOnSelect
+      options={filteredOptions}
+      inputValue={value}
+      getOptionLabel={(option) => (typeof option === "string" ? option : option.title)}
+      isOptionEqualToValue={(option, selected) => option.id === selected.id}
+      onInputChange={(_event, nextValue) => onValueChange(nextValue)}
+      onChange={(_event, selected) => {
+        if (typeof selected === "string") {
+          onValueChange(selected);
+          onSubmit(selected);
+          return;
+        }
+        if (selected) {
+          onValueChange(selected.title);
+          selected.onSelect();
+        }
+      }}
+      filterOptions={(x) => x}
+      noOptionsText={value.trim() ? "No matching gloves, brands, or pages" : "Start typing to search"}
+      renderOption={(props, option) => (
+        <Box component="li" {...props} key={option.id} sx={{ display: "block !important", py: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {option.title}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {option.subtitle}
+          </Typography>
+        </Box>
+      )}
       sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.7,
-        borderRadius: 2.5,
-        px: 1.15,
-        py: 1,
-        border: `1px solid ${theme.palette.divider}`,
-        backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.52 : 0.9),
-        boxShadow: isDark ? "0 4px 12px rgba(2,6,23,0.2)" : "0 2px 10px rgba(2,6,23,0.08)",
-        transition: "box-shadow 180ms ease, border-color 180ms ease",
-        "&:focus-within": {
-          borderColor: alpha(theme.palette.primary.main, 0.72),
-          boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`,
+        "& .MuiAutocomplete-paper": {
+          borderRadius: 2,
         },
       }}
-    >
-      <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
-      <Box
-        component="input"
-        value=""
-        readOnly
-        onClick={onActivate}
-        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onActivate();
-          }
-        }}
-        placeholder="Search gloves, models, brands..."
-        aria-label="Search gloves, models, brands"
-        sx={{
-          border: 0,
-          outline: 0,
-          background: "transparent",
-          color: "text.primary",
-          fontSize: 14,
-          flex: 1,
-          minWidth: 0,
-          "&::placeholder": { color: "text.secondary", opacity: 0.95 },
-        }}
-      />
-      <Tooltip title={`Region: ${selectedCountryLabel}`}>
-        <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
-          <PublicIcon sx={{ fontSize: 16 }} />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={`Brand: ${selectedBrandLabel}`}>
-        <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
-          <SportsBaseballIcon sx={{ fontSize: 16 }} />
-        </IconButton>
-      </Tooltip>
-      <Button
-        color="success"
-        onClick={onOpenIQMode}
-        startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}
-        sx={{
-          display: { xs: "none", sm: "inline-flex" },
-          borderRadius: 999,
-          px: 1.15,
-          py: 0.5,
-          border: "1px solid",
-          borderColor: alpha(theme.palette.success.main, 0.55),
-          bgcolor: alpha(theme.palette.success.main, isDark ? 0.22 : 0.16),
-          fontSize: 11,
-          fontWeight: 700,
-          minWidth: 84,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-          color: theme.palette.success.main,
-          "&:hover": {
-            borderColor: alpha(theme.palette.success.main, 0.72),
-            bgcolor: alpha(theme.palette.success.main, isDark ? 0.28 : 0.2),
-          },
-        }}
-      >
-        IQ Mode
-      </Button>
-      <Box
-        sx={{
-          flexShrink: 0,
-          display: { xs: "none", sm: "inline-flex" },
-          borderRadius: 1,
-          px: 0.75,
-          py: 0.25,
-          border: `1px solid ${theme.palette.divider}`,
-          bgcolor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.7),
-          color: "text.secondary",
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontSize: 11,
-          lineHeight: 1,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Return
-      </Box>
-    </Box>
+      renderInput={(params) => (
+        <Box
+          ref={params.InputProps.ref}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.7,
+            borderRadius: 2.5,
+            px: 1.15,
+            py: 1,
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.52 : 0.9),
+            boxShadow: isDark ? "0 4px 12px rgba(2,6,23,0.2)" : "0 2px 10px rgba(2,6,23,0.08)",
+            transition: "box-shadow 180ms ease, border-color 180ms ease",
+            "&:focus-within": {
+              borderColor: alpha(theme.palette.primary.main, 0.72),
+              boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`,
+            },
+          }}
+        >
+          <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
+          <TextField
+            {...params}
+            variant="standard"
+            placeholder="Search gloves, models, brands..."
+            aria-label="Search gloves, models, brands"
+            onKeyDown={(event) => {
+              params.inputProps.onKeyDown?.(event as any);
+              if (event.defaultPrevented) return;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onSubmit(value);
+              }
+            }}
+            InputProps={{
+              ...params.InputProps,
+              disableUnderline: true,
+              startAdornment: null,
+              endAdornment: null,
+              sx: {
+                p: 0,
+                minHeight: 0,
+                "& input": {
+                  p: 0,
+                  fontSize: 14,
+                },
+              },
+            }}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              "& .MuiInputBase-root": {
+                color: "text.primary",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: theme.palette.text.secondary,
+                opacity: 0.95,
+              },
+            }}
+          />
+          <Tooltip title={`Region: ${selectedCountryLabel}`}>
+            <IconButton aria-label="Region" onClick={onOpenGlobe} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+              <PublicIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={`Brand: ${selectedBrandLabel}`}>
+            <IconButton aria-label="Brands" onClick={onOpenBaseball} sx={{ width: 30, height: 30, border: "1px solid", borderColor: "divider", bgcolor: alpha(theme.palette.background.paper, isDark ? 0.7 : 0.9) }}>
+              <SportsBaseballIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Button
+            color="success"
+            onClick={onOpenIQMode}
+            startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}
+            sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              borderRadius: 999,
+              px: 1.15,
+              py: 0.5,
+              border: "1px solid",
+              borderColor: alpha(theme.palette.success.main, 0.55),
+              bgcolor: alpha(theme.palette.success.main, isDark ? 0.22 : 0.16),
+              fontSize: 11,
+              fontWeight: 700,
+              minWidth: 84,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              color: theme.palette.success.main,
+              "&:hover": {
+                borderColor: alpha(theme.palette.success.main, 0.72),
+                bgcolor: alpha(theme.palette.success.main, isDark ? 0.28 : 0.2),
+              },
+            }}
+          >
+            IQ Mode
+          </Button>
+        </Box>
+      )}
+    />
   );
 }
 
@@ -267,7 +358,6 @@ export default function DashboardHeader({
   tier,
   onOpenPricing,
   onOpenAccount,
-  onOpenCommandPalette,
   onOpenIQMode,
   onOpenFilters,
   selectedCountryLabel,
@@ -276,11 +366,14 @@ export default function DashboardHeader({
   brandOptions,
   onSelectCountry,
   onSelectBrand,
+  searchValue,
+  searchOptions,
+  onSearchValueChange,
+  onSearchSubmit,
 }: {
   tier: Tier;
   onOpenPricing: () => void;
   onOpenAccount: () => void;
-  onOpenCommandPalette: () => void;
   onOpenIQMode: () => void;
   onOpenFilters: () => void;
   selectedCountryLabel: string;
@@ -289,6 +382,10 @@ export default function DashboardHeader({
   brandOptions: Array<{ key: string; label: string }>;
   onSelectCountry: (key: string) => void;
   onSelectBrand: (key: string) => void;
+  searchValue: string;
+  searchOptions: HeaderSearchOption[];
+  onSearchValueChange: (value: string) => void;
+  onSearchSubmit: (query: string) => void;
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -320,12 +417,15 @@ export default function DashboardHeader({
         >
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / 2" }, minWidth: 0 }}>
             <SearchInput
-              onActivate={onOpenCommandPalette}
               onOpenGlobe={(event) => setCountryAnchorEl(event.currentTarget)}
               onOpenBaseball={(event) => setBrandAnchorEl(event.currentTarget)}
               onOpenIQMode={onOpenIQMode}
               selectedCountryLabel={selectedCountryLabel}
               selectedBrandLabel={selectedBrandLabel}
+              value={searchValue}
+              options={searchOptions}
+              onValueChange={onSearchValueChange}
+              onSubmit={onSearchSubmit}
             />
           </Box>
 

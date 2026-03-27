@@ -1,0 +1,585 @@
+import crypto from "node:crypto";
+import type { PrismaClient } from "@prisma/client";
+
+type BrandSeed = {
+  brand_key: string;
+  display_name: string;
+};
+
+export type EbaySyncMode = "active" | "sold";
+
+export type EbayListingRow = {
+  externalListingId: string;
+  itemId: string;
+  marketplaceId: string;
+  title: string;
+  listingUrl: string | null;
+  imageUrls: string[];
+  condition: string | null;
+  priceAmount: number | null;
+  priceCurrency: string | null;
+  available: boolean;
+  sellerName: string | null;
+  brandKey: string;
+  fetchedAt: string;
+  payload: Record<string, unknown>;
+  source: string;
+};
+
+type EbayTokenCache = {
+  token: string | null;
+  expiresAt: number;
+};
+
+type CatalogGlove = {
+  id: string;
+  brandName: string | null;
+  brandSlug: string | null;
+  itemNumber: string | null;
+  pattern: string | null;
+  canonicalName: string | null;
+};
+
+export const EBAY_GLOBAL_IDS = ["EBAY-US", "EBAY-GB", "EBAY-DE", "EBAY-JP", "EBAY-AU", "EBAY-CA", "EBAY-FR", "EBAY-IT", "EBAY-ES"];
+
+function normalizeToken(value: string | null | undefined) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function tokenize(value: string | null | undefined) {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+}
+
+function inferBrandKeyFromTitle(title: string, brands: BrandSeed[]): string {
+  const lower = String(title || "").toLowerCase();
+  for (const brand of brands) {
+    const key = String(brand.brand_key || "").toLowerCase().replace(/_/g, " ");
+    const display = String(brand.display_name || "").toLowerCase();
+    if ((display && lower.includes(display)) || (key && lower.includes(key))) return brand.brand_key;
+  }
+  return "UNKNOWN";
+}
+
+function marketplaceSuffix(globalId: string) {
+  return String(globalId || "").replace(/^EBAY-/, "").trim().toUpperCase() || "US";
+}
+
+function ebayEnv(env: NodeJS.ProcessEnv) {
+  const explicit = String(env.EBAY_ENV || "").trim().toLowerCase();
+  const clientId = String(env.EBAY_CLIENT_ID || "").trim();
+  const sandbox = explicit === "sandbox" || (!explicit && clientId.includes("-SBX-"));
+  return {
+    sandbox,
+    apiBaseUrl: sandbox ? "https://api.sandbox.ebay.com" : "https://api.ebay.com",
+    findingBaseUrl: sandbox ? "https://svcs.sandbox.ebay.com" : "https://svcs.ebay.com",
+  };
+}
+
+async function getEbayAccessToken(env: NodeJS.ProcessEnv, cache: EbayTokenCache): Promise<string | null> {
+  const nowTs = Date.now();
+  if (cache.token && cache.expiresAt > nowTs + 60_000) return cache.token;
+
+  const clientId = String(env.EBAY_CLIENT_ID || "").trim();
+  const clientSecret = String(env.EBAY_CLIENT_SECRET || "").trim();
+  if (!clientId || !clientSecret) return null;
+
+  const { apiBaseUrl } = ebayEnv(env);
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    scope: "https://api.ebay.com/oauth/api_scope",
+  });
+
+  const rsp = await fetch(`${apiBaseUrl}/identity/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  if (!rsp.ok) return null;
+
+  const json = await rsp.json() as { access_token?: string; expires_in?: number };
+  const token = String(json.access_token || "").trim();
+  const expiresIn = Number(json.expires_in || 0);
+  if (!token || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
+
+  cache.token = token;
+  cache.expiresAt = nowTs + (expiresIn * 1000);
+  return token;
+}
+
+async function fetchBrowseRowsPerMarket(params: {
+  env: NodeJS.ProcessEnv;
+  token: string;
+  globalId: string;
+  query: string;
+  pageSize: number;
+  offset: number;
+  brands: BrandSeed[];
+}): Promise<EbayListingRow[]> {
+  const { env, token, globalId, query, pageSize, offset, brands } = params;
+  const { apiBaseUrl } = ebayEnv(env);
+  const source = `ebay_${marketplaceSuffix(globalId).toLowerCase()}`;
+
+  const url = new URL(`${apiBaseUrl}/buy/browse/v1/item_summary/search`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", String(pageSize));
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("sort", "newlyListed");
+
+  const rsp = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-EBAY-C-MARKETPLACE-ID": globalId,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!rsp.ok) return [];
+
+  const data = await rsp.json() as { itemSummaries?: any[] };
+  const items = Array.isArray(data.itemSummaries) ? data.itemSummaries : [];
+
+  return items.map((item): EbayListingRow => {
+    const itemId = String(item?.itemId || "");
+    const title = String(item?.title || "");
+    const imageUrls = [
+      String(item?.image?.imageUrl || ""),
+      ...Array.isArray(item?.thumbnailImages) ? item.thumbnailImages.map((image: any) => String(image?.imageUrl || "")) : [],
+    ].filter(Boolean);
+
+    return {
+      externalListingId: itemId,
+      itemId,
+      marketplaceId: globalId,
+      title,
+      listingUrl: String(item?.itemWebUrl || "") || null,
+      imageUrls: [...new Set(imageUrls)],
+      condition: item?.condition ? String(item.condition) : null,
+      priceAmount: item?.price?.value == null ? null : Number(item.price.value),
+      priceCurrency: item?.price?.currency || null,
+      available: true,
+      sellerName: item?.seller?.username ? String(item.seller.username) : null,
+      brandKey: inferBrandKeyFromTitle(title, brands),
+      fetchedAt: new Date().toISOString(),
+      payload: item,
+      source,
+    };
+  });
+}
+
+async function fetchFindingSoldRowsPerMarket(params: {
+  env: NodeJS.ProcessEnv;
+  appId: string;
+  globalId: string;
+  query: string;
+  pageSize: number;
+  pageNumber: number;
+  brands: BrandSeed[];
+}): Promise<EbayListingRow[]> {
+  const { env, appId, globalId, query, pageSize, pageNumber, brands } = params;
+  const { findingBaseUrl } = ebayEnv(env);
+  const source = `ebay_${marketplaceSuffix(globalId).toLowerCase()}`;
+
+  const url = new URL(`${findingBaseUrl}/services/search/FindingService/v1`);
+  url.searchParams.set("OPERATION-NAME", "findCompletedItems");
+  url.searchParams.set("SERVICE-VERSION", "1.13.0");
+  url.searchParams.set("SECURITY-APPNAME", appId);
+  url.searchParams.set("RESPONSE-DATA-FORMAT", "JSON");
+  url.searchParams.set("REST-PAYLOAD", "true");
+  url.searchParams.set("GLOBAL-ID", globalId);
+  url.searchParams.set("keywords", query);
+  url.searchParams.set("paginationInput.entriesPerPage", String(pageSize));
+  url.searchParams.set("paginationInput.pageNumber", String(pageNumber));
+  url.searchParams.set("itemFilter(0).name", "SoldItemsOnly");
+  url.searchParams.set("itemFilter(0).value", "true");
+
+  const rsp = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+  if (!rsp.ok) return [];
+
+  const data = await rsp.json() as any;
+  const items = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || [];
+
+  return items.map((item: any): EbayListingRow => {
+    const itemId = String(item?.itemId?.[0] || "");
+    const title = String(item?.title?.[0] || "");
+    const primaryImage = String(item?.galleryURL?.[0] || "");
+    return {
+      externalListingId: itemId,
+      itemId,
+      marketplaceId: globalId,
+      title,
+      listingUrl: String(item?.viewItemURL?.[0] || "") || null,
+      imageUrls: primaryImage ? [primaryImage] : [],
+      condition: item?.condition?.[0]?.conditionDisplayName?.[0] ? String(item.condition[0].conditionDisplayName[0]) : null,
+      priceAmount: Number(item?.sellingStatus?.[0]?.convertedCurrentPrice?.[0]?.__value__ || item?.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 0),
+      priceCurrency: "USD",
+      available: false,
+      sellerName: item?.sellerInfo?.[0]?.sellerUserName?.[0] ? String(item.sellerInfo[0].sellerUserName[0]) : null,
+      brandKey: inferBrandKeyFromTitle(title, brands),
+      fetchedAt: String(item?.listingInfo?.[0]?.endTime?.[0] || new Date().toISOString()),
+      payload: item,
+      source,
+    };
+  });
+}
+
+export async function fetchEbayMarketplaceRows(params: {
+  env: NodeJS.ProcessEnv;
+  brands: BrandSeed[];
+  query: string;
+  perMarket: number;
+  globalIds: string[];
+  pages?: number;
+  mode?: EbaySyncMode;
+  tokenCache?: EbayTokenCache;
+}): Promise<EbayListingRow[]> {
+  const appId = String(params.env.EBAY_APP_ID || "").trim();
+  const mode = params.mode || "active";
+  const tokenCache = params.tokenCache || { token: null, expiresAt: 0 };
+  const token = mode === "active" ? await getEbayAccessToken(params.env, tokenCache) : null;
+  const pages = Math.max(1, Math.min(10, Number(params.pages || 1)));
+
+  if (mode === "active" && !token) return [];
+  if (mode === "sold" && !appId) return [];
+
+  const allRows: EbayListingRow[] = [];
+  for (const globalId of params.globalIds) {
+    for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+      const rows = mode === "sold"
+        ? await fetchFindingSoldRowsPerMarket({
+            env: params.env,
+            appId,
+            globalId,
+            query: params.query,
+            pageSize: params.perMarket,
+            pageNumber: pageIndex + 1,
+            brands: params.brands,
+          })
+        : await fetchBrowseRowsPerMarket({
+            env: params.env,
+            token: token!,
+            globalId,
+            query: params.query,
+            pageSize: params.perMarket,
+            offset: pageIndex * params.perMarket,
+            brands: params.brands,
+          });
+      allRows.push(...rows);
+      if (rows.length < params.perMarket) break;
+    }
+  }
+
+  const dedup = new Map<string, EbayListingRow>();
+  for (const row of allRows) dedup.set(`${row.marketplaceId}:${row.externalListingId}`, row);
+  return [...dedup.values()].filter((row) => (row.priceAmount || 0) > 0);
+}
+
+async function ensureSourceRecord(prisma: PrismaClient, params: { name: string; sourceType: string; baseUrl?: string }) {
+  const existingRows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT id::text AS id FROM sources WHERE name = $1 ORDER BY created_at ASC LIMIT 1`,
+    params.name,
+  );
+  if (existingRows[0]?.id) return existingRows[0].id;
+
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO sources (brand_id, source_type, name, base_url) VALUES (NULL, $1, $2, $3)`,
+    params.sourceType,
+    params.name,
+    params.baseUrl || null,
+  );
+
+  const createdRows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT id::text AS id FROM sources WHERE name = $1 ORDER BY created_at ASC LIMIT 1`,
+    params.name,
+  );
+  return createdRows[0]?.id || null;
+}
+
+async function loadCatalogGloves(prisma: PrismaClient): Promise<CatalogGlove[]> {
+  return prisma.$queryRawUnsafe<CatalogGlove[]>(`
+    SELECT
+      g.id::text AS id,
+      b.name AS "brandName",
+      b.slug AS "brandSlug",
+      g.item_number AS "itemNumber",
+      g.pattern,
+      g.canonical_name AS "canonicalName"
+    FROM gloves g
+    LEFT JOIN brands b ON b.id = g.manufacturer_brand_id
+  `);
+}
+
+function buildMatcher(gloves: CatalogGlove[], brands: BrandSeed[]) {
+  return (row: EbayListingRow) => {
+    const titleNorm = normalizeToken(row.title);
+    const titleTokens = new Set(tokenize(row.title));
+    const inferredBrand = row.brandKey !== "UNKNOWN" ? row.brandKey : inferBrandKeyFromTitle(row.title, brands);
+
+    const scored = gloves
+      .map((glove) => {
+        let score = 0;
+        const gloveBrandNorm = normalizeToken(glove.brandName || glove.brandSlug || "");
+        const itemNumberNorm = normalizeToken(glove.itemNumber);
+        const patternNorm = normalizeToken(glove.pattern);
+        const canonicalTokens = tokenize(glove.canonicalName).filter((token) => !["baseball", "glove"].includes(token));
+
+        if (inferredBrand !== "UNKNOWN" && gloveBrandNorm && gloveBrandNorm.includes(normalizeToken(inferredBrand))) score += 2;
+        if (itemNumberNorm && titleNorm.includes(itemNumberNorm)) score += 10;
+        if (patternNorm && titleNorm.includes(patternNorm)) score += 4;
+
+        let tokenOverlap = 0;
+        for (const token of canonicalTokens) {
+          if (titleTokens.has(token)) tokenOverlap += 1;
+        }
+        score += Math.min(3, tokenOverlap);
+
+        return {
+          gloveId: glove.id,
+          score,
+          basis: itemNumberNorm && titleNorm.includes(itemNumberNorm)
+            ? "item_number"
+            : patternNorm && titleNorm.includes(patternNorm)
+              ? "pattern"
+              : tokenOverlap > 0
+                ? "name_tokens"
+                : null,
+        };
+      })
+      .filter((candidate) => candidate.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const top = scored[0];
+    const second = scored[1];
+    if (!top || top.score < 6) return null;
+    if (second && second.score >= top.score - 1 && top.score < 10) return null;
+    return top;
+  };
+}
+
+function imageRole(index: number) {
+  if (index === 0) return "HERO";
+  if (index === 1) return "ALT";
+  return "OTHER";
+}
+
+export async function persistEbayRows(params: {
+  prisma: PrismaClient;
+  env: NodeJS.ProcessEnv;
+  brands: BrandSeed[];
+  rows: EbayListingRow[];
+  query: string;
+  mode?: EbaySyncMode;
+}) {
+  const matcher = buildMatcher(await loadCatalogGloves(params.prisma), params.brands);
+  let persisted = 0;
+  let matched = 0;
+
+  for (const row of params.rows) {
+    const sourceName = `eBay ${marketplaceSuffix(row.marketplaceId)}`;
+    const sourceId = await ensureSourceRecord(params.prisma, {
+      name: sourceName,
+      sourceType: "marketplace",
+      baseUrl: row.listingUrl || "https://www.ebay.com",
+    });
+    if (!sourceId) throw new Error(`Unable to resolve source record for ${sourceName}`);
+
+    const payloadSha = crypto.createHash("sha256").update(JSON.stringify(row.payload)).digest("hex");
+    const matchedGlove = matcher(row);
+
+    await params.prisma.$executeRawUnsafe(`
+      INSERT INTO raw_listing_payloads (
+        source_id,
+        external_listing_id,
+        discovered_at,
+        fetched_at,
+        first_seen_at,
+        last_seen_at,
+        state,
+        dedupe_key,
+        payload_sha256,
+        listing_url,
+        title,
+        condition,
+        price_amount,
+        price_currency,
+        available,
+        payload,
+        normalization,
+        canonical_glove_id
+      )
+      VALUES (
+        $1::uuid,
+        $2,
+        now(),
+        $3::timestamptz,
+        $3::timestamptz,
+        $3::timestamptz,
+        'FETCHED',
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11,
+        $12::jsonb,
+        $13::jsonb,
+        $14::uuid
+      )
+      ON CONFLICT (source_id, external_listing_id) DO UPDATE SET
+        fetched_at = EXCLUDED.fetched_at,
+        last_seen_at = EXCLUDED.last_seen_at,
+        state = EXCLUDED.state,
+        listing_url = EXCLUDED.listing_url,
+        title = EXCLUDED.title,
+        condition = EXCLUDED.condition,
+        price_amount = EXCLUDED.price_amount,
+        price_currency = EXCLUDED.price_currency,
+        available = EXCLUDED.available,
+        payload = EXCLUDED.payload,
+        normalization = EXCLUDED.normalization,
+        canonical_glove_id = EXCLUDED.canonical_glove_id,
+        updated_at = now()
+    `,
+    sourceId,
+    row.externalListingId,
+    row.fetchedAt,
+    `${row.marketplaceId}:${row.externalListingId}`,
+    payloadSha,
+    row.listingUrl,
+    row.title,
+    row.condition,
+    row.priceAmount,
+    row.priceCurrency || "USD",
+    row.available,
+    JSON.stringify(row.payload),
+    JSON.stringify({
+      query: params.query,
+      mode: params.mode || "active",
+      source: row.source,
+      brand_key: row.brandKey,
+      matched_glove_id: matchedGlove?.gloveId || null,
+      match_score: matchedGlove?.score || null,
+      match_basis: matchedGlove?.basis || null,
+      image_count: row.imageUrls.length,
+    }),
+    matchedGlove?.gloveId || null,
+    );
+
+    await params.prisma.$executeRawUnsafe(`
+      INSERT INTO listings (
+        source_id,
+        external_listing_id,
+        url,
+        title,
+        seller_name,
+        condition,
+        price_amount,
+        price_currency,
+        available
+      )
+      VALUES (
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
+      )
+      ON CONFLICT (source_id, external_listing_id) DO UPDATE SET
+        url = EXCLUDED.url,
+        title = EXCLUDED.title,
+        seller_name = EXCLUDED.seller_name,
+        condition = EXCLUDED.condition,
+        price_amount = EXCLUDED.price_amount,
+        price_currency = EXCLUDED.price_currency,
+        available = EXCLUDED.available,
+        updated_at = now()
+    `,
+    sourceId,
+    row.externalListingId,
+    row.listingUrl,
+    row.title,
+    row.sellerName,
+    row.condition,
+    row.priceAmount,
+    row.priceCurrency || "USD",
+    row.available,
+    );
+
+    const listingRows = await params.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id FROM listings WHERE source_id = $1::uuid AND external_listing_id = $2 LIMIT 1`,
+      sourceId,
+      row.externalListingId,
+    );
+    const listingId = listingRows[0]?.id || null;
+    if (!listingId) continue;
+
+    await params.prisma.$executeRawUnsafe(`DELETE FROM listing_specs_raw WHERE listing_id = $1::uuid`, listingId);
+    await params.prisma.$executeRawUnsafe(
+      `INSERT INTO listing_specs_raw (listing_id, spec_key, spec_value, source_label) VALUES ($1::uuid, 'marketplace_id', $2, 'ebay')`,
+      listingId,
+      row.marketplaceId,
+    );
+    await params.prisma.$executeRawUnsafe(
+      `INSERT INTO listing_specs_raw (listing_id, spec_key, spec_value, source_label) VALUES ($1::uuid, 'brand_key_inferred', $2, 'ebay')`,
+      listingId,
+      row.brandKey,
+    );
+
+    if (matchedGlove?.gloveId) {
+      await params.prisma.$executeRawUnsafe(`
+        INSERT INTO listing_glove_links (listing_id, glove_id)
+        VALUES ($1::uuid, $2::uuid)
+        ON CONFLICT (listing_id) DO UPDATE SET glove_id = EXCLUDED.glove_id
+      `, listingId, matchedGlove.gloveId);
+      matched += 1;
+    }
+
+    await params.prisma.$executeRawUnsafe(`DELETE FROM images WHERE listing_id = $1::uuid AND b2_key IS NULL`, listingId);
+    for (const [index, imageUrl] of row.imageUrls.entries()) {
+      await params.prisma.$executeRawUnsafe(`
+        INSERT INTO images (listing_id, glove_id, role, source_url, b2_bucket, b2_key, sha256)
+        VALUES ($1::uuid, $2::uuid, $3, $4, NULL, NULL, NULL)
+      `, listingId, matchedGlove?.gloveId || null, imageRole(index), imageUrl);
+    }
+
+    const rawRows = await params.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id::text AS id FROM raw_listing_payloads WHERE source_id = $1::uuid AND external_listing_id = $2 LIMIT 1`,
+      sourceId,
+      row.externalListingId,
+    );
+    const rawListingId = rawRows[0]?.id || null;
+    if (rawListingId) {
+      await params.prisma.$executeRawUnsafe(`DELETE FROM raw_listing_images WHERE raw_listing_id = $1::uuid`, rawListingId);
+      for (const [index, imageUrl] of row.imageUrls.entries()) {
+        await params.prisma.$executeRawUnsafe(`
+          INSERT INTO raw_listing_images (
+            raw_listing_id,
+            ordinal,
+            source_url,
+            fetch_status,
+            metadata
+          )
+          VALUES (
+            $1::uuid,
+            $2,
+            $3,
+            'PENDING',
+            $4::jsonb
+          )
+          ON CONFLICT (raw_listing_id, ordinal) DO UPDATE SET
+            source_url = EXCLUDED.source_url,
+            metadata = EXCLUDED.metadata,
+            updated_at = now()
+        `, rawListingId, index, imageUrl, JSON.stringify({ source: "ebay", marketplace_id: row.marketplaceId }));
+      }
+    }
+
+    persisted += 1;
+  }
+
+  return { persisted, matched };
+}

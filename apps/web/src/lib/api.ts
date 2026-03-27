@@ -179,6 +179,38 @@ export type CollectionMarketMetrics = {
   lastUpdatedAt: string;
 };
 
+export type CollectionInspectionFactorScore = {
+  factorName: string;
+  factorScore: number | null;
+  weight: number | null;
+  weightedPoints: number | null;
+  observations: string | null;
+};
+
+export type CollectionInspectionPhoto = {
+  id: string;
+  photoUrl: string;
+  photoType: string | null;
+  createdAt: string;
+};
+
+export type CollectionInspectionSummary = {
+  id: string;
+  inspectorType: string;
+  inspectionSource: string | null;
+  notes?: string | null;
+  rawScore: number | null;
+  conditionScore: number | null;
+  conditionLabel: string | null;
+  confidenceScore: number | null;
+  restorationNeeded: boolean;
+  rarityPreservationFlag: boolean;
+  factorScores: CollectionInspectionFactorScore[];
+  photos: CollectionInspectionPhoto[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CollectionItem = {
   id: string;
   status: CollectionStatus;
@@ -194,6 +226,7 @@ export type CollectionItem = {
   createdAt: string;
   updatedAt: string;
   variant: CollectionVariantSummary;
+  inspection: CollectionInspectionSummary | null;
   market: CollectionMarketMetrics;
 };
 
@@ -295,6 +328,38 @@ export const api = {
       method: "DELETE",
       headers: authHeaders(tier),
     });
+  },
+  getCollectionInspections: (id: string, tier?: Tier) => {
+    return json<{ gloveId: string; inspections: CollectionInspectionSummary[] }>(
+      `${API_BASE}/api/me/collection/${encodeURIComponent(id)}/inspections`,
+      { headers: authHeaders(tier) },
+    );
+  },
+  createCollectionInspection: (id: string, payload: Record<string, unknown>, tier?: Tier) => {
+    return json<CollectionInspectionSummary>(`${API_BASE}/api/me/collection/${encodeURIComponent(id)}/inspections`, {
+      method: "POST",
+      headers: { ...authHeaders(tier), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  updateCollectionInspection: (id: string, inspectionId: string, payload: Record<string, unknown>, tier?: Tier) => {
+    return json<CollectionInspectionSummary>(
+      `${API_BASE}/api/me/collection/${encodeURIComponent(id)}/inspections/${encodeURIComponent(inspectionId)}`,
+      {
+        method: "PATCH",
+        headers: { ...authHeaders(tier), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+  deleteCollectionInspection: (id: string, inspectionId: string, tier?: Tier) => {
+    return json<{ ok: true }>(
+      `${API_BASE}/api/me/collection/${encodeURIComponent(id)}/inspections/${encodeURIComponent(inspectionId)}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(tier),
+      },
+    );
   },
   uploadInventoryCsv: async (file: File, tier?: Tier) => {
     const fd = new FormData();

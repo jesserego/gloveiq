@@ -1,0 +1,29 @@
+name: Contracts CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate scraper contracts
+        run: npm --workspace apps/api run contract:check
+
+      - name: Run contract fixtures tests
+        run: npm --workspace apps/api run test:contracts

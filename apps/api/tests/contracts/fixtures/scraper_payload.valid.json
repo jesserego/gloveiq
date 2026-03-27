@@ -1,0 +1,90 @@
+[
+  {
+    "source": "JBG",
+    "source_listing_id": "10028",
+    "url": "https://www.justballgloves.com/product/example/10028/",
+    "title": "Wilson A2000 1786 11.5\"",
+    "manufacturer": "Wilson",
+    "brand": "Wilson",
+    "market": "US",
+    "record_type": "variant",
+    "model_number": "1786",
+    "canonical_sku": "WBW100394115",
+    "price": 299.99,
+    "currency": "USD",
+    "condition": "New",
+    "sport": "Baseball",
+    "throw_hand": "RHT",
+    "observed_at": "2026-02-24T12:00:00.000Z",
+    "normalized_specs": {
+      "web": "I-Web",
+      "size": "11.5",
+      "position": "IF"
+    },
+    "b2_images": [
+      {
+        "b2_bucket": "gloveiq-library",
+        "b2_key": "jbg/10028/01_abc123.jpg",
+        "url": "https://cdn.example.com/jbg/10028/01.jpg",
+        "source_image_url": "https://source.example.com/10028/1.jpg",
+        "sha256": "a73a7f39000d9a0b6cd514efd7793588a9f380ba40b7b4faa0c41543bb73ae33",
+        "width": 1200,
+        "height": 1200
+      }
+    ]
+  },
+  {
+    "source": "SS",
+    "source_listing_id": "ss_7715",
+    "url": "https://sidelineswap.com/listings/7715",
+    "title": "Rawlings Pro Preferred PROS204",
+    "manufacturer": "Rawlings",
+    "brand": "Rawlings",
+    "market": "JP",
+    "record_type": "artifact",
+    "model_number": null,
+    "canonical_sku": null,
+    "price": 185,
+    "currency": "USD",
+    "condition": "Used",
+    "sport": "Baseball",
+    "throw_hand": "LHT",
+    "observed_at": "2026-02-23T09:10:11.000Z",
+    "normalized_specs": {
+      "web": "H-Web",
+      "size": "11.75"
+    },
+    "b2_images": [
+      {
+        "b2_bucket": "gloveiq-library",
+        "b2_key": "ss/7715/01_def456.jpg",
+        "url": "https://cdn.example.com/ss/7715/01.jpg",
+        "source_image_url": null,
+        "sha256": null
+      }
+    ]
+  },
+  {
+    "source": "EBAY",
+    "source_listing_id": "ebay_5501",
+    "url": "https://www.ebay.com/itm/5501",
+    "title": "Mizuno Pro Haga Japan Infield",
+    "manufacturer": "Mizuno",
+    "brand": "Mizuno Pro",
+    "market": "JP",
+    "record_type": "variant",
+    "model_number": "HAGA-IF",
+    "canonical_sku": null,
+    "price": null,
+    "currency": "USD",
+    "condition": "Used",
+    "sport": "Baseball",
+    "throw_hand": "UNK",
+    "observed_at": "2026-02-21T00:00:00.000Z",
+    "normalized_specs": {
+      "level": "Pro",
+      "made_in": "Japan"
+    },
+    "b2_images": []
+  }
+]

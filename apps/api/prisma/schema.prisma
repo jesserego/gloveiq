@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 enum CollectionItemStatus {
@@ -17,6 +18,41 @@ enum ImportJobStatus {
   PREVIEW_READY
   IMPORTED
   FAILED
+}
+
+enum CollectionGloveType {
+  INFIELD
+  OUTFIELD
+  PITCHER
+  CATCHER
+  FIRST_BASE
+  UTILITY
+}
+
+enum InspectionInspectorType {
+  USER
+  ADMIN
+  AI
+  HYBRID
+}
+
+enum InspectionSource {
+  MANUAL_FORM
+  IMAGE_MODEL
+  MARKETPLACE_IMPORT
+}
+
+enum InspectionFactorName {
+  STRUCTURE
+  LEATHER
+  PALM
+  LACES
+  COSMETICS
+}
+
+enum AppraisalImageStorage {
+  LOCAL
+  B2
 }
 
 model UserCollectionItem {
@@ -35,6 +71,7 @@ model UserCollectionItem {
   location             String?              @db.VarChar(128)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
+  gloveProfile         CollectionGlove?
 
   @@index([userId, status])
   @@index([variantId])
@@ -69,4 +106,185 @@ model CollectionImportRow {
 
   @@index([jobId])
   @@index([matchedVariantId])
+}
+
+model CollectionGlove {
+  id               String              @id @default(uuid()) @db.Uuid
+  ownerUserId      String              @db.VarChar(128)
+  collectionItemId String?             @unique @db.Uuid
+  brand            String              @db.VarChar(128)
+  model            String?             @db.VarChar(128)
+  gloveType        CollectionGloveType?
+  handThrow        String?             @db.VarChar(8)
+  sizeInches       Decimal?            @db.Decimal(4, 2)
+  colorway         String?             @db.VarChar(128)
+  leatherType      String?             @db.VarChar(128)
+  year             Int?
+  serialNumber     String?             @db.VarChar(128)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  collectionItem UserCollectionItem? @relation(fields: [collectionItemId], references: [id], onDelete: SetNull)
+  inspections   GloveInspection[]
+
+  @@index([ownerUserId, updatedAt])
+  @@index([brand, model])
+}
+
+model GloveInspection {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  gloveId                String                  @db.Uuid
+  inspectorType          InspectionInspectorType
+  inspectionSource       InspectionSource?
+  notes                  String?
+  rawScore               Decimal?                @db.Decimal(5, 2)
+  conditionScore         Decimal?                @db.Decimal(3, 1)
+  conditionLabel         String?                 @db.VarChar(64)
+  confidenceScore        Decimal?                @db.Decimal(4, 2)
+  restorationNeeded      Boolean                 @default(false)
+  rarityPreservationFlag Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  glove        CollectionGlove         @relation(fields: [gloveId], references: [id], onDelete: Cascade)
+  factorScores InspectionFactorScore[]
+  photos       InspectionPhoto[]
+
+  @@index([gloveId, createdAt])
+  @@index([inspectorType, createdAt])
+}
+
+model InspectionFactorScore {
+  id             String               @id @default(uuid()) @db.Uuid
+  inspectionId   String               @db.Uuid
+  factorName     InspectionFactorName
+  factorScore    Decimal              @db.Decimal(4, 2)
+  weight         Decimal              @db.Decimal(4, 2)
+  weightedPoints Decimal              @db.Decimal(5, 2)
+  observations   String?
+  createdAt      DateTime             @default(now())
+
+  inspection GloveInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@unique([inspectionId, factorName])
+  @@index([factorName])
+}
+
+model InspectionPhoto {
+  id           String          @id @default(uuid()) @db.Uuid
+  inspectionId String          @db.Uuid
+  photoUrl     String
+  photoType    String?         @db.VarChar(32)
+  createdAt    DateTime        @default(now())
+
+  inspection GloveInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@index([inspectionId, photoType])
+}
+
+model FactorReferenceRule {
+  id          String               @id @default(uuid()) @db.Uuid
+  factorName  InspectionFactorName
+  weight      Decimal              @db.Decimal(4, 2)
+  description String?
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+
+  @@index([factorName, isActive])
+}
+
+model AppraisalImage {
+  id        String                @id @default(uuid()) @db.Uuid
+  imageId   String                @unique @db.VarChar(64)
+  sha256    String                @unique
+  name      String
+  mime      String                @db.VarChar(128)
+  bytes     Int
+  url       String
+  storage   AppraisalImageStorage @default(LOCAL)
+  b2Bucket  String?               @db.VarChar(255)
+  b2Key     String?               @db.VarChar(1024)
+  createdAt DateTime              @default(now())
+
+  artifactLinks AppraisalArtifactImage[]
+
+  @@index([createdAt])
+  @@index([storage, createdAt])
+}
+
+model AppraisalArtifactImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  artifactId String   @db.VarChar(128)
+  imageId    String   @db.Uuid
+  role       String   @db.VarChar(64)
+  usable     Boolean  @default(true)
+  bundleHash String   @db.VarChar(128)
+  createdAt  DateTime @default(now())
+
+  image AppraisalImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([artifactId, createdAt])
+  @@index([bundleHash, createdAt])
+}
+
+model AppraisalAiRun {
+  id         String   @id @default(uuid()) @db.Uuid
+  runId      String   @unique @db.VarChar(128)
+  artifactId String   @db.VarChar(128)
+  bundleHash String   @db.VarChar(128)
+  stage      String   @db.VarChar(64)
+  model      String   @db.VarChar(128)
+  inputHash  String   @db.VarChar(128)
+  output     Json
+  createdAt  DateTime @default(now())
+
+  @@index([artifactId, createdAt])
+  @@index([bundleHash, stage])
+}
+
+model AppraisalLabelTruth {
+  id         String   @id @default(uuid()) @db.Uuid
+  artifactId String   @db.VarChar(128)
+  source     String   @db.VarChar(128)
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@index([artifactId, createdAt])
+}
+
+model AppraisalValuationRun {
+  id         String   @id @default(uuid()) @db.Uuid
+  runId      String   @unique @db.VarChar(128)
+  artifactId String   @db.VarChar(128)
+  bundleHash String   @db.VarChar(128)
+  mode       String   @db.VarChar(64)
+  compsUsed  Int      @default(0)
+  output     Json
+  createdAt  DateTime @default(now())
+
+  @@index([artifactId, createdAt])
+  @@index([bundleHash, createdAt])
+}
+
+model AppraisalCorrection {
+  id           String   @id @default(uuid()) @db.Uuid
+  correctionId String   @unique @db.VarChar(128)
+  artifactId   String   @db.VarChar(128)
+  note         String
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@index([artifactId, createdAt])
+}
+
+model AppraisalVerificationEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  eventId    String   @unique @db.VarChar(128)
+  artifactId String   @db.VarChar(128)
+  fromState  String   @map("from") @db.VarChar(64)
+  toState    String   @map("to") @db.VarChar(64)
+  reason     String
+  createdAt  DateTime @default(now())
+
+  @@index([artifactId, createdAt])
 }

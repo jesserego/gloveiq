@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gloveiq/contracts/scraper_payload.schema.v1.json",
+  "title": "GloveIQ Scraper Payload Contract V1",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "source",
+      "source_listing_id",
+      "url",
+      "title",
+      "manufacturer",
+      "brand",
+      "market",
+      "record_type",
+      "price",
+      "currency",
+      "condition",
+      "sport",
+      "throw_hand",
+      "observed_at",
+      "normalized_specs",
+      "b2_images"
+    ],
+    "properties": {
+      "source": {
+        "type": "string",
+        "enum": ["JBG", "SS", "EBAY"]
+      },
+      "source_listing_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "manufacturer": {
+        "type": "string",
+        "minLength": 1
+      },
+      "brand": {
+        "type": "string",
+        "minLength": 1
+      },
+      "market": {
+        "type": "string",
+        "minLength": 1
+      },
+      "record_type": {
+        "type": "string",
+        "enum": ["variant", "artifact"]
+      },
+      "model_number": {
+        "type": ["string", "null"]
+      },
+      "canonical_sku": {
+        "type": ["string", "null"]
+      },
+      "price": {
+        "type": ["number", "null"]
+      },
+      "currency": {
+        "type": "string",
+        "minLength": 1
+      },
+      "condition": {
+        "type": "string",
+        "minLength": 1
+      },
+      "sport": {
+        "type": "string",
+        "minLength": 1
+      },
+      "throw_hand": {
+        "type": "string",
+        "enum": ["RHT", "LHT", "UNK"]
+      },
+      "observed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "normalized_specs": {
+        "type": "object"
+      },
+      "b2_images": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["b2_bucket", "b2_key", "url"],
+          "properties": {
+            "b2_bucket": { "type": "string", "minLength": 1 },
+            "b2_key": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "minLength": 1 },
+            "source_image_url": { "type": ["string", "null"] },
+            "sha256": { "type": ["string", "null"] },
+            "width": { "type": ["number", "null"] },
+            "height": { "type": ["number", "null"] }
+          }
+        }
+      }
+    }
+  }
+}

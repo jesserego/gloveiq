@@ -1,50 +1,266 @@
 [
   {
-    "brand_key": "RAWLINGS",
-    "display_name": "Rawlings",
-    "country_hint": "USA/JP",
+    "brand_key": "44_PRO_DTC",
+    "display_name": "44 Pro",
+    "country_hint": "DTC",
     "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "WILSON",
-    "display_name": "Wilson",
-    "country_hint": "USA/JP",
+    "brand_key": "ABSOLUTELY_RIDICULOUS_US",
+    "display_name": "Absolutely Ridiculous",
+    "country_hint": "USA",
     "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "MIZUNO",
-    "display_name": "Mizuno",
+    "brand_key": "ADIDAS_US",
+    "display_name": "Adidas",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "AKADEMA_US",
+    "display_name": "Akadema",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "ALL_STAR_US",
+    "display_name": "All-Star",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "ATOMS_JP",
+    "display_name": "ATOMS",
     "country_hint": "Japan",
     "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "ZETT",
-    "display_name": "Zett",
-    "country_hint": "Japan",
-    "ai_support": "FAMILY_LEVEL"
+    "brand_key": "BRADLEY_US",
+    "display_name": "Bradley",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "DONAIYA",
-    "display_name": "Donaiya",
-    "country_hint": "Japan",
-    "ai_support": "FAMILY_LEVEL"
+    "brand_key": "DIAMOND_US",
+    "display_name": "Diamond",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "IP_SELECT",
+    "brand_key": "DRAPER_MAYNARD_VINTAGE",
+    "display_name": "Draper & Maynard",
+    "country_hint": "VINTAGE",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "EASTON_US",
+    "display_name": "Easton",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "EMERY_GLOVES_DTC",
+    "display_name": "Emery Gloves",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "FLATBILL_BASEBALL_DTC",
+    "display_name": "Flatbill Baseball",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "FRANKLIN_US",
+    "display_name": "Franklin",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "HI_GOLD_JP",
+    "display_name": "Hi-Gold",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "IGNITE_DTC",
+    "display_name": "Ignite",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "IP_SELECT_JP",
     "display_name": "IP Select",
     "country_hint": "Japan",
-    "ai_support": "FAMILY_LEVEL"
+    "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "HATAKEYAMA",
-    "display_name": "Hatakeyama",
-    "country_hint": "Japan",
-    "ai_support": "FAMILY_LEVEL"
+    "brand_key": "JAX_DTC",
+    "display_name": "JAX",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
   },
   {
-    "brand_key": "KUBOTA_SLUGGER",
+    "brand_key": "KUBOTA_SLUGGER_JP",
     "display_name": "Kubota Slugger",
     "country_hint": "Japan",
-    "ai_support": "FAMILY_LEVEL"
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "LOUISVILLE_SLUGGER_US",
+    "display_name": "Louisville Slugger",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "MACGREGOR_VINTAGE",
+    "display_name": "MacGregor",
+    "country_hint": "VINTAGE",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "MARUCCI_US",
+    "display_name": "Marucci",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "MIZUNO_US",
+    "display_name": "Mizuno",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "MIZUNO_JP",
+    "display_name": "Mizuno Japan",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "NIKE_US",
+    "display_name": "Nike",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "NOKONA_US",
+    "display_name": "Nokona",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "PATRIOT_GLOVE_CO_DTC",
+    "display_name": "Patriot Glove Co.",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "RAWLINGS_US",
+    "display_name": "Rawlings",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "RAWLINGS_JP",
+    "display_name": "Rawlings Japan",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "REACH_VINTAGE",
+    "display_name": "Reach",
+    "country_hint": "VINTAGE",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "RICO_GLOVES_DTC",
+    "display_name": "Rico Gloves",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "SHOELESS_JOE_US",
+    "display_name": "Shoeless Joe",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "SPALDING_VINTAGE",
+    "display_name": "Spalding",
+    "country_hint": "VINTAGE",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "SSK_US",
+    "display_name": "SSK",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "STALL_DEAN_VINTAGE",
+    "display_name": "Stall & Dean",
+    "country_hint": "VINTAGE",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "TAMAZAWA_JP",
+    "display_name": "Tamazawa",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "TEPPEN_JP",
+    "display_name": "Teppen",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "UNDER_ARMOUR_US",
+    "display_name": "Under Armour",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "VINCI_DTC",
+    "display_name": "Vinci",
+    "country_hint": "DTC",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "WAGYU_JB_JP",
+    "display_name": "Wagyu JB",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "WILSON_US",
+    "display_name": "Wilson",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "WILSON_STAFF_JP",
+    "display_name": "Wilson Staff Japan",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "YARDLEY_US",
+    "display_name": "Yardley",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "ZETT_US",
+    "display_name": "ZETT (US)",
+    "country_hint": "USA",
+    "ai_support": "VARIANT_LEVEL"
+  },
+  {
+    "brand_key": "ZETT_JP",
+    "display_name": "ZETT Japan",
+    "country_hint": "Japan",
+    "ai_support": "VARIANT_LEVEL"
   }
 ]
